@@ -22,6 +22,25 @@ Claude Code Hub 通过 Next.js 15 + Hono + PostgreSQL + Redis 组合，实现 Cl
 
 ---
 
+## CoolKingMM Fork 说明
+
+本 fork 基于原项目：[ding113/claude-code-hub](https://github.com/ding113/claude-code-hub)。
+
+当前 fork 默认发布并使用自制镜像：
+
+```bash
+ghcr.io/coolkingmm/claude-code-hub:latest
+```
+
+本 fork 在上游基础上额外包含以下补丁：
+
+- Codex cyber notice 过滤：对 Codex provider 的 SSE 响应过滤 `openai_verification_recommendation=trusted_access_for_cyber` 元数据，避免 Codex TUI 弹出 Trusted Access for Cyber 提示。默认开启，可通过 `CCH_HIDE_CODEX_CYBER_RISK_NOTICE=0` 或 `false` 关闭。
+- fallback provider request filter 修复：当请求从一个 provider fallback 到另一个 provider 后，重新应用目标 provider 的 request filter，避免例如 `AnyRouter` fallback 到 `rawchat` 时没有执行 `rawchat` 专属请求改写。
+- `update.sh` 持久化部署：`update.sh` 默认拉取 `ghcr.io/coolkingmm/claude-code-hub:latest`，并保留运行时热补丁开关，方便直接容器部署和后续更新。
+- fork 镜像自动化：新增 fork 同步和镜像构建 workflow，支持从上游同步后构建并推送 `latest`、`main`、`main-<sha>` 等 GHCR tags。
+
+---
+
 <table>
 <tr>
 <td width="200">

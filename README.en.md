@@ -22,6 +22,25 @@ Claude Code Hub combines Next.js 15, Hono, PostgreSQL, and Redis to deliver a Cl
 
 ---
 
+## CoolKingMM Fork Notes
+
+This fork is based on the upstream project: [ding113/claude-code-hub](https://github.com/ding113/claude-code-hub).
+
+This fork publishes and uses the custom image by default:
+
+```bash
+ghcr.io/coolkingmm/claude-code-hub:latest
+```
+
+Additional patches included in this fork:
+
+- Codex cyber notice filtering: filters `openai_verification_recommendation=trusted_access_for_cyber` metadata from Codex provider SSE responses, preventing the Codex TUI from showing the Trusted Access for Cyber notice. Enabled by default; set `CCH_HIDE_CODEX_CYBER_RISK_NOTICE=0` or `false` to disable it.
+- Fallback provider request filter fix: when a request falls back from one provider to another, the target provider's request filter is applied again. This avoids missing provider-specific rewrites, for example when falling back from `AnyRouter` to `rawchat`.
+- Persistent `update.sh` deployment flow: `update.sh` pulls `ghcr.io/coolkingmm/claude-code-hub:latest` by default and keeps runtime hotfix toggles for direct container deployment and future updates.
+- Fork image automation: adds a fork sync and image build workflow that can sync from upstream and push `latest`, `main`, and `main-<sha>` GHCR tags.
+
+---
+
 <table>
 <tr>
 <td width="200">
