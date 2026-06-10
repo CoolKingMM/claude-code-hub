@@ -25,38 +25,9 @@ ghcr.io/coolkingmm/claude-code-hub:latest
 
 ## 已包含补丁
 
-### Codex cyber notice 过滤
-
-对 Codex provider 的 SSE 响应进行元数据过滤，移除：
-
-```text
-openai_verification_recommendation=trusted_access_for_cyber
-```
-
-目标是避免 Codex TUI 弹出 Trusted Access for Cyber 风险提示。
-
-默认开启。需要关闭时可以设置：
-
-```bash
-CCH_HIDE_CODEX_CYBER_RISK_NOTICE=0
-```
-
-或：
-
-```bash
-CCH_HIDE_CODEX_CYBER_RISK_NOTICE=false
-```
-
-### fallback provider request filter 修复
-
-当一次请求从某个 provider fallback 到另一个 provider 后，会重新对目标 provider 执行 provider-specific request filter。
-
-这个补丁用于避免以下场景：
-
-- 首选 provider 是 `AnyRouter`。
-- fallback provider 是 `rawchat`。
-- `rawchat` 需要独立的 request filter，例如改写 `client_metadata.x-codex-installation-id`。
-- 如果 fallback 后不重新执行 request filter，请求会带着前一个 provider 的形态继续转发，导致上游拒绝。
+- 避免 Codex TUI 弹出 Trusted Access for Cyber 风险提示。
+- 避免 provider fallback 后遗漏目标 provider 的专属请求处理逻辑。
+- 保持 `update.sh` 更新后仍默认使用本 fork 的自制镜像。
 
 ### update.sh 持久化更新
 
@@ -113,8 +84,8 @@ CLAUDE_CODE_HUB_IMAGE=ghcr.io/ding113/claude-code-hub:latest ./update.sh
 
 已确认 `ghcr.io/coolkingmm/claude-code-hub:latest` 可以匿名拉取，并且镜像编译产物中包含：
 
-- Codex cyber notice 过滤逻辑。
-- fallback provider request filter 重新应用逻辑。
+- Codex TUI 风险提示处理补丁。
+- provider fallback 请求处理补丁。
 
 镜像 label 显示：
 

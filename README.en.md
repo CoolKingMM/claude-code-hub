@@ -25,38 +25,9 @@ ghcr.io/coolkingmm/claude-code-hub:latest
 
 ## Included Patches
 
-### Codex cyber notice filtering
-
-For Codex provider SSE responses, this patch removes the metadata value:
-
-```text
-openai_verification_recommendation=trusted_access_for_cyber
-```
-
-The goal is to prevent the Codex TUI from showing the Trusted Access for Cyber notice.
-
-Enabled by default. To disable it, set:
-
-```bash
-CCH_HIDE_CODEX_CYBER_RISK_NOTICE=0
-```
-
-or:
-
-```bash
-CCH_HIDE_CODEX_CYBER_RISK_NOTICE=false
-```
-
-### Fallback provider request filter fix
-
-When a request falls back from one provider to another, the target provider's provider-specific request filter is applied again.
-
-This avoids the following failure mode:
-
-- The preferred provider is `AnyRouter`.
-- The fallback provider is `rawchat`.
-- `rawchat` requires its own request filter, such as rewriting `client_metadata.x-codex-installation-id`.
-- Without reapplying the request filter after fallback, the request keeps the previous provider's shape and may be rejected upstream.
+- Prevents the Codex TUI from showing the Trusted Access for Cyber notice.
+- Avoids missing target-provider request handling after provider fallback.
+- Keeps `update.sh` using this fork's custom image by default after updates.
 
 ### Persistent update.sh deployment
 
@@ -113,8 +84,8 @@ CLAUDE_CODE_HUB_IMAGE=ghcr.io/ding113/claude-code-hub:latest ./update.sh
 
 `ghcr.io/coolkingmm/claude-code-hub:latest` has been verified as anonymously pullable, and the compiled image output contains:
 
-- Codex cyber notice filtering logic.
-- Fallback provider request filter reapplication logic.
+- Codex TUI notice handling patch.
+- Provider fallback request handling patch.
 
 Image labels:
 
