@@ -1057,7 +1057,9 @@ function applyClaudeMetadataUserIdInjectionWithAudit(
 }
 
 export class ProxyForwarder {
-  private static async applyProviderRequestFiltersAfterSwitch(session: ProxySession): Promise<void> {
+  private static async applyProviderRequestFiltersAfterSwitch(
+    session: ProxySession
+  ): Promise<void> {
     if (!session.provider) return;
 
     try {
