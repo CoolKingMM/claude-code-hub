@@ -55,6 +55,7 @@ import {
 } from "./codex-cyber-notice-filter";
 import { isClientAbortError, isTransportError } from "./errors";
 import type { ProxySession } from "./session";
+import { shouldTreatClientAbortedStreamAsCompleted } from "./stream-completion-detector";
 import {
   consumeDeferredStreamingFinalization,
   peekDeferredStreamingFinalization,
@@ -555,19 +556,32 @@ async function finalizeDeferredStreamingFinalizationIfNeeded(
   const isHedgeWinner = meta?.isHedgeWinner === true;
   const billHedgeLosers = meta?.billHedgeLosers === true;
 
-  // 仅在“上游 HTTP=200 且流自然结束”时做“假 200”检测：
+  const streamCompletedBeforeClientAbort = shouldTreatClientAbortedStreamAsCompleted({
+    responseText: allContent,
+    upstreamStatusCode,
+    streamEndedNormally,
+    clientAborted,
+  });
+  const streamCompletedForFinalization = streamEndedNormally || streamCompletedBeforeClientAbort;
+  const clientAbortedForFinalization = streamCompletedBeforeClientAbort ? false : clientAborted;
+
+  // 仅在“上游 HTTP=200 且流已完成”时做“假 200”检测：
   // - 非 200：HTTP 已经表明失败（无需额外启发式）
-  // - 非自然结束：内容可能是部分流/截断，启发式会显著提高误判风险
+  // - 非完成流：内容可能是部分流/截断，启发式会显著提高误判风险
   //
   // 此处返回 `{isError:false}` 仅表示“跳过检测”，最终仍会在下面按中断/超时视为失败结算。
-  const shouldDetectFake200 = streamEndedNormally && upstreamStatusCode === 200;
+  //
+  // Codex/OpenAI 兼容流可能在已收到 `[DONE]` / `response.completed` 后才观察到客户端
+  // abort signal；这种情况按完成流结算，避免把客户端已经拿到完整响应的请求落成
+  // `499 CLIENT_ABORTED`。
+  const shouldDetectFake200 = streamCompletedForFinalization && upstreamStatusCode === 200;
   const detected = shouldDetectFake200
     ? detectUpstreamErrorFromSseOrJsonText(allContent)
     : ({ isError: false } as const);
 
   // “内部结算用”的状态码（不会改变客户端实际 HTTP 状态码）。
   // - 假 200：优先映射为“推断得到的 4xx/5xx”（未命中则回退 502），确保内部统计/熔断/会话绑定把它当作失败。
-  // - 未自然结束：也应映射为失败（避免把中断/部分流误记为 200 completed）。
+  // - 未完成流：也应映射为失败（避免把中断/部分流误记为 200 completed）。
   let effectiveStatusCode: number;
   let errorMessage: string | null;
   let statusCodeInferred = false;
@@ -582,11 +596,13 @@ async function finalizeDeferredStreamingFinalizationIfNeeded(
       effectiveStatusCode = 502;
     }
     errorMessage = detected.detail ? `${detected.code}: ${detected.detail}` : detected.code;
-  } else if (!streamEndedNormally) {
-    effectiveStatusCode = clientAborted ? 499 : 502;
-    errorMessage = clientAborted ? "CLIENT_ABORTED" : (abortReason ?? "STREAM_ABORTED");
+  } else if (!streamCompletedForFinalization) {
+    effectiveStatusCode = clientAbortedForFinalization ? 499 : 502;
+    errorMessage = clientAbortedForFinalization
+      ? "CLIENT_ABORTED"
+      : (abortReason ?? "STREAM_ABORTED");
   } else {
-    // streamEndedNormally=true
+    // streamCompletedForFinalization=true
     effectiveStatusCode = upstreamStatusCode;
 
     if (upstreamStatusCode >= 400) {
@@ -600,7 +616,7 @@ async function finalizeDeferredStreamingFinalizationIfNeeded(
   }
 
   const shouldClearSessionBindingOnFailure =
-    !streamEndedNormally ||
+    !streamCompletedForFinalization ||
     detected.isError ||
     (upstreamStatusCode >= 400 && errorMessage !== null);
 
@@ -658,15 +674,18 @@ async function finalizeDeferredStreamingFinalizationIfNeeded(
     }
   }
 
-  // 未自然结束：不更新 session 绑定（避免把会话粘到不稳定 provider），但要避免把它误记为 200 completed。
+  // 未完成流：不更新 session 绑定（避免把会话粘到不稳定 provider），但要避免把它误记为 200 completed。
   //
   // 同时，为了让故障转移/熔断能正确工作：
   // - 客户端主动中断：不计入熔断器（这通常不是供应商问题）
   // - 非客户端中断：计入 provider/endpoint 熔断失败（与 timeout 路径保持一致）
-  if (!streamEndedNormally) {
+  if (!streamCompletedForFinalization) {
     await clearSessionBinding();
 
-    if (!clientAborted && session.getEndpointPolicy().allowCircuitBreakerAccounting) {
+    if (
+      !clientAbortedForFinalization &&
+      session.getEndpointPolicy().allowCircuitBreakerAccounting
+    ) {
       try {
         // 动态导入：避免 proxy 模块与熔断器模块之间潜在的循环依赖。
         const { recordFailure } = await import("@/lib/circuit-breaker");
