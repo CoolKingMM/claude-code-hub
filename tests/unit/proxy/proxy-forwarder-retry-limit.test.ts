@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => {
     recordSuccess: vi.fn(),
     recordFailure: vi.fn(async () => {}),
     getCircuitState: vi.fn(() => "closed"),
+    isCircuitOpen: vi.fn(async () => false),
     getProviderHealthInfo: vi.fn(async () => ({
       health: { failureCount: 0 },
       config: { failureThreshold: 3 },
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => {
     recordVendorTypeAllEndpointsTimeout: vi.fn(async () => {}),
     findAllProviders: vi.fn(async () => []),
     getCachedProviders: vi.fn(async () => []),
+    applyForProvider: vi.fn(async () => {}),
   };
 });
 
@@ -62,6 +64,7 @@ vi.mock("@/lib/endpoint-circuit-breaker", () => ({
 
 vi.mock("@/lib/circuit-breaker", () => ({
   getCircuitState: mocks.getCircuitState,
+  isCircuitOpen: mocks.isCircuitOpen,
   getProviderHealthInfo: mocks.getProviderHealthInfo,
   recordSuccess: mocks.recordSuccess,
   recordFailure: mocks.recordFailure,
@@ -78,6 +81,12 @@ vi.mock("@/repository/provider", () => ({
 
 vi.mock("@/lib/cache/provider-cache", () => ({
   getCachedProviders: mocks.getCachedProviders,
+}));
+
+vi.mock("@/lib/request-filter-engine", () => ({
+  requestFilterEngine: {
+    applyForProvider: mocks.applyForProvider,
+  },
 }));
 
 vi.mock("@/app/v1/_lib/proxy/errors", async (importOriginal) => {
@@ -670,6 +679,80 @@ describe("ProxyForwarder - retry limit enforcement", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("provider switch should reapply provider-specific request filters before fallback forwarding", async () => {
+    const session = createSession(new URL("https://example.com/v1/responses"));
+    session.originalFormat = "response";
+    session.request.model = "gpt-5.5";
+    session.request.message = {
+      model: "gpt-5.5",
+      client_metadata: {
+        "x-codex-installation-id": "real-installation-id",
+      },
+    };
+
+    const firstProvider = createProvider({
+      id: 1,
+      name: "anyrouter",
+      providerType: "codex",
+      providerVendorId: null,
+      maxRetryAttempts: 1,
+      priority: 0,
+    });
+    const fallbackProvider = createProvider({
+      id: 2,
+      name: "rawchat",
+      providerType: "codex",
+      providerVendorId: null,
+      maxRetryAttempts: 1,
+      priority: 1,
+    });
+
+    session.setProvider(firstProvider);
+    (session as unknown as { providersSnapshot: Provider[] }).providersSnapshot = [
+      firstProvider,
+      fallbackProvider,
+    ];
+
+    mocks.applyForProvider.mockImplementationOnce(async (fallbackSession: ProxySession) => {
+      expect(fallbackSession.provider?.id).toBe(fallbackProvider.id);
+      (
+        fallbackSession.request.message as {
+          client_metadata: { "x-codex-installation-id": string | null };
+        }
+      ).client_metadata["x-codex-installation-id"] = null;
+    });
+
+    const doForward = vi.spyOn(
+      ProxyForwarder as unknown as { doForward: (...args: unknown[]) => unknown },
+      "doForward"
+    );
+
+    doForward.mockImplementationOnce(async () => {
+      throw new ProxyError("first provider failed", 500);
+    });
+    doForward.mockImplementationOnce(async (fallbackSession: ProxySession, provider: Provider) => {
+      expect(provider.id).toBe(fallbackProvider.id);
+      expect(
+        (
+          fallbackSession.request.message as {
+            client_metadata: { "x-codex-installation-id": string | null };
+          }
+        ).client_metadata["x-codex-installation-id"]
+      ).toBeNull();
+
+      return new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json", "content-length": "2" },
+      });
+    });
+
+    const response = await ProxyForwarder.send(session);
+
+    expect(response.status).toBe(200);
+    expect(mocks.applyForProvider).toHaveBeenCalledTimes(1);
+    expect(doForward).toHaveBeenCalledTimes(2);
   });
 
   test("all retries exhausted: should not exceed maxRetryAttempts", async () => {

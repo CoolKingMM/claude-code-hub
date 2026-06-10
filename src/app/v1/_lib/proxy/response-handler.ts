@@ -49,6 +49,10 @@ import { GeminiAdapter } from "../gemini/adapter";
 import type { GeminiResponse } from "../gemini/types";
 import { extractActualResponseModelForProvider } from "./actual-response-model";
 import { bindClientAbortListener } from "./client-abort-listener";
+import {
+  createCodexCyberNoticeFilter,
+  shouldHideCodexCyberNotice,
+} from "./codex-cyber-notice-filter";
 import { isClientAbortError, isTransportError } from "./errors";
 import type { ProxySession } from "./session";
 import {
@@ -2988,7 +2992,13 @@ export class ProxyResponseHandler {
       });
     }
 
-    return new Response(clientStream, {
+    // ⭐ 修复 Bun 运行时的 Transfer-Encoding 重复问题
+    // 清理上游的传输 headers，让 Response API 自动管理
+    const visibleClientStream = shouldHideCodexCyberNotice(session.provider?.providerType)
+      ? clientStream.pipeThrough(createCodexCyberNoticeFilter())
+      : clientStream;
+
+    return new Response(visibleClientStream, {
       status: response.status,
       statusText: response.statusText,
       headers: finalStreamHeaders,

@@ -1,0 +1,125 @@
+name: Fork Sync and Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_branch:
+        description: Upstream branch to merge
+        required: true
+        default: main
+      force_build:
+        description: Build image even when there are no upstream changes
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  schedule:
+    - cron: "25 20 * * *"
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: fork-sync-and-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'CoolKingMM'
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge upstream
+        id: sync
+        env:
+          UPSTREAM_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.upstream_branch || 'main' }}
+        run: |
+          set -euo pipefail
+
+          git remote add upstream https://github.com/ding113/claude-code-hub.git
+          git fetch upstream "$UPSTREAM_BRANCH"
+
+          BEFORE="$(git rev-parse HEAD)"
+          git merge --no-edit "upstream/$UPSTREAM_BRANCH"
+          AFTER="$(git rev-parse HEAD)"
+
+          if [ "$BEFORE" != "$AFTER" ]; then
+            git push origin HEAD:main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          FULL_SHA="$(git rev-parse HEAD)"
+          echo "full_sha=$FULL_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Decide build
+        id: build_flag
+        env:
+          FORCE_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_build || 'false' }}
+          UPSTREAM_CHANGED: ${{ steps.sync.outputs.changed }}
+        run: |
+          if [ "$FORCE_BUILD" = "true" ] || [ "$UPSTREAM_CHANGED" = "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare image name
+        if: steps.build_flag.outputs.should_build == 'true'
+        id: image_names
+        run: |
+          GHCR_IMAGE="$(echo "ghcr.io/${{ github.repository_owner }}/claude-code-hub" | tr '[:upper:]' '[:lower:]')"
+          echo "ghcr_image=$GHCR_IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        if: steps.build_flag.outputs.should_build == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.build_flag.outputs.should_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: steps.build_flag.outputs.should_build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        if: steps.build_flag.outputs.should_build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            APP_VERSION=main-${{ steps.sync.outputs.short_sha }}
+          tags: |
+            ${{ steps.image_names.outputs.ghcr_image }}:latest
+            ${{ steps.image_names.outputs.ghcr_image }}:main
+            ${{ steps.image_names.outputs.ghcr_image }}:main-${{ steps.sync.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.version=main-${{ steps.sync.outputs.short_sha }}
+            org.opencontainers.image.revision=${{ steps.sync.outputs.full_sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

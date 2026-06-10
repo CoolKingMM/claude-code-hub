@@ -29,6 +29,7 @@ import {
 } from "@/lib/provider-endpoints/endpoint-selector";
 import { getGlobalAgentPool, getProxyAgentForProvider } from "@/lib/proxy-agent";
 import { RateLimitService } from "@/lib/rate-limit/service";
+import { requestFilterEngine } from "@/lib/request-filter-engine";
 import { SessionManager } from "@/lib/session-manager";
 import {
   detectUpstreamErrorFromSseOrJsonText,
@@ -1056,6 +1057,20 @@ function applyClaudeMetadataUserIdInjectionWithAudit(
 }
 
 export class ProxyForwarder {
+  private static async applyProviderRequestFiltersAfterSwitch(session: ProxySession): Promise<void> {
+    if (!session.provider) return;
+
+    try {
+      await requestFilterEngine.applyForProvider(session);
+    } catch (error) {
+      logger.error("ProxyForwarder: Failed to apply provider-specific filters after switch", {
+        error,
+        providerId: session.provider.id,
+        providerName: session.provider.name,
+      });
+    }
+  }
+
   static async send(session: ProxySession): Promise<Response> {
     if (!session.provider || !session.authState?.success) {
       throw new Error("代理上下文缺少供应商或鉴权信息");
@@ -2179,6 +2194,7 @@ export class ProxyForwarder {
       // 切换到新供应商
       currentProvider = alternativeProvider;
       session.setProvider(currentProvider);
+      await ProxyForwarder.applyProviderRequestFiltersAfterSwitch(session);
 
       logger.info("ProxyForwarder: Switched to alternative provider", {
         totalProvidersAttempted,
