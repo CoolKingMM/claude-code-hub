@@ -6,6 +6,10 @@ import { createRoot } from "react-dom/client";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { SystemSettingsForm } from "@/app/[locale]/settings/config/_components/system-settings-form";
+import {
+  SpecialHandlingForm,
+  type SpecialHandlingFormLabels,
+} from "@/app/[locale]/settings/special-handling/_components/special-handling-form";
 import type { SystemSettings } from "@/types/system-config";
 
 vi.mock("next/navigation", () => ({
@@ -118,6 +122,20 @@ function loadMessages(locale: string) {
   };
 }
 
+function getSpecialHandlingLabels(): SpecialHandlingFormLabels {
+  const messages = loadMessages("zh-CN").settings;
+  const { fakeStreaming, providerOutputSafety } = messages.config.form;
+
+  return {
+    fakeStreaming,
+    providerOutputSafety,
+    saveSettings: messages.config.form.saveSettings,
+    saving: messages.common.saving,
+    saveFailed: messages.config.form.saveFailed,
+    configUpdated: messages.config.form.configUpdated,
+  };
+}
+
 function render(node: ReactNode) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -184,6 +202,54 @@ describe("SystemSettingsForm fake streaming whitelist", () => {
         providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
       })
     );
+
+    unmount();
+  });
+
+  test("does not submit special handling fields when hidden from system config page", async () => {
+    const { unmount } = render(
+      <SystemSettingsForm initialSettings={baseSettings} showSpecialHandling={false} />
+    );
+
+    await submitForm();
+
+    const payload = systemConfigActionMocks.saveSystemSettings.mock.calls.at(-1)?.[0] as Record<
+      string,
+      unknown
+    >;
+
+    expect(payload).not.toHaveProperty("fakeStreamingWhitelist");
+    expect(payload).not.toHaveProperty("enableProviderOutputSafetyFilter");
+    expect(payload).not.toHaveProperty("providerOutputSafetyFilterRules");
+
+    unmount();
+  });
+
+  test("special handling form submits only special handling settings", async () => {
+    const { unmount } = render(
+      <SpecialHandlingForm
+        initialSettings={{
+          fakeStreamingWhitelist: baseSettings.fakeStreamingWhitelist,
+          enableProviderOutputSafetyFilter: baseSettings.enableProviderOutputSafetyFilter,
+          providerOutputSafetyFilterRules: baseSettings.providerOutputSafetyFilterRules,
+        }}
+        labels={getSpecialHandlingLabels()}
+      />
+    );
+
+    await submitForm();
+
+    expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith({
+      fakeStreamingWhitelist: [
+        { model: "gpt-image-2", groupTags: [] },
+        { model: "gemini-3.1-flash-image-preview", groupTags: [] },
+      ],
+      enableProviderOutputSafetyFilter: true,
+      providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
+    });
+
+    expect(document.body.textContent).toContain("避免长请求 499/CLIENT_ABORTED 中断");
+    expect(document.body.textContent).toContain("渠道投毒命令过滤");
 
     unmount();
   });

@@ -97,6 +97,7 @@ interface SystemSettingsFormProps {
     | "ipGeoLookupEnabled"
     | "ipExtractionConfig"
   >;
+  showSpecialHandling?: boolean;
 }
 
 function clampQuotaDbRefreshIntervalSeconds(raw: string): number {
@@ -125,7 +126,10 @@ function parseProviderOutputSafetyFilterRules(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps) {
+export function SystemSettingsForm({
+  initialSettings,
+  showSpecialHandling = true,
+}: SystemSettingsFormProps) {
   const router = useRouter();
   const t = useTranslations("settings.config.form");
   const tSettings = useTranslations("settings");
@@ -282,21 +286,23 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
       ipExtractionConfigToSave = parsed as IpExtractionConfig;
     }
 
-    const providerOutputSafetyFilterRulesToSave = parseProviderOutputSafetyFilterRules(
-      providerOutputSafetyFilterRulesText
-    );
-    for (let index = 0; index < providerOutputSafetyFilterRulesToSave.length; index += 1) {
-      const error = validateProviderOutputSafetyFilterRule(
-        providerOutputSafetyFilterRulesToSave[index]
-      );
-      if (error) {
-        toast.error(
-          t("providerOutputSafety.invalidRule", {
-            line: index + 1,
-            message: error,
-          })
+    const providerOutputSafetyFilterRulesToSave = showSpecialHandling
+      ? parseProviderOutputSafetyFilterRules(providerOutputSafetyFilterRulesText)
+      : [];
+    if (showSpecialHandling) {
+      for (let index = 0; index < providerOutputSafetyFilterRulesToSave.length; index += 1) {
+        const error = validateProviderOutputSafetyFilterRule(
+          providerOutputSafetyFilterRulesToSave[index]
         );
-        return;
+        if (error) {
+          toast.error(
+            t("providerOutputSafety.invalidRule", {
+              line: index + 1,
+              message: error,
+            })
+          );
+          return;
+        }
       }
     }
 
@@ -341,6 +347,14 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
     })();
 
     startTransition(async () => {
+      const specialHandlingUpdates = showSpecialHandling
+        ? {
+            fakeStreamingWhitelist: sanitizedFakeStreamingWhitelist,
+            enableProviderOutputSafetyFilter,
+            providerOutputSafetyFilterRules: providerOutputSafetyFilterRulesToSave,
+          }
+        : {};
+
       const result = await saveSystemSettings({
         siteTitle,
         allowGlobalUsageView,
@@ -360,9 +374,6 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
         enableBillingHeaderRectifier,
         enableResponseInputRectifier,
         allowNonConversationEndpointProviderFallback,
-        fakeStreamingWhitelist: sanitizedFakeStreamingWhitelist,
-        enableProviderOutputSafetyFilter,
-        providerOutputSafetyFilterRules: providerOutputSafetyFilterRulesToSave,
         enableThinkingBudgetRectifier,
         enableCodexSessionIdCompletion,
         enableClaudeMetadataUserIdInjection,
@@ -376,6 +387,7 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
         quotaLeaseCapUsd: quotaLeaseCapUsd.trim() === "" ? null : parseFloat(quotaLeaseCapUsd),
         ipGeoLookupEnabled,
         ipExtractionConfig: ipExtractionConfigToSave,
+        ...specialHandlingUpdates,
       });
 
       if (!result.ok) {
@@ -962,85 +974,87 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
           />
         </div>
 
-        {/* Provider Output Safety Filter */}
-        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0">
-              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 shrink-0">
-                <Terminal className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  {t("providerOutputSafety.title")}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {t("providerOutputSafety.description")}
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="enable-provider-output-safety-filter"
-              checked={enableProviderOutputSafetyFilter}
-              onCheckedChange={(checked) => setEnableProviderOutputSafetyFilter(checked)}
-              disabled={isPending}
-            />
-          </div>
-
-          <Collapsible
-            open={providerOutputSafetyFilterOpen}
-            onOpenChange={setProviderOutputSafetyFilterOpen}
-          >
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-1.5 mt-3 ml-11 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${providerOutputSafetyFilterOpen ? "" : "-rotate-90"}`}
-                />
-                {t("providerOutputSafety.editRules")}
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-3 space-y-2 pl-11">
-                <Label
-                  htmlFor="provider-output-safety-filter-rules"
-                  className="text-sm font-medium text-foreground"
-                >
-                  {t("providerOutputSafety.rulesLabel")}
-                </Label>
-                <Textarea
-                  id="provider-output-safety-filter-rules"
-                  value={providerOutputSafetyFilterRulesText}
-                  onChange={(event) => setProviderOutputSafetyFilterRulesText(event.target.value)}
-                  placeholder={DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES_TEXT}
-                  disabled={isPending}
-                  rows={8}
-                  spellCheck={false}
-                  className={`${inputClassName} font-mono text-xs`}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("providerOutputSafety.rulesHint")}
-                </p>
-                <div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setProviderOutputSafetyFilterRulesText(
-                        DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES_TEXT
-                      )
-                    }
-                    disabled={isPending}
-                  >
-                    {t("providerOutputSafety.resetToDefault")}
-                  </Button>
+        {showSpecialHandling && (
+          /* Provider Output Safety Filter */
+          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 shrink-0">
+                  <Terminal className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {t("providerOutputSafety.title")}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {t("providerOutputSafety.description")}
+                  </p>
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+              <Switch
+                id="enable-provider-output-safety-filter"
+                checked={enableProviderOutputSafetyFilter}
+                onCheckedChange={(checked) => setEnableProviderOutputSafetyFilter(checked)}
+                disabled={isPending}
+              />
+            </div>
+
+            <Collapsible
+              open={providerOutputSafetyFilterOpen}
+              onOpenChange={setProviderOutputSafetyFilterOpen}
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 mt-3 ml-11 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${providerOutputSafetyFilterOpen ? "" : "-rotate-90"}`}
+                  />
+                  {t("providerOutputSafety.editRules")}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-3 space-y-2 pl-11">
+                  <Label
+                    htmlFor="provider-output-safety-filter-rules"
+                    className="text-sm font-medium text-foreground"
+                  >
+                    {t("providerOutputSafety.rulesLabel")}
+                  </Label>
+                  <Textarea
+                    id="provider-output-safety-filter-rules"
+                    value={providerOutputSafetyFilterRulesText}
+                    onChange={(event) => setProviderOutputSafetyFilterRulesText(event.target.value)}
+                    placeholder={DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES_TEXT}
+                    disabled={isPending}
+                    rows={8}
+                    spellCheck={false}
+                    className={`${inputClassName} font-mono text-xs`}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("providerOutputSafety.rulesHint")}
+                  </p>
+                  <div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setProviderOutputSafetyFilterRulesText(
+                          DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES_TEXT
+                        )
+                      }
+                      disabled={isPending}
+                    >
+                      {t("providerOutputSafety.resetToDefault")}
+                    </Button>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
 
         {/* Response Fixer Section */}
         <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">

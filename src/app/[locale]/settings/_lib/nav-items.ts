@@ -34,6 +34,12 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     iconName: "settings",
   },
   {
+    href: "/settings/special-handling",
+    labelKey: "nav.specialHandling",
+    label: "特殊处理",
+    iconName: "shield-alert",
+  },
+  {
     href: "/settings/status-page",
     labelKey: "nav.statusPage",
     label: "Status Page",
@@ -112,6 +118,14 @@ export async function getTranslatedNavItems(locale: string): Promise<SettingsNav
   const t = await getTranslations({ locale, namespace: "settings" });
   return SETTINGS_NAV_ITEMS.map((item) => ({
     ...item,
-    label: item.labelKey ? t(item.labelKey) : item.label,
+    label: item.labelKey
+      ? (() => {
+          try {
+            return t(item.labelKey);
+          } catch {
+            return item.label;
+          }
+        })()
+      : item.label,
   }));
 }

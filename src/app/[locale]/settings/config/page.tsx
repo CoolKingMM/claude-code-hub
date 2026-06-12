@@ -44,6 +44,7 @@ async function SettingsConfigContent({ locale }: { locale: string }) {
         variant="default"
       >
         <SystemSettingsForm
+          showSpecialHandling={false}
           initialSettings={{
             siteTitle: settings.siteTitle,
             allowGlobalUsageView: settings.allowGlobalUsageView,
