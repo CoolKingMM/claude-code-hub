@@ -54,6 +54,10 @@ import {
   shouldHideCodexCyberNotice,
 } from "./codex-cyber-notice-filter";
 import { isClientAbortError, isTransportError } from "./errors";
+import {
+  createProviderOutputSafetyFilter,
+  shouldFilterProviderOutputSafety,
+} from "./provider-output-safety-filter";
 import type { ProxySession } from "./session";
 import { shouldTreatClientAbortedStreamAsCompleted } from "./stream-completion-detector";
 import {
@@ -162,6 +166,18 @@ function cleanResponseHeaders(headers: Headers): Headers {
   cleaned.delete("content-length"); // body 改变后长度无效，Response API 会重新计算
 
   return cleaned;
+}
+
+function applyProviderOutputSafetyFilterToResponse(response: Response): Response {
+  if (!response.body || !shouldFilterProviderOutputSafety(response.headers.get("content-type"))) {
+    return response;
+  }
+
+  return new Response(response.body.pipeThrough(createProviderOutputSafetyFilter()), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: cleanResponseHeaders(response.headers),
+  });
 }
 
 function ensurePricingResolutionSpecialSetting(
@@ -1178,7 +1194,7 @@ export class ProxyResponseHandler {
           });
         }
 
-        return response;
+        return applyProviderOutputSafetyFilterToResponse(response);
       } else {
         // ❌ 需要转换：客户端不是 Gemini 格式（如 OpenAI/Claude）
         try {
@@ -1677,6 +1693,8 @@ export class ProxyResponseHandler {
         phase: "non-stream",
       });
     });
+
+    finalResponse = applyProviderOutputSafetyFilterToResponse(finalResponse);
 
     void persistNonStreamAfterSnapshot(finalResponse).catch((error) => {
       logger.error("[ResponseHandler] Failed to persist non-stream after snapshot", { error });
@@ -3013,9 +3031,13 @@ export class ProxyResponseHandler {
 
     // ⭐ 修复 Bun 运行时的 Transfer-Encoding 重复问题
     // 清理上游的传输 headers，让 Response API 自动管理
-    const visibleClientStream = shouldHideCodexCyberNotice(session.provider?.providerType)
+    let visibleClientStream = shouldHideCodexCyberNotice(session.provider?.providerType)
       ? clientStream.pipeThrough(createCodexCyberNoticeFilter())
       : clientStream;
+
+    if (shouldFilterProviderOutputSafety(finalStreamHeaders.get("content-type"))) {
+      visibleClientStream = visibleClientStream.pipeThrough(createProviderOutputSafetyFilter());
+    }
 
     return new Response(visibleClientStream, {
       status: response.status,

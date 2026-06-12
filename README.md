@@ -27,6 +27,7 @@ ghcr.io/coolkingmm/claude-code-hub:latest
 
 - 避免 Codex TUI 弹出 Trusted Access for Cyber 风险提示。
 - 避免 provider fallback 后遗漏目标 provider 的专属请求处理逻辑。
+- 过滤上游返回中的高风险本地执行指令，降低 Codex/Claude TUI 被渠道投毒诱导执行危险命令的风险。
 - 保持 `update.sh` 更新后仍默认使用本 fork 的自制镜像。
 
 ### update.sh 持久化更新
