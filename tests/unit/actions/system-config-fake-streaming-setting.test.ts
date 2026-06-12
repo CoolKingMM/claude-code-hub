@@ -91,6 +91,7 @@ function createSettings(overrides: Record<string, unknown> = {}) {
     enableResponseFixer: true,
     allowNonConversationEndpointProviderFallback: true,
     fakeStreamingWhitelist: DEFAULT_FAKE_STREAMING_MODELS,
+    fakeStreamingProviderIds: null,
     enableProviderOutputSafetyFilter: true,
     providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     responseFixerConfig: {
@@ -147,6 +148,7 @@ describe("fake streaming whitelist system setting", () => {
         siteTitle: "Claude Code Hub",
       });
       expect(fromMissingField.fakeStreamingWhitelist).toEqual(DEFAULT_FAKE_STREAMING_MODELS);
+      expect(fromMissingField.fakeStreamingProviderIds).toBeNull();
     });
 
     test("preserves empty fake streaming whitelist as explicit opt out", async () => {
@@ -284,6 +286,21 @@ describe("fake streaming whitelist system setting", () => {
       expect(parsed.fakeStreamingWhitelist).toEqual([]);
     });
 
+    test("deduplicates provider ids and rejects invalid ids", async () => {
+      const { UpdateSystemSettingsSchema } = await import("@/lib/validation/schemas");
+
+      const parsed = UpdateSystemSettingsSchema.parse({
+        fakeStreamingProviderIds: [12, 12, 34],
+      });
+      expect(parsed.fakeStreamingProviderIds).toEqual([12, 34]);
+
+      expect(() =>
+        UpdateSystemSettingsSchema.parse({
+          fakeStreamingProviderIds: [0],
+        })
+      ).toThrow();
+    });
+
     test("validates provider output safety filter rules", async () => {
       const { UpdateSystemSettingsSchema } = await import("@/lib/validation/schemas");
 
@@ -363,6 +380,27 @@ describe("fake streaming whitelist system setting", () => {
       );
       if (result.ok) {
         expect(result.data.fakeStreamingWhitelist).toEqual([]);
+      }
+    });
+
+    test("saves provider ids for all models on selected providers", async () => {
+      updateSystemSettingsMock.mockResolvedValueOnce(
+        createSettings({ fakeStreamingProviderIds: [12, 34] })
+      );
+
+      const { saveSystemSettings } = await import("@/actions/system-config");
+      const result = await saveSystemSettings({
+        fakeStreamingProviderIds: [12, 12, 34],
+      });
+
+      expect(result.ok).toBe(true);
+      expect(updateSystemSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fakeStreamingProviderIds: [12, 34],
+        })
+      );
+      if (result.ok) {
+        expect(result.data.fakeStreamingProviderIds).toEqual([12, 34]);
       }
     });
   });

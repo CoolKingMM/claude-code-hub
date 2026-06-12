@@ -19,12 +19,7 @@ vi.mock("next/navigation", () => ({
 const systemConfigActionMocks = vi.hoisted(() => ({
   saveSystemSettings: vi.fn(async () => ({ ok: true })),
 }));
-vi.mock("@/actions/system-config", () => systemConfigActionMocks);
-
-const requestFiltersActionMocks = vi.hoisted(() => ({
-  getDistinctProviderGroupsAction: vi.fn(async () => ({ ok: true, data: ["group-a", "group-b"] })),
-}));
-vi.mock("@/actions/request-filters", () => requestFiltersActionMocks);
+vi.mock("@/lib/api-client/v1/actions/system-config", () => systemConfigActionMocks);
 
 const sonnerMocks = vi.hoisted(() => ({
   toast: {
@@ -35,16 +30,58 @@ const sonnerMocks = vi.hoisted(() => ({
 }));
 vi.mock("sonner", () => sonnerMocks);
 
-const baseSettings = {
+type FormSettings = Pick<
+  SystemSettings,
+  | "siteTitle"
+  | "allowGlobalUsageView"
+  | "currencyDisplay"
+  | "billingModelSource"
+  | "codexPriorityBillingSource"
+  | "billNonSuccessfulRequests"
+  | "billHedgeLosers"
+  | "timezone"
+  | "verboseProviderError"
+  | "passThroughUpstreamErrorMessage"
+  | "enableHttp2"
+  | "enableOpenaiResponsesWebsocket"
+  | "enableHighConcurrencyMode"
+  | "interceptAnthropicWarmupRequests"
+  | "enableThinkingSignatureRectifier"
+  | "enableThinkingBudgetRectifier"
+  | "enableBillingHeaderRectifier"
+  | "enableResponseInputRectifier"
+  | "enableCodexSessionIdCompletion"
+  | "enableClaudeMetadataUserIdInjection"
+  | "enableResponseFixer"
+  | "allowNonConversationEndpointProviderFallback"
+  | "fakeStreamingWhitelist"
+  | "fakeStreamingProviderIds"
+  | "enableProviderOutputSafetyFilter"
+  | "providerOutputSafetyFilterRules"
+  | "responseFixerConfig"
+  | "quotaDbRefreshIntervalSeconds"
+  | "quotaLeasePercent5h"
+  | "quotaLeasePercentDaily"
+  | "quotaLeasePercentWeekly"
+  | "quotaLeasePercentMonthly"
+  | "quotaLeaseCapUsd"
+  | "ipGeoLookupEnabled"
+  | "ipExtractionConfig"
+>;
+
+const baseSettings: FormSettings = {
   siteTitle: "Claude Code Hub",
   allowGlobalUsageView: true,
   currencyDisplay: "USD",
   billingModelSource: "original",
   codexPriorityBillingSource: "requested",
+  billNonSuccessfulRequests: false,
+  billHedgeLosers: true,
   timezone: "UTC",
   verboseProviderError: false,
   passThroughUpstreamErrorMessage: true,
   enableHttp2: true,
+  enableOpenaiResponsesWebsocket: true,
   enableHighConcurrencyMode: false,
   interceptAnthropicWarmupRequests: false,
   enableThinkingSignatureRectifier: true,
@@ -59,12 +96,15 @@ const baseSettings = {
     { model: "gpt-image-2", groupTags: [] },
     { model: "gemini-3.1-flash-image-preview", groupTags: [] },
   ],
+  fakeStreamingProviderIds: [101],
   enableProviderOutputSafetyFilter: true,
   providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   responseFixerConfig: {
     fixEncoding: true,
     fixSseFormat: true,
     fixTruncatedJson: true,
+    maxJsonDepth: 200,
+    maxFixSize: 1024 * 1024,
   },
   quotaDbRefreshIntervalSeconds: 10,
   quotaLeasePercent5h: 0.05,
@@ -74,40 +114,24 @@ const baseSettings = {
   quotaLeaseCapUsd: null,
   ipGeoLookupEnabled: true,
   ipExtractionConfig: null,
-} satisfies Pick<
-  SystemSettings,
-  | "siteTitle"
-  | "allowGlobalUsageView"
-  | "currencyDisplay"
-  | "billingModelSource"
-  | "codexPriorityBillingSource"
-  | "timezone"
-  | "verboseProviderError"
-  | "passThroughUpstreamErrorMessage"
-  | "enableHttp2"
-  | "enableHighConcurrencyMode"
-  | "interceptAnthropicWarmupRequests"
-  | "enableThinkingSignatureRectifier"
-  | "enableThinkingBudgetRectifier"
-  | "enableBillingHeaderRectifier"
-  | "enableResponseInputRectifier"
-  | "enableCodexSessionIdCompletion"
-  | "enableClaudeMetadataUserIdInjection"
-  | "enableResponseFixer"
-  | "allowNonConversationEndpointProviderFallback"
-  | "fakeStreamingWhitelist"
-  | "enableProviderOutputSafetyFilter"
-  | "providerOutputSafetyFilterRules"
-  | "responseFixerConfig"
-  | "quotaDbRefreshIntervalSeconds"
-  | "quotaLeasePercent5h"
-  | "quotaLeasePercentDaily"
-  | "quotaLeasePercentWeekly"
-  | "quotaLeasePercentMonthly"
-  | "quotaLeaseCapUsd"
-  | "ipGeoLookupEnabled"
-  | "ipExtractionConfig"
->;
+};
+
+const providers = [
+  {
+    id: 101,
+    name: "Anyrouter-codex",
+    groupTag: "codex",
+    providerType: "codex" as const,
+    isEnabled: true,
+  },
+  {
+    id: 202,
+    name: "rawchat",
+    groupTag: null,
+    providerType: "codex" as const,
+    isEnabled: false,
+  },
+];
 
 function loadMessages(locale: string) {
   const base = path.join(process.cwd(), `messages/${locale}/settings`);
@@ -168,48 +192,14 @@ async function submitForm() {
   });
 }
 
-describe("SystemSettingsForm fake streaming whitelist", () => {
+describe("SystemSettingsForm fake streaming provider handling", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     vi.clearAllMocks();
   });
 
-  test("submits initial whitelist on save", async () => {
+  test("system config form does not submit special handling fields by default", async () => {
     const { unmount } = render(<SystemSettingsForm initialSettings={baseSettings} />);
-
-    await submitForm();
-
-    expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fakeStreamingWhitelist: [
-          { model: "gpt-image-2", groupTags: [] },
-          { model: "gemini-3.1-flash-image-preview", groupTags: [] },
-        ],
-      })
-    );
-
-    unmount();
-  });
-
-  test("submits provider output safety settings on save", async () => {
-    const { unmount } = render(<SystemSettingsForm initialSettings={baseSettings} />);
-
-    await submitForm();
-
-    expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enableProviderOutputSafetyFilter: true,
-        providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
-      })
-    );
-
-    unmount();
-  });
-
-  test("does not submit special handling fields when hidden from system config page", async () => {
-    const { unmount } = render(
-      <SystemSettingsForm initialSettings={baseSettings} showSpecialHandling={false} />
-    );
 
     await submitForm();
 
@@ -219,20 +209,22 @@ describe("SystemSettingsForm fake streaming whitelist", () => {
     >;
 
     expect(payload).not.toHaveProperty("fakeStreamingWhitelist");
+    expect(payload).not.toHaveProperty("fakeStreamingProviderIds");
     expect(payload).not.toHaveProperty("enableProviderOutputSafetyFilter");
     expect(payload).not.toHaveProperty("providerOutputSafetyFilterRules");
 
     unmount();
   });
 
-  test("special handling form submits only special handling settings", async () => {
+  test("special handling form submits provider ids instead of legacy model whitelist", async () => {
     const { unmount } = render(
       <SpecialHandlingForm
         initialSettings={{
-          fakeStreamingWhitelist: baseSettings.fakeStreamingWhitelist,
+          fakeStreamingProviderIds: baseSettings.fakeStreamingProviderIds,
           enableProviderOutputSafetyFilter: baseSettings.enableProviderOutputSafetyFilter,
           providerOutputSafetyFilterRules: baseSettings.providerOutputSafetyFilterRules,
         }}
+        providers={providers}
         labels={getSpecialHandlingLabels()}
       />
     );
@@ -240,21 +232,53 @@ describe("SystemSettingsForm fake streaming whitelist", () => {
     await submitForm();
 
     expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith({
-      fakeStreamingWhitelist: [
-        { model: "gpt-image-2", groupTags: [] },
-        { model: "gemini-3.1-flash-image-preview", groupTags: [] },
-      ],
+      fakeStreamingProviderIds: [101],
       enableProviderOutputSafetyFilter: true,
       providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
     });
-
-    expect(document.body.textContent).toContain("避免长请求 499/CLIENT_ABORTED 中断");
+    expect(systemConfigActionMocks.saveSystemSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+      "fakeStreamingWhitelist"
+    );
+    expect(document.body.textContent).toContain("供应商 / 渠道");
+    expect(document.body.textContent).toContain("Anyrouter-codex");
     expect(document.body.textContent).toContain("渠道投毒命令过滤");
 
     unmount();
   });
 
-  test("editor UI is no longer rendered", () => {
+  test("special handling form can clear provider selection", async () => {
+    const { unmount } = render(
+      <SpecialHandlingForm
+        initialSettings={{
+          fakeStreamingProviderIds: [101, 202],
+          enableProviderOutputSafetyFilter: baseSettings.enableProviderOutputSafetyFilter,
+          providerOutputSafetyFilterRules: baseSettings.providerOutputSafetyFilterRules,
+        }}
+        providers={providers}
+        labels={getSpecialHandlingLabels()}
+      />
+    );
+
+    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent === "清空"
+    );
+    if (!clearButton) throw new Error("未找到清空按钮");
+    await act(async () => {
+      clearButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await submitForm();
+
+    expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fakeStreamingProviderIds: [],
+      })
+    );
+
+    unmount();
+  });
+
+  test("legacy model editor UI is not rendered by default", () => {
     const { unmount } = render(<SystemSettingsForm initialSettings={baseSettings} />);
 
     expect(document.querySelector('button[data-testid="fake-streaming-add"]')).toBeNull();
@@ -264,107 +288,20 @@ describe("SystemSettingsForm fake streaming whitelist", () => {
     unmount();
   });
 
-  test("preserves an explicitly empty initial whitelist as opt-out", async () => {
-    const emptyInitial = {
-      ...baseSettings,
-      fakeStreamingWhitelist: [],
-    } satisfies typeof baseSettings;
-
-    const { unmount } = render(<SystemSettingsForm initialSettings={emptyInitial} />);
-
-    await submitForm();
-
-    expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fakeStreamingWhitelist: [],
-      })
-    );
-
-    unmount();
-  });
-
-  test("trims whitespace and drops empty model entries before submitting", async () => {
-    const initial = {
-      ...baseSettings,
-      fakeStreamingWhitelist: [
-        { model: "  custom-image-model  ", groupTags: [] },
-        { model: "   ", groupTags: [] },
-      ],
-    } satisfies typeof baseSettings;
-
-    const { unmount } = render(<SystemSettingsForm initialSettings={initial} />);
-
-    await submitForm();
-
-    expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fakeStreamingWhitelist: [{ model: "custom-image-model", groupTags: [] }],
-      })
-    );
-
-    unmount();
-  });
-
-  test("merges duplicate model entries and keeps 'all groups' as the broader scope", async () => {
-    // Two entries for the same model: one explicit `["group-a"]`, one empty
-    // (meaning "all groups"). Empty is strictly broader, so the merge result
-    // must keep groupTags=[] instead of narrowing to ["group-a"].
-    const initial = {
-      ...baseSettings,
-      fakeStreamingWhitelist: [
-        { model: "gpt-image-2", groupTags: ["group-a"] },
-        { model: "gpt-image-2", groupTags: [] },
-        { model: "gemini-3.1-flash-image-preview", groupTags: ["group-a"] },
-        { model: "gemini-3.1-flash-image-preview", groupTags: ["group-b"] },
-      ],
-    } satisfies typeof baseSettings;
-
-    const { unmount } = render(<SystemSettingsForm initialSettings={initial} />);
-
-    await submitForm();
-
-    const lastCall =
-      systemConfigActionMocks.saveSystemSettings.mock.calls[
-        systemConfigActionMocks.saveSystemSettings.mock.calls.length - 1
-      ];
-    const sentList = (lastCall?.[0] as { fakeStreamingWhitelist?: unknown })
-      ?.fakeStreamingWhitelist as Array<{ model: string; groupTags: string[] }>;
-
-    const imageEntry = sentList.find((e) => e.model === "gpt-image-2");
-    expect(imageEntry).toBeTruthy();
-    expect(imageEntry?.groupTags).toEqual([]);
-
-    // For models with only explicit tags across rows, union deduped tags.
-    const geminiEntry = sentList.find((e) => e.model === "gemini-3.1-flash-image-preview");
-    expect(geminiEntry).toBeTruthy();
-    expect(geminiEntry?.groupTags?.sort()).toEqual(["group-a", "group-b"].sort());
-
-    // Each model should appear exactly once after the merge.
-    const counts = new Map<string, number>();
-    for (const entry of sentList) {
-      counts.set(entry.model, (counts.get(entry.model) ?? 0) + 1);
-    }
-    for (const [, count] of counts) expect(count).toBe(1);
-
-    unmount();
-  });
-
-  test("all locales define fake streaming labels", () => {
-    const locales = ["zh-CN", "zh-TW", "en", "ja", "ru"] as const;
-
-    for (const locale of locales) {
-      const config = loadMessages(locale).settings.config;
-      const section = config.form.fakeStreaming;
-      expect(section, `missing fakeStreaming section in ${locale}`).toBeTruthy();
-      expect(section.title).toBeTruthy();
-      expect(section.description).toBeTruthy();
-      expect(section.modelLabel).toBeTruthy();
-      expect(section.groupsLabel).toBeTruthy();
-      expect(section.allGroupsHint).toBeTruthy();
-      expect(section.addModel).toBeTruthy();
-      expect(section.remove).toBeTruthy();
-      expect(section.modelPlaceholder).toBeTruthy();
-      expect(section.emptyState).toBeTruthy();
-    }
+  test("zh-CN defines provider-based fake streaming labels", () => {
+    const section = loadMessages("zh-CN").settings.config.form.fakeStreaming;
+    expect(section.title).toBeTruthy();
+    expect(section.description).toContain("供应商");
+    expect(section.providerLabel).toBeTruthy();
+    expect(section.selectedCount).toBeTruthy();
+    expect(section.selectAll).toBeTruthy();
+    expect(section.clearAll).toBeTruthy();
+    expect(section.noProviders).toBeTruthy();
+    expect(section.providerIdLabel).toBeTruthy();
+    expect(section.groupLabel).toBeTruthy();
+    expect(section.defaultGroup).toBeTruthy();
+    expect(section.enabledStatus).toBeTruthy();
+    expect(section.disabledStatus).toBeTruthy();
+    expect(section.emptyState).toBeTruthy();
   });
 });

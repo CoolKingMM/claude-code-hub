@@ -39,3 +39,11 @@ export function isFakeStreamingEligible(
 
   return trimmedGroups.includes(requestGroup);
 }
+
+export function isFakeStreamingProviderEligible(
+  providerId: number | null | undefined,
+  providerIds: ReadonlyArray<number> | null | undefined
+): boolean {
+  if (!Number.isSafeInteger(providerId) || !providerIds || providerIds.length === 0) return false;
+  return providerIds.includes(providerId as number);
+}

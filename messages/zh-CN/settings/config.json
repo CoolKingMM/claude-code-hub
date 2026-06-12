@@ -78,14 +78,24 @@
     "allowNonConversationEndpointProviderFallbackDesc": "控制 /v1/messages/count_tokens 与 /v1/responses/compact 在当前供应商失败时，是否沿用现有决策链切换到兼容供应商重试。默认开启，并继续保持 raw passthrough 与非计费语义。",
     "fakeStreaming": {
       "title": "避免长请求 499/CLIENT_ABORTED 中断",
-      "description": "用于图像 / 视频等长耗时同步请求：在上游还没有返回正文时先发送 SSE 心跳，避免 Cloudflare、客户端或终端因长时间无数据断开，并在日志中形成 499/CLIENT_ABORTED。只对白名单模型启用，列表为空表示完全禁用。",
+      "description": "按供应商 / 渠道启用：命中的供应商下所有模型都会先向客户端发送 SSE 心跳，再等待上游非流式结果，避免长请求因长时间无数据而产生 499/CLIENT_ABORTED。未选择供应商表示关闭。",
+      "providerLabel": "供应商 / 渠道",
+      "selectedCount": "已选择 {count} 个供应商",
+      "selectAll": "全选",
+      "clearAll": "清空",
+      "noProviders": "当前没有可配置的供应商。请先在供应商管理中添加渠道。",
+      "providerIdLabel": "供应商 ID",
+      "groupLabel": "分组",
+      "defaultGroup": "默认分组",
+      "enabledStatus": "启用",
+      "disabledStatus": "禁用",
       "modelLabel": "模型",
       "modelPlaceholder": "客户端请求中的精确模型名",
       "groupsLabel": "供应商分组",
       "allGroupsHint": "未选择分组 → 适用于所有供应商分组。",
       "addModel": "添加模型",
       "remove": "删除",
-      "emptyState": "尚未配置任何模型，fake streaming 处于关闭状态。点击 \"添加模型\" 即可为指定模型启用。"
+      "emptyState": "尚未选择任何供应商，fake streaming 处于关闭状态。"
     },
     "providerOutputSafety": {
       "title": "渠道投毒命令过滤",

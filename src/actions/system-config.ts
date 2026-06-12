@@ -77,6 +77,7 @@ export async function saveSystemSettings(formData: {
   enableResponseInputRectifier?: boolean;
   allowNonConversationEndpointProviderFallback?: boolean;
   fakeStreamingWhitelist?: FakeStreamingWhitelistEntry[];
+  fakeStreamingProviderIds?: number[];
   enableProviderOutputSafetyFilter?: boolean;
   providerOutputSafetyFilterRules?: string[];
   enableCodexSessionIdCompletion?: boolean;
@@ -132,6 +133,7 @@ export async function saveSystemSettings(formData: {
       allowNonConversationEndpointProviderFallback:
         validated.allowNonConversationEndpointProviderFallback,
       fakeStreamingWhitelist: validated.fakeStreamingWhitelist,
+      fakeStreamingProviderIds: validated.fakeStreamingProviderIds,
       enableProviderOutputSafetyFilter: validated.enableProviderOutputSafetyFilter,
       providerOutputSafetyFilterRules: validated.providerOutputSafetyFilterRules,
       enableCodexSessionIdCompletion: validated.enableCodexSessionIdCompletion,

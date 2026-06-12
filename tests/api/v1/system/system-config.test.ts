@@ -1,6 +1,6 @@
 import type { AuthSession } from "@/lib/auth";
 import type { SystemSettings } from "@/types/system-config";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const fetchSystemSettingsMock = vi.hoisted(() => vi.fn());
 const saveSystemSettingsMock = vi.hoisted(() => vi.fn());
@@ -22,6 +22,14 @@ vi.mock("@/lib/auth", async (importOriginal) => {
 vi.mock("@/repository/system-config", () => ({
   getSystemSettings: getSystemSettingsRepoMock,
 }));
+
+vi.mock("@/lib/config/env.schema", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/config/env.schema")>();
+  return {
+    ...actual,
+    isApiKeyAdminAccessEnabled: () => true,
+  };
+});
 
 const { callV1Route } = await import("../test-utils");
 
@@ -60,6 +68,7 @@ const settings: SystemSettings = {
   enableResponseInputRectifier: true,
   allowNonConversationEndpointProviderFallback: true,
   fakeStreamingWhitelist: [{ model: "gpt-image-2", groupTags: [] }],
+  fakeStreamingProviderIds: [12],
   enableProviderOutputSafetyFilter: true,
   providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   enableCodexSessionIdCompletion: true,
@@ -89,6 +98,7 @@ const settings: SystemSettings = {
 describe("v1 system config endpoints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("ENABLE_API_KEY_ADMIN_ACCESS", "true");
     validateAuthTokenMock.mockResolvedValue(adminSession);
     fetchSystemSettingsMock.mockResolvedValue({ ok: true, data: settings });
     getSystemSettingsRepoMock.mockResolvedValue(settings);
@@ -97,6 +107,10 @@ describe("v1 system config endpoints", () => {
       data: { ...settings, siteTitle: "CCH Ops", timezone: "UTC" },
     });
     getServerTimeZoneMock.mockResolvedValue({ ok: true, data: { timeZone: "Asia/Shanghai" } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   test("reads and updates system settings with ISO date serialization", async () => {

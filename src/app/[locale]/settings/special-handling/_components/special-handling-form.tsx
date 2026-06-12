@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronDown, Plus, ShieldAlert, Trash2, Zap } from "lucide-react";
+import { ChevronDown, ShieldAlert, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,15 +16,23 @@ import {
   DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES,
   validateProviderOutputSafetyFilterRule,
 } from "@/lib/provider-output-safety-rules";
-import type { FakeStreamingWhitelistEntry, SystemSettings } from "@/types/system-config";
+import { cn } from "@/lib/utils";
+import type { ProviderDisplay } from "@/types/provider";
+import type { SystemSettings } from "@/types/system-config";
+
+type SpecialHandlingProvider = Pick<
+  ProviderDisplay,
+  "id" | "name" | "groupTag" | "providerType" | "isEnabled"
+>;
 
 type SpecialHandlingFormProps = {
   initialSettings: Pick<
     SystemSettings,
-    | "fakeStreamingWhitelist"
+    | "fakeStreamingProviderIds"
     | "enableProviderOutputSafetyFilter"
     | "providerOutputSafetyFilterRules"
   >;
+  providers: SpecialHandlingProvider[];
   labels: SpecialHandlingFormLabels;
 };
 
@@ -35,12 +44,16 @@ export type SpecialHandlingFormLabels = {
     title: string;
     description: string;
     emptyState: string;
-    modelLabel: string;
-    modelPlaceholder: string;
-    groupsLabel: string;
-    allGroupsHint: string;
-    addModel: string;
-    remove: string;
+    providerLabel: string;
+    selectedCount: string;
+    selectAll: string;
+    clearAll: string;
+    noProviders: string;
+    providerIdLabel: string;
+    groupLabel: string;
+    defaultGroup: string;
+    enabledStatus: string;
+    disabledStatus: string;
   };
   providerOutputSafety: {
     title: string;
@@ -68,63 +81,35 @@ function parseProviderOutputSafetyFilterRules(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-function parseGroupTags(value: string): string[] {
-  return value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter((tag, index, tags) => tag.length > 0 && tags.indexOf(tag) === index);
-}
-
-function formatGroupTags(tags: readonly string[]): string {
-  return tags.join(", ");
-}
-
-function sanitizeFakeStreamingWhitelist(
-  entries: FakeStreamingWhitelistEntry[]
-): FakeStreamingWhitelistEntry[] {
-  const merged = new Map<string, Set<string>>();
-  const allGroupsModels = new Set<string>();
-  const order: string[] = [];
-
-  for (const entry of entries) {
-    const model = entry.model.trim();
-    if (!model) continue;
-
-    if (!merged.has(model)) {
-      merged.set(model, new Set<string>());
-      order.push(model);
-    }
-
-    if (entry.groupTags.length === 0) {
-      allGroupsModels.add(model);
-      continue;
-    }
-
-    if (allGroupsModels.has(model)) continue;
-    const groups = merged.get(model);
-    if (!groups) continue;
-    for (const tag of entry.groupTags) {
-      const trimmed = tag.trim();
-      if (trimmed) groups.add(trimmed);
-    }
+function sanitizeProviderIds(providerIds: readonly number[]): number[] {
+  const seen = new Set<number>();
+  const result: number[] = [];
+  for (const providerId of providerIds) {
+    if (!Number.isSafeInteger(providerId) || providerId <= 0 || seen.has(providerId)) continue;
+    seen.add(providerId);
+    result.push(providerId);
   }
-
-  return order.map((model) => ({
-    model,
-    groupTags: allGroupsModels.has(model) ? [] : Array.from(merged.get(model) ?? new Set<string>()),
-  }));
+  return result;
 }
 
-export function SpecialHandlingForm({ initialSettings, labels }: SpecialHandlingFormProps) {
+function formatGroupTag(groupTag: string | null, defaultGroup: string): string {
+  const trimmed = groupTag?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : defaultGroup;
+}
+
+function selectedCountLabel(template: string, count: number): string {
+  return template.replace("{count}", String(count));
+}
+
+export function SpecialHandlingForm({
+  initialSettings,
+  providers,
+  labels,
+}: SpecialHandlingFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [fakeStreamingWhitelist, setFakeStreamingWhitelist] = useState<
-    FakeStreamingWhitelistEntry[]
-  >(() =>
-    (initialSettings.fakeStreamingWhitelist ?? []).map((entry) => ({
-      model: entry.model,
-      groupTags: [...entry.groupTags],
-    }))
+  const [selectedProviderIds, setSelectedProviderIds] = useState<number[]>(() =>
+    sanitizeProviderIds(initialSettings.fakeStreamingProviderIds ?? [])
   );
   const [enableProviderOutputSafetyFilter, setEnableProviderOutputSafetyFilter] = useState(
     initialSettings.enableProviderOutputSafetyFilter
@@ -135,25 +120,17 @@ export function SpecialHandlingForm({ initialSettings, labels }: SpecialHandling
     );
   const [providerOutputSafetyFilterOpen, setProviderOutputSafetyFilterOpen] = useState(false);
 
+  const selectedProviderIdSet = new Set(selectedProviderIds);
   const inputClassName =
     "bg-muted/50 border border-border rounded-lg focus:border-primary focus:ring-1 focus:ring-primary";
 
-  const updateFakeStreamingEntry = (index: number, patch: Partial<FakeStreamingWhitelistEntry>) => {
-    setFakeStreamingWhitelist((current) =>
-      current.map((entry, currentIndex) =>
-        currentIndex === index ? { ...entry, ...patch } : entry
-      )
-    );
-  };
-
-  const addFakeStreamingEntry = () => {
-    setFakeStreamingWhitelist((current) => [...current, { model: "", groupTags: [] }]);
-  };
-
-  const removeFakeStreamingEntry = (index: number) => {
-    setFakeStreamingWhitelist((current) =>
-      current.filter((_, currentIndex) => currentIndex !== index)
-    );
+  const toggleProvider = (providerId: number) => {
+    setSelectedProviderIds((current) => {
+      if (current.includes(providerId)) {
+        return current.filter((id) => id !== providerId);
+      }
+      return sanitizeProviderIds([...current, providerId]);
+    });
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -176,11 +153,11 @@ export function SpecialHandlingForm({ initialSettings, labels }: SpecialHandling
       }
     }
 
-    const sanitizedFakeStreamingWhitelist = sanitizeFakeStreamingWhitelist(fakeStreamingWhitelist);
+    const fakeStreamingProviderIds = sanitizeProviderIds(selectedProviderIds);
 
     startTransition(async () => {
       const result = await saveSystemSettings({
-        fakeStreamingWhitelist: sanitizedFakeStreamingWhitelist,
+        fakeStreamingProviderIds,
         enableProviderOutputSafetyFilter,
         providerOutputSafetyFilterRules: providerOutputSafetyFilterRulesToSave,
       });
@@ -191,12 +168,7 @@ export function SpecialHandlingForm({ initialSettings, labels }: SpecialHandling
       }
 
       if (result.data) {
-        setFakeStreamingWhitelist(
-          (result.data.fakeStreamingWhitelist ?? []).map((entry) => ({
-            model: entry.model,
-            groupTags: [...entry.groupTags],
-          }))
-        );
+        setSelectedProviderIds(sanitizeProviderIds(result.data.fakeStreamingProviderIds ?? []));
         setEnableProviderOutputSafetyFilter(result.data.enableProviderOutputSafetyFilter);
         setProviderOutputSafetyFilterRulesText(
           formatProviderOutputSafetyFilterRules(result.data.providerOutputSafetyFilterRules)
@@ -224,86 +196,106 @@ export function SpecialHandlingForm({ initialSettings, labels }: SpecialHandling
         </div>
 
         <div className="space-y-3 pl-0 md:pl-11">
-          {fakeStreamingWhitelist.length === 0 ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                {labels.fakeStreaming.providerLabel}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {selectedProviderIds.length === 0
+                  ? labels.fakeStreaming.emptyState
+                  : selectedCountLabel(
+                      labels.fakeStreaming.selectedCount,
+                      selectedProviderIds.length
+                    )}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedProviderIds(providers.map((provider) => provider.id))}
+                disabled={isPending || providers.length === 0}
+              >
+                {labels.fakeStreaming.selectAll}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedProviderIds([])}
+                disabled={isPending || selectedProviderIds.length === 0}
+              >
+                {labels.fakeStreaming.clearAll}
+              </Button>
+            </div>
+          </div>
+
+          {providers.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              {labels.fakeStreaming.emptyState}
+              {labels.fakeStreaming.noProviders}
             </p>
           ) : (
-            fakeStreamingWhitelist.map((entry, index) => (
-              <div
-                key={`${entry.model}-${index}`}
-                className="grid gap-2 rounded-lg border border-white/5 bg-muted/20 p-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]"
-              >
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor={`fake-streaming-model-${index}`}
-                    className="text-xs text-muted-foreground"
+            <div className="grid gap-2 md:grid-cols-2">
+              {providers.map((provider) => {
+                const selected = selectedProviderIdSet.has(provider.id);
+                return (
+                  <label
+                    key={provider.id}
+                    data-testid={`fake-streaming-provider-${provider.id}`}
+                    className={cn(
+                      "flex min-h-[92px] w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                      isPending
+                        ? "cursor-not-allowed opacity-70"
+                        : "cursor-pointer bg-muted/20 hover:bg-muted/35",
+                      selected
+                        ? "border-primary/60 bg-primary/10"
+                        : "border-white/5 hover:border-white/10"
+                    )}
                   >
-                    {labels.fakeStreaming.modelLabel}
-                  </Label>
-                  <Input
-                    id={`fake-streaming-model-${index}`}
-                    data-testid={`fake-streaming-model-${index}`}
-                    value={entry.model}
-                    onChange={(event) =>
-                      updateFakeStreamingEntry(index, { model: event.target.value })
-                    }
-                    placeholder={labels.fakeStreaming.modelPlaceholder}
-                    disabled={isPending}
-                    className={inputClassName}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor={`fake-streaming-groups-${index}`}
-                    className="text-xs text-muted-foreground"
-                  >
-                    {labels.fakeStreaming.groupsLabel}
-                  </Label>
-                  <Input
-                    id={`fake-streaming-groups-${index}`}
-                    data-testid={`fake-streaming-groups-${index}`}
-                    value={formatGroupTags(entry.groupTags)}
-                    onChange={(event) =>
-                      updateFakeStreamingEntry(index, {
-                        groupTags: parseGroupTags(event.target.value),
-                      })
-                    }
-                    disabled={isPending}
-                    className={inputClassName}
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    {labels.fakeStreaming.allGroupsHint}
-                  </p>
-                </div>
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    data-testid={`fake-streaming-remove-${index}`}
-                    onClick={() => removeFakeStreamingEntry(index)}
-                    disabled={isPending}
-                    aria-label={labels.fakeStreaming.remove}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))
+                    <Checkbox
+                      checked={selected}
+                      onCheckedChange={() => toggleProvider(provider.id)}
+                      disabled={isPending}
+                      aria-label={`${labels.fakeStreaming.providerLabel}: ${provider.name}`}
+                      className="mt-0.5"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="truncate text-sm font-medium text-foreground">
+                          {provider.name}
+                        </span>
+                        <Badge variant="secondary" className="text-[11px]">
+                          {provider.providerType}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[11px]",
+                            provider.isEnabled
+                              ? "border-emerald-500/30 text-emerald-400"
+                              : "border-muted-foreground/30 text-muted-foreground"
+                          )}
+                        >
+                          {provider.isEnabled
+                            ? labels.fakeStreaming.enabledStatus
+                            : labels.fakeStreaming.disabledStatus}
+                        </Badge>
+                      </span>
+                      <span className="mt-2 block text-xs text-muted-foreground">
+                        {labels.fakeStreaming.providerIdLabel}: {provider.id}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {labels.fakeStreaming.groupLabel}:{" "}
+                        {formatGroupTag(provider.groupTag, labels.fakeStreaming.defaultGroup)}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-testid="fake-streaming-add"
-            onClick={addFakeStreamingEntry}
-            disabled={isPending}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            {labels.fakeStreaming.addModel}
-          </Button>
         </div>
       </div>
 
@@ -386,7 +378,7 @@ export function SpecialHandlingForm({ initialSettings, labels }: SpecialHandling
         </Collapsible>
       </div>
 
-      <div className="flex justify-end pt-2">
+      <div className="flex justify-end">
         <Button type="submit" disabled={isPending}>
           {isPending ? labels.saving : labels.saveSettings}
         </Button>

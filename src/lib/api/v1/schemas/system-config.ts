@@ -145,6 +145,12 @@ export const SystemSettingsSchema = z
     fakeStreamingWhitelist: z
       .array(FakeStreamingWhitelistEntrySchema)
       .describe("Fake streaming model whitelist."),
+    fakeStreamingProviderIds: z
+      .array(z.number().int().positive())
+      .nullable()
+      .describe(
+        "Provider ids enabled for fake streaming. Null means legacy model-whitelist compatibility."
+      ),
     enableProviderOutputSafetyFilter: z
       .boolean()
       .describe("Whether provider output safety filtering is enabled."),
@@ -193,6 +199,10 @@ export const SystemSettingsUpdateSchema = SystemSettingsSchema.omit({
     timezone: TimeZoneSchema.nullable()
       .optional()
       .describe("System timezone, or null to use default."),
+    fakeStreamingProviderIds: z
+      .array(z.number().int().positive())
+      .optional()
+      .describe("Provider ids enabled for fake streaming. Empty disables provider-based handling."),
     responseFixerConfig: ResponseFixerConfigSchema.partial().optional(),
   })
   .partial()

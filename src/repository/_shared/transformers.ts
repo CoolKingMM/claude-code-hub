@@ -230,6 +230,19 @@ function normalizeFakeStreamingWhitelist(value: unknown): FakeStreamingWhitelist
   return result;
 }
 
+function normalizeFakeStreamingProviderIds(value: unknown): number[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const seen = new Set<number>();
+  const result: number[] = [];
+  for (const candidate of value) {
+    if (!Number.isSafeInteger(candidate) || candidate <= 0 || seen.has(candidate)) continue;
+    seen.add(candidate);
+    result.push(candidate);
+  }
+  return result;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function toSystemSettings(dbSettings: any): SystemSettings {
   const defaultResponseFixerConfig: ResponseFixerConfig = {
@@ -272,6 +285,9 @@ export function toSystemSettings(dbSettings: any): SystemSettings {
     allowNonConversationEndpointProviderFallback:
       dbSettings?.allowNonConversationEndpointProviderFallback ?? true,
     fakeStreamingWhitelist: normalizeFakeStreamingWhitelist(dbSettings?.fakeStreamingWhitelist),
+    fakeStreamingProviderIds: normalizeFakeStreamingProviderIds(
+      dbSettings?.fakeStreamingProviderIds
+    ),
     enableProviderOutputSafetyFilter: dbSettings?.enableProviderOutputSafetyFilter ?? true,
     providerOutputSafetyFilterRules: normalizeProviderOutputSafetyFilterRules(
       dbSettings?.providerOutputSafetyFilterRules

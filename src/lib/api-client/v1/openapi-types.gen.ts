@@ -11668,6 +11668,8 @@ export interface operations {
                             /** @description Provider group tags. Empty means all provider groups. */
                             groupTags: string[];
                         }[];
+                        /** @description Provider ids enabled for fake streaming. Null means legacy model-whitelist compatibility. */
+                        fakeStreamingProviderIds: number[] | null;
                         /** @description Whether provider output safety filtering is enabled. */
                         enableProviderOutputSafetyFilter: boolean;
                         /** @description Provider output safety filter regex rules. */
@@ -11930,6 +11932,8 @@ export interface operations {
                         /** @description Provider group tags. Empty means all provider groups. */
                         groupTags: string[];
                     }[];
+                    /** @description Provider ids enabled for fake streaming. Empty disables provider-based handling. */
+                    fakeStreamingProviderIds?: number[];
                     /** @description Whether provider output safety filtering is enabled. */
                     enableProviderOutputSafetyFilter?: boolean;
                     /** @description Provider output safety filter regex rules. */
@@ -12065,6 +12069,8 @@ export interface operations {
                             /** @description Provider group tags. Empty means all provider groups. */
                             groupTags: string[];
                         }[];
+                        /** @description Provider ids enabled for fake streaming. Null means legacy model-whitelist compatibility. */
+                        fakeStreamingProviderIds: number[] | null;
                         /** @description Whether provider output safety filtering is enabled. */
                         enableProviderOutputSafetyFilter: boolean;
                         /** @description Provider output safety filter regex rules. */

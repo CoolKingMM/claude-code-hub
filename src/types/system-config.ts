@@ -108,6 +108,10 @@ export interface SystemSettings {
   // Fake 流式输出白名单（缺省时使用 DEFAULT_FAKE_STREAMING_WHITELIST，持久化空数组表示显式禁用）
   fakeStreamingWhitelist: FakeStreamingWhitelistEntry[];
 
+  // 按供应商启用 Fake 流式输出。null 表示尚未迁移，运行时兼容旧模型白名单；
+  // 数组（包括空数组）表示已切换到供应商维度，命中供应商的所有模型均生效。
+  fakeStreamingProviderIds: number[] | null;
+
   // Provider 输出安全过滤（默认开启）
   // 仅过滤返回给客户端的文本/SSE/JSON 响应，不修改内部计费、会话调试原始响应或上游请求。
   enableProviderOutputSafetyFilter: boolean;
@@ -212,6 +216,9 @@ export interface UpdateSystemSettingsInput {
 
   // Fake 流式输出白名单（可选）
   fakeStreamingWhitelist?: FakeStreamingWhitelistEntry[];
+
+  // 按供应商启用 Fake 流式输出（可选；空数组表示显式禁用）
+  fakeStreamingProviderIds?: number[];
 
   // Provider 输出安全过滤（可选）
   enableProviderOutputSafetyFilter?: boolean;

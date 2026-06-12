@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS: Pick<
   | "enableResponseInputRectifier"
   | "allowNonConversationEndpointProviderFallback"
   | "fakeStreamingWhitelist"
+  | "fakeStreamingProviderIds"
   | "enableProviderOutputSafetyFilter"
   | "providerOutputSafetyFilterRules"
   | "enableCodexSessionIdCompletion"
@@ -70,6 +71,7 @@ const DEFAULT_SETTINGS: Pick<
   // Fake streaming 在 DB 完全不可达时 fail-closed（空白名单 → 走原有直传路径），
   // 避免在不确定状态下劫持流式。Transformer / createFallbackSettings 仍走 4 个默认模型。
   fakeStreamingWhitelist: [],
+  fakeStreamingProviderIds: null,
   enableProviderOutputSafetyFilter: true,
   providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
   enableCodexSessionIdCompletion: true,
@@ -158,6 +160,7 @@ export async function getCachedSystemSettings(): Promise<SystemSettings> {
       allowNonConversationEndpointProviderFallback:
         DEFAULT_SETTINGS.allowNonConversationEndpointProviderFallback,
       fakeStreamingWhitelist: DEFAULT_SETTINGS.fakeStreamingWhitelist,
+      fakeStreamingProviderIds: DEFAULT_SETTINGS.fakeStreamingProviderIds,
       enableProviderOutputSafetyFilter: DEFAULT_SETTINGS.enableProviderOutputSafetyFilter,
       providerOutputSafetyFilterRules: DEFAULT_SETTINGS.providerOutputSafetyFilterRules,
       enableCodexSessionIdCompletion: DEFAULT_SETTINGS.enableCodexSessionIdCompletion,

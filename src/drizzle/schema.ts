@@ -830,6 +830,10 @@ export const systemSettings = pgTable('system_settings', {
     Array<{ model: string; groupTags: string[] }>
   >(),
 
+  // 按供应商启用 Fake 流式输出。NULL 表示尚未迁移，兼容旧模型白名单；
+  // [] 表示已切换到供应商维度并显式禁用。
+  fakeStreamingProviderIds: jsonb('fake_streaming_provider_ids').$type<number[]>(),
+
   // Provider 输出安全过滤（默认开启）
   // 仅过滤返回给客户端的文本/SSE/JSON 响应，不修改内部计费、调试快照或上游请求。
   enableProviderOutputSafetyFilter: boolean('enable_provider_output_safety_filter')

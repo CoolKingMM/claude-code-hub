@@ -1,7 +1,12 @@
-import { describe, expect, test } from "vitest";
-import { isFakeStreamingEligible } from "@/app/v1/_lib/proxy/fake-streaming/eligibility";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import {
+  isFakeStreamingEligible,
+  isFakeStreamingProviderEligible,
+} from "@/app/v1/_lib/proxy/fake-streaming/eligibility";
 import { PROVIDER_GROUP } from "@/lib/constants/provider.constants";
 import type { FakeStreamingWhitelistEntry } from "@/types/system-config";
+import type { ClientFormat } from "@/app/v1/_lib/proxy/format-mapper";
+import type { SystemSettings } from "@/types/system-config";
 
 describe("isFakeStreamingEligible", () => {
   test("matches exact model for all groups when groupTags is empty", () => {
@@ -107,3 +112,129 @@ describe("isFakeStreamingEligible", () => {
     expect(isFakeStreamingEligible("gpt-image-2", "group-y", whitelist)).toBe(true);
   });
 });
+
+describe("isFakeStreamingProviderEligible", () => {
+  test("matches an enabled provider regardless of model or group", () => {
+    expect(isFakeStreamingProviderEligible(42, [7, 42])).toBe(true);
+    expect(isFakeStreamingProviderEligible(7, [7, 42])).toBe(true);
+  });
+
+  test("rejects missing, invalid, or unconfigured providers", () => {
+    expect(isFakeStreamingProviderEligible(99, [7, 42])).toBe(false);
+    expect(isFakeStreamingProviderEligible(null, [7, 42])).toBe(false);
+    expect(isFakeStreamingProviderEligible(undefined, [7, 42])).toBe(false);
+    expect(isFakeStreamingProviderEligible(42, [])).toBe(false);
+    expect(isFakeStreamingProviderEligible(42, null)).toBe(false);
+  });
+});
+
+describe("tryFakeStreamingPath provider eligibility", () => {
+  afterEach(() => {
+    vi.doUnmock("@/app/v1/_lib/proxy/fake-streaming/runner");
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  test("enables fake streaming for every model on a selected provider", async () => {
+    const buildFakeStreamingResponse = vi.fn(
+      () => new Response("stream-path", { headers: { "Content-Type": "text/event-stream" } })
+    );
+    const buildFakeStreamingNonStreamResponse = vi.fn(async () => new Response("non-stream-path"));
+    vi.doMock("@/app/v1/_lib/proxy/fake-streaming/runner", () => ({
+      buildFakeStreamingResponse,
+      buildFakeStreamingNonStreamResponse,
+    }));
+
+    const { tryFakeStreamingPath } = await import(
+      "@/app/v1/_lib/proxy/fake-streaming/proxy-integration"
+    );
+    const session = createFakeStreamingSession({
+      model: "provider-custom-model",
+      providerId: 42,
+      stream: true,
+    });
+
+    const response = await tryFakeStreamingPath(
+      session,
+      createSystemSettings({
+        fakeStreamingProviderIds: [42],
+        fakeStreamingWhitelist: [],
+      })
+    );
+
+    expect(response).not.toBeNull();
+    await expect(response?.text()).resolves.toBe("stream-path");
+    expect(buildFakeStreamingResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        family: "anthropic",
+        isStream: true,
+      })
+    );
+    expect(buildFakeStreamingNonStreamResponse).not.toHaveBeenCalled();
+    expect(session.request.message.stream).toBe(false);
+  });
+
+  test("treats an empty provider list as explicit opt out instead of legacy fallback", async () => {
+    const buildFakeStreamingResponse = vi.fn(() => new Response("stream-path"));
+    const buildFakeStreamingNonStreamResponse = vi.fn(async () => new Response("non-stream-path"));
+    vi.doMock("@/app/v1/_lib/proxy/fake-streaming/runner", () => ({
+      buildFakeStreamingResponse,
+      buildFakeStreamingNonStreamResponse,
+    }));
+
+    const { tryFakeStreamingPath } = await import(
+      "@/app/v1/_lib/proxy/fake-streaming/proxy-integration"
+    );
+    const session = createFakeStreamingSession({
+      model: "legacy-model",
+      providerId: 42,
+      stream: true,
+    });
+
+    const response = await tryFakeStreamingPath(
+      session,
+      createSystemSettings({
+        fakeStreamingProviderIds: [],
+        fakeStreamingWhitelist: [{ model: "legacy-model", groupTags: [] }],
+      })
+    );
+
+    expect(response).toBeNull();
+    expect(buildFakeStreamingResponse).not.toHaveBeenCalled();
+    expect(buildFakeStreamingNonStreamResponse).not.toHaveBeenCalled();
+    expect(session.request.message.stream).toBe(true);
+  });
+});
+
+function createFakeStreamingSession({
+  model,
+  providerId,
+  stream,
+  format = "claude",
+}: {
+  model: string;
+  providerId: number;
+  stream: boolean;
+  format?: ClientFormat;
+}) {
+  const abortController = new AbortController();
+  return {
+    request: {
+      model,
+      message: { model, stream },
+    },
+    provider: {
+      id: providerId,
+      groupTag: "codex",
+    },
+    originalFormat: format,
+    requestUrl: new URL("http://localhost/v1/messages"),
+    clientAbortSignal: abortController.signal,
+  } as never;
+}
+
+function createSystemSettings(
+  overrides: Pick<SystemSettings, "fakeStreamingProviderIds" | "fakeStreamingWhitelist">
+): SystemSettings {
+  return overrides as SystemSettings;
+}

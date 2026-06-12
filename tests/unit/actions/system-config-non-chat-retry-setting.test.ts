@@ -88,6 +88,7 @@ function createSettings(overrides: Record<string, unknown> = {}) {
     enableResponseFixer: true,
     allowNonConversationEndpointProviderFallback: true,
     fakeStreamingWhitelist: [],
+    fakeStreamingProviderIds: null,
     enableProviderOutputSafetyFilter: true,
     providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
     responseFixerConfig: {

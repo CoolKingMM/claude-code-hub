@@ -1052,6 +1052,12 @@ export const UpdateSystemSettingsSchema = z.object({
       }
     })
     .optional(),
+  // 按供应商启用 Fake 流式输出。命中供应商后，该供应商下所有模型均生效。
+  fakeStreamingProviderIds: z
+    .array(z.number().int().positive())
+    .max(1000, "fakeStreamingProviderIds 不能超过 1000 个供应商")
+    .transform((providerIds) => Array.from(new Set(providerIds)))
+    .optional(),
   // Provider 输出安全过滤规则（可选）。数组为空表示不匹配任何内容；缺省保持现有设置。
   enableProviderOutputSafetyFilter: z.boolean().optional(),
   providerOutputSafetyFilterRules: z

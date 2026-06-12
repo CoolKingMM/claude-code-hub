@@ -49,6 +49,7 @@ function createSettings(overrides: Partial<SystemSettings> = {}): SystemSettings
     enableResponseInputRectifier: true,
     allowNonConversationEndpointProviderFallback: true,
     fakeStreamingWhitelist: [],
+    fakeStreamingProviderIds: null,
     enableProviderOutputSafetyFilter: true,
     providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     enableCodexSessionIdCompletion: true,
@@ -161,6 +162,7 @@ describe("SystemSettingsCache", () => {
         interceptAnthropicWarmupRequests: false,
         codexPriorityBillingSource: "requested",
         passThroughUpstreamErrorMessage: true,
+        fakeStreamingProviderIds: null,
         enableProviderOutputSafetyFilter: true,
         providerOutputSafetyFilterRules: DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES,
       })

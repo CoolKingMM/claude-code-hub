@@ -128,7 +128,7 @@ function parseProviderOutputSafetyFilterRules(text: string): string[] {
 
 export function SystemSettingsForm({
   initialSettings,
-  showSpecialHandling = true,
+  showSpecialHandling = false,
 }: SystemSettingsFormProps) {
   const router = useRouter();
   const t = useTranslations("settings.config.form");

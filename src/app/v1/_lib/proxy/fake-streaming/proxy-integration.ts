@@ -3,7 +3,7 @@ import type { SystemSettings } from "@/types/system-config";
 import type { ClientFormat } from "../format-mapper";
 import { ProxyForwarder } from "../forwarder";
 import type { ProxySession } from "../session";
-import { isFakeStreamingEligible } from "./eligibility";
+import { isFakeStreamingEligible, isFakeStreamingProviderEligible } from "./eligibility";
 import type { ProtocolFamily } from "./response-validator";
 import {
   type AttemptPerformer,
@@ -47,12 +47,12 @@ export async function tryFakeStreamingPath(
   systemSettings: SystemSettings
 ): Promise<Response | null> {
   const clientModel = (session.request.model ?? "").toString();
+  const providerId = session.provider?.id ?? null;
   const providerGroup = session.provider?.groupTag ?? null;
-  const eligible = isFakeStreamingEligible(
-    clientModel,
-    providerGroup,
-    systemSettings.fakeStreamingWhitelist
-  );
+  const eligible =
+    systemSettings.fakeStreamingProviderIds === null
+      ? isFakeStreamingEligible(clientModel, providerGroup, systemSettings.fakeStreamingWhitelist)
+      : isFakeStreamingProviderEligible(providerId, systemSettings.fakeStreamingProviderIds);
   if (!eligible) return null;
 
   const family = familyFromFormat(session.originalFormat);
@@ -77,6 +77,7 @@ export async function tryFakeStreamingPath(
     // not invisible in edge-middleware / test environments where this happens.
     logger.warn("[FakeStreaming] session.clientAbortSignal is null; abort propagation disabled", {
       model: clientModel,
+      providerId,
     });
   }
   const abortSignal = session.clientAbortSignal ?? new AbortController().signal;
@@ -84,6 +85,7 @@ export async function tryFakeStreamingPath(
   if (isStream) {
     logger.debug("[FakeStreaming] taking stream path", {
       model: clientModel,
+      providerId,
       providerGroup,
       family,
     });
@@ -99,6 +101,7 @@ export async function tryFakeStreamingPath(
 
   logger.debug("[FakeStreaming] taking non-stream path", {
     model: clientModel,
+    providerId,
     providerGroup,
     family,
   });

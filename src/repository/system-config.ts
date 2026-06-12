@@ -171,6 +171,7 @@ function createFallbackSettings(): SystemSettings {
       model: entry.model,
       groupTags: [...entry.groupTags],
     })),
+    fakeStreamingProviderIds: null,
     enableProviderOutputSafetyFilter: true,
     providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     enableCodexSessionIdCompletion: true,
@@ -287,6 +288,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
       billNonSuccessfulRequests: systemSettings.billNonSuccessfulRequests,
       passThroughUpstreamErrorMessage: systemSettings.passThroughUpstreamErrorMessage,
       fakeStreamingWhitelist: systemSettings.fakeStreamingWhitelist,
+      fakeStreamingProviderIds: systemSettings.fakeStreamingProviderIds,
       enableProviderOutputSafetyFilter: systemSettings.enableProviderOutputSafetyFilter,
       providerOutputSafetyFilterRules: systemSettings.providerOutputSafetyFilterRules,
       enableOpenaiResponsesWebsocket: systemSettings.enableOpenaiResponsesWebsocket,
@@ -307,12 +309,36 @@ export async function getSystemSettings(): Promise<SystemSettings> {
           error,
         });
 
-        // 最新降级：移除 provider output safety 相关列。
+        // 最新降级：移除按供应商启用 fake streaming 的字段。
+        const {
+          fakeStreamingProviderIds: _omitFakeStreamingProviderIds,
+          ...selectionWithoutFakeStreamingProviderIds
+        } = fullSelection;
+
+        try {
+          const [row] = await db
+            .select(selectionWithoutFakeStreamingProviderIds)
+            .from(systemSettings)
+            .orderBy(asc(systemSettings.id))
+            .limit(1);
+          return row ?? null;
+        } catch (fakeStreamingProviderIdsFallbackError) {
+          if (!isUndefinedColumnError(fakeStreamingProviderIdsFallbackError)) {
+            throw fakeStreamingProviderIdsFallbackError;
+          }
+
+          logger.warn(
+            "system_settings 表除 fakeStreamingProviderIds 外仍有列缺失，继续回退到上一代字段集。",
+            { error: fakeStreamingProviderIdsFallbackError }
+          );
+        }
+
+        // 次新降级：移除 provider output safety 相关列。
         const {
           enableProviderOutputSafetyFilter: _omitProviderOutputSafetyEnabled,
           providerOutputSafetyFilterRules: _omitProviderOutputSafetyRules,
           ...selectionWithoutProviderOutputSafety
-        } = fullSelection;
+        } = selectionWithoutFakeStreamingProviderIds;
 
         try {
           const [row] = await db
@@ -674,6 +700,7 @@ export async function updateSystemSettings(
     billNonSuccessfulRequests: systemSettings.billNonSuccessfulRequests,
     passThroughUpstreamErrorMessage: systemSettings.passThroughUpstreamErrorMessage,
     fakeStreamingWhitelist: systemSettings.fakeStreamingWhitelist,
+    fakeStreamingProviderIds: systemSettings.fakeStreamingProviderIds,
     enableProviderOutputSafetyFilter: systemSettings.enableProviderOutputSafetyFilter,
     providerOutputSafetyFilterRules: systemSettings.providerOutputSafetyFilterRules,
     enableOpenaiResponsesWebsocket: systemSettings.enableOpenaiResponsesWebsocket,
@@ -861,6 +888,9 @@ export async function updateSystemSettings(
     if (payload.fakeStreamingWhitelist !== undefined) {
       updates.fakeStreamingWhitelist = payload.fakeStreamingWhitelist;
     }
+    if (payload.fakeStreamingProviderIds !== undefined) {
+      updates.fakeStreamingProviderIds = payload.fakeStreamingProviderIds;
+    }
 
     // Provider 输出安全过滤配置（如果提供）
     if (payload.enableProviderOutputSafetyFilter !== undefined) {
@@ -886,33 +916,61 @@ export async function updateSystemSettings(
         error,
       });
 
-      // 最新降级：移除 provider output safety 相关列。
+      // 最新降级：移除按供应商启用 fake streaming 的字段。
       const {
-        enableProviderOutputSafetyFilter: _omitUpdateProviderOutputSafetyEnabled,
-        providerOutputSafetyFilterRules: _omitUpdateProviderOutputSafetyRules,
-        ...updatesWithoutProviderOutputSafety
+        fakeStreamingProviderIds: _omitUpdateFakeStreamingProviderIds,
+        ...updatesWithoutFakeStreamingProviderIds
       } = updates;
       const {
-        enableProviderOutputSafetyFilter: _omitReturningProviderOutputSafetyEnabled,
-        providerOutputSafetyFilterRules: _omitReturningProviderOutputSafetyRules,
-        ...returningWithoutProviderOutputSafety
+        fakeStreamingProviderIds: _omitReturningFakeStreamingProviderIds,
+        ...returningWithoutFakeStreamingProviderIds
       } = fullReturning;
 
       try {
         [updated] = await executor
           .update(systemSettings)
-          .set(updatesWithoutProviderOutputSafety)
+          .set(updatesWithoutFakeStreamingProviderIds)
           .where(eq(systemSettings.id, current.id))
-          .returning(returningWithoutProviderOutputSafety);
-      } catch (providerOutputSafetyFallbackError) {
-        if (!isUndefinedColumnError(providerOutputSafetyFallbackError)) {
-          throw providerOutputSafetyFallbackError;
+          .returning(returningWithoutFakeStreamingProviderIds);
+      } catch (fakeStreamingProviderIdsFallbackError) {
+        if (!isUndefinedColumnError(fakeStreamingProviderIdsFallbackError)) {
+          throw fakeStreamingProviderIdsFallbackError;
         }
 
-        logger.warn(
-          "system_settings 表除 provider output safety 字段外仍有列缺失，继续降级更新。",
-          { error: providerOutputSafetyFallbackError }
-        );
+        logger.warn("system_settings 表除 fakeStreamingProviderIds 外仍有列缺失，继续降级更新。", {
+          error: fakeStreamingProviderIdsFallbackError,
+        });
+      }
+
+      // 次新降级：移除 provider output safety 相关列。
+      const {
+        enableProviderOutputSafetyFilter: _omitUpdateProviderOutputSafetyEnabled,
+        providerOutputSafetyFilterRules: _omitUpdateProviderOutputSafetyRules,
+        ...updatesWithoutProviderOutputSafety
+      } = updatesWithoutFakeStreamingProviderIds;
+      const {
+        enableProviderOutputSafetyFilter: _omitReturningProviderOutputSafetyEnabled,
+        providerOutputSafetyFilterRules: _omitReturningProviderOutputSafetyRules,
+        ...returningWithoutProviderOutputSafety
+      } = returningWithoutFakeStreamingProviderIds;
+
+      if (!updated) {
+        try {
+          [updated] = await executor
+            .update(systemSettings)
+            .set(updatesWithoutProviderOutputSafety)
+            .where(eq(systemSettings.id, current.id))
+            .returning(returningWithoutProviderOutputSafety);
+        } catch (providerOutputSafetyFallbackError) {
+          if (!isUndefinedColumnError(providerOutputSafetyFallbackError)) {
+            throw providerOutputSafetyFallbackError;
+          }
+
+          logger.warn(
+            "system_settings 表除 provider output safety 字段外仍有列缺失，继续降级更新。",
+            { error: providerOutputSafetyFallbackError }
+          );
+        }
       }
 
       // 次新降级：移除 billHedgeLosers 列。
