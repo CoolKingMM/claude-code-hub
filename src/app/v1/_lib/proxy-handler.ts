@@ -124,7 +124,8 @@ export async function handleProxyRequest(c: Context): Promise<Response> {
     if (cachedSystemSettings) {
       const fakeStreamingResponse = await tryFakeStreamingPath(session, cachedSystemSettings);
       if (fakeStreamingResponse) {
-        return await attachSessionIdToErrorResponse(session.sessionId, fakeStreamingResponse);
+        const handled = await ProxyResponseHandler.dispatch(session, fakeStreamingResponse);
+        return await attachSessionIdToErrorResponse(session.sessionId, handled);
       }
     }
 

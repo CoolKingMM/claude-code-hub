@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { resolveEndpointPolicy } from "@/app/v1/_lib/proxy/endpoint-policy";
 import { V1_ENDPOINT_PATHS } from "@/app/v1/_lib/proxy/endpoint-paths";
 import { ProxyResponses } from "@/app/v1/_lib/proxy/responses";
@@ -33,6 +33,13 @@ const h = vi.hoisted(() => ({
   earlyResponse: null as Response | null,
   forwardResponse: new Response("ok", { status: 200 }),
   dispatchedResponse: null as Response | null,
+  fakeStreamingResponse: null as Response | null,
+  dispatchCalls: [] as Response[],
+  forwarderCalls: 0,
+  systemSettings: {
+    enableHighConcurrencyMode: false,
+    allowNonConversationEndpointProviderFallback: true,
+  },
 
   endpointFormat: null as string | null,
   trackerCalls: [] as string[],
@@ -72,20 +79,34 @@ vi.mock("@/app/v1/_lib/proxy/format-mapper", () => ({
 
 vi.mock("@/app/v1/_lib/proxy/forwarder", () => ({
   ProxyForwarder: {
-    send: async () => h.forwardResponse,
+    send: async () => {
+      h.forwarderCalls += 1;
+      return h.forwardResponse;
+    },
   },
 }));
 
 vi.mock("@/app/v1/_lib/proxy/response-handler", () => ({
   ProxyResponseHandler: {
-    dispatch: async () => h.dispatchedResponse ?? h.forwardResponse,
+    dispatch: async (_session: unknown, response: Response) => {
+      h.dispatchCalls.push(response);
+      return h.dispatchedResponse ?? response;
+    },
   },
+}));
+
+vi.mock("@/app/v1/_lib/proxy/fake-streaming/proxy-integration", () => ({
+  tryFakeStreamingPath: async () => h.fakeStreamingResponse,
 }));
 
 vi.mock("@/app/v1/_lib/proxy/error-handler", () => ({
   ProxyErrorHandler: {
     handle: async () => new Response("handled", { status: 502 }),
   },
+}));
+
+vi.mock("@/lib/config", () => ({
+  getCachedSystemSettings: async () => h.systemSettings,
 }));
 
 vi.mock("@/lib/session-tracker", () => ({
@@ -125,12 +146,30 @@ async function expectMessageSuffixOnly(
 describe("handleProxyRequest - session id on errors", async () => {
   const { handleProxyRequest } = await import("@/app/v1/_lib/proxy-handler");
 
-  test("decorates early error response with message suffix only", async () => {
+  beforeEach(() => {
     h.fromContextError = null;
-    h.session.originalFormat = "openai";
+    h.pipelineError = null;
+    h.earlyResponse = null;
+    h.forwardResponse = new Response("ok", { status: 200 });
+    h.dispatchedResponse = null;
+    h.fakeStreamingResponse = null;
+    h.dispatchCalls.length = 0;
+    h.forwarderCalls = 0;
     h.endpointFormat = null;
     h.trackerCalls.length = 0;
-    h.pipelineError = null;
+    h.session.originalFormat = "openai";
+    h.session.sessionId = "s_123";
+    h.session.requestUrl = new URL("http://localhost/v1/messages");
+    h.session.request = { model: "gpt", message: {} };
+    h.session.messageContext = null;
+    h.session.provider = null;
+    h.session.rawCrossProviderFallbackEnabled = false;
+    h.session.getEndpointPolicy = () => resolveEndpointPolicy(h.session.requestUrl.pathname);
+    h.session.isCountTokensRequest = () => false;
+  });
+
+  test("decorates early error response with message suffix only", async () => {
+    h.session.originalFormat = "openai";
     h.earlyResponse = ProxyResponses.buildError(400, "bad request");
     const res = await handleProxyRequest({} as any);
 
@@ -138,12 +177,7 @@ describe("handleProxyRequest - session id on errors", async () => {
   });
 
   test("decorates dispatch error response with message suffix only", async () => {
-    h.fromContextError = null;
     h.session.originalFormat = "openai";
-    h.endpointFormat = null;
-    h.trackerCalls.length = 0;
-    h.pipelineError = null;
-    h.earlyResponse = null;
     h.forwardResponse = new Response("upstream", { status: 502 });
     h.dispatchedResponse = ProxyResponses.buildError(502, "bad gateway");
 
@@ -153,11 +187,7 @@ describe("handleProxyRequest - session id on errors", async () => {
   });
 
   test("covers claude format detection branch without breaking behavior", async () => {
-    h.fromContextError = null;
     h.session.originalFormat = "claude";
-    h.endpointFormat = null;
-    h.trackerCalls.length = 0;
-    h.pipelineError = null;
     h.earlyResponse = ProxyResponses.buildError(400, "bad request");
     h.session.requestUrl = new URL("http://localhost/v1/unknown");
     h.session.request = { model: "gpt", message: { contents: [] } };
@@ -167,14 +197,9 @@ describe("handleProxyRequest - session id on errors", async () => {
   });
 
   test("covers endpoint format detection + tracking + finally decrement", async () => {
-    h.fromContextError = null;
     h.session.originalFormat = "claude";
     h.endpointFormat = "openai";
-    h.trackerCalls.length = 0;
-    h.pipelineError = null;
-    h.earlyResponse = null;
     h.forwardResponse = new Response("ok", { status: 200 });
-    h.dispatchedResponse = null;
 
     h.session.sessionId = "s_123";
     h.session.messageContext = { id: 1, user: { id: 1, name: "u" }, key: { name: "k" } };
@@ -184,6 +209,27 @@ describe("handleProxyRequest - session id on errors", async () => {
     const res = await handleProxyRequest({} as any);
     expect(res.status).toBe(200);
     expect(h.trackerCalls).toEqual(["inc", "startRequest", "dec"]);
+    expect(h.forwarderCalls).toBe(1);
+    expect(h.dispatchCalls).toHaveLength(1);
+  });
+
+  test("fake streaming 命中时仍经过 response handler 以完成请求收尾", async () => {
+    h.session.originalFormat = "response";
+    h.session.sessionId = "s_123";
+    h.session.messageContext = { id: 10, user: { id: 1, name: "u" }, key: { name: "k" } };
+    h.session.provider = { id: 115, name: "AnyRouter-codex" };
+    h.fakeStreamingResponse = new Response("event: response.completed\n\n", {
+      status: 200,
+      headers: { "content-type": "text/event-stream; charset=utf-8" },
+    });
+    h.dispatchedResponse = new Response("handled fake stream", { status: 200 });
+
+    const res = await handleProxyRequest({} as any);
+
+    expect(res.status).toBe(200);
+    await expect(res.text()).resolves.toBe("handled fake stream");
+    expect(h.forwarderCalls).toBe(0);
+    expect(h.dispatchCalls).toEqual([h.fakeStreamingResponse]);
   });
 
   test.each([
@@ -196,14 +242,9 @@ describe("handleProxyRequest - session id on errors", async () => {
       isCountTokensRequest: false,
     },
   ])("raw endpoint $pathname 应统一跳过并发计数", async ({ pathname, isCountTokensRequest }) => {
-    h.fromContextError = null;
     h.session.originalFormat = "claude";
     h.endpointFormat = "openai";
-    h.trackerCalls.length = 0;
-    h.pipelineError = null;
-    h.earlyResponse = null;
     h.forwardResponse = new Response("ok", { status: 200 });
-    h.dispatchedResponse = null;
 
     h.session.requestUrl = new URL(`http://localhost${pathname}`);
     h.session.getEndpointPolicy = () => resolveEndpointPolicy(h.session.requestUrl.pathname);
@@ -220,10 +261,6 @@ describe("handleProxyRequest - session id on errors", async () => {
 
   test("session not created and ProxyError thrown: returns buildError without session header", async () => {
     h.fromContextError = new ProxyError("upstream", 401);
-    h.endpointFormat = null;
-    h.trackerCalls.length = 0;
-    h.pipelineError = null;
-    h.earlyResponse = null;
 
     const res = await handleProxyRequest({} as any);
     expect(res.status).toBe(401);
@@ -233,11 +270,7 @@ describe("handleProxyRequest - session id on errors", async () => {
   });
 
   test("session created but pipeline throws: routes to ProxyErrorHandler.handle", async () => {
-    h.fromContextError = null;
-    h.endpointFormat = null;
-    h.trackerCalls.length = 0;
     h.pipelineError = new Error("pipeline boom");
-    h.earlyResponse = null;
 
     const res = await handleProxyRequest({} as any);
     expect(res.status).toBe(502);
@@ -246,10 +279,6 @@ describe("handleProxyRequest - session id on errors", async () => {
 
   test("session not created and non-ProxyError thrown: returns 500 buildError", async () => {
     h.fromContextError = new Error("boom");
-    h.endpointFormat = null;
-    h.trackerCalls.length = 0;
-    h.pipelineError = null;
-    h.earlyResponse = null;
 
     const res = await handleProxyRequest({} as any);
     expect(res.status).toBe(500);
