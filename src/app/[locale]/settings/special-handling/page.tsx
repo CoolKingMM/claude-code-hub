@@ -44,7 +44,7 @@ export default async function SpecialHandlingPage({
     saveSettings: t("config.form.saveSettings"),
     saving: t("common.saving"),
     saveFailed: t("config.form.saveFailed"),
-    configUpdated: t("config.form.configUpdated"),
+    configUpdated: t("config.form.saveSuccess"),
   };
 
   return (
