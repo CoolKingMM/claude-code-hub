@@ -11668,6 +11668,10 @@ export interface operations {
                             /** @description Provider group tags. Empty means all provider groups. */
                             groupTags: string[];
                         }[];
+                        /** @description Whether provider output safety filtering is enabled. */
+                        enableProviderOutputSafetyFilter: boolean;
+                        /** @description Provider output safety filter regex rules. */
+                        providerOutputSafetyFilterRules: string[];
                         /** @description Whether Codex session id completion is enabled. */
                         enableCodexSessionIdCompletion: boolean;
                         /** @description Whether Claude metadata.user_id injection is enabled. */
@@ -11926,6 +11930,10 @@ export interface operations {
                         /** @description Provider group tags. Empty means all provider groups. */
                         groupTags: string[];
                     }[];
+                    /** @description Whether provider output safety filtering is enabled. */
+                    enableProviderOutputSafetyFilter?: boolean;
+                    /** @description Provider output safety filter regex rules. */
+                    providerOutputSafetyFilterRules?: string[];
                     /** @description Whether Codex session id completion is enabled. */
                     enableCodexSessionIdCompletion?: boolean;
                     /** @description Whether Claude metadata.user_id injection is enabled. */
@@ -12057,6 +12065,10 @@ export interface operations {
                             /** @description Provider group tags. Empty means all provider groups. */
                             groupTags: string[];
                         }[];
+                        /** @description Whether provider output safety filtering is enabled. */
+                        enableProviderOutputSafetyFilter: boolean;
+                        /** @description Provider output safety filter regex rules. */
+                        providerOutputSafetyFilterRules: string[];
                         /** @description Whether Codex session id completion is enabled. */
                         enableCodexSessionIdCompletion: boolean;
                         /** @description Whether Claude metadata.user_id injection is enabled. */

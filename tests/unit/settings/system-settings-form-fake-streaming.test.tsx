@@ -55,6 +55,8 @@ const baseSettings = {
     { model: "gpt-image-2", groupTags: [] },
     { model: "gemini-3.1-flash-image-preview", groupTags: [] },
   ],
+  enableProviderOutputSafetyFilter: true,
+  providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   responseFixerConfig: {
     fixEncoding: true,
     fixSseFormat: true,
@@ -90,6 +92,8 @@ const baseSettings = {
   | "enableResponseFixer"
   | "allowNonConversationEndpointProviderFallback"
   | "fakeStreamingWhitelist"
+  | "enableProviderOutputSafetyFilter"
+  | "providerOutputSafetyFilterRules"
   | "responseFixerConfig"
   | "quotaDbRefreshIntervalSeconds"
   | "quotaLeasePercent5h"
@@ -163,6 +167,21 @@ describe("SystemSettingsForm fake streaming whitelist", () => {
           { model: "gpt-image-2", groupTags: [] },
           { model: "gemini-3.1-flash-image-preview", groupTags: [] },
         ],
+      })
+    );
+
+    unmount();
+  });
+
+  test("submits provider output safety settings on save", async () => {
+    const { unmount } = render(<SystemSettingsForm initialSettings={baseSettings} />);
+
+    await submitForm();
+
+    expect(systemConfigActionMocks.saveSystemSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableProviderOutputSafetyFilter: true,
+        providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
       })
     );
 

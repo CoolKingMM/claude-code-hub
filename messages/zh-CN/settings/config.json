@@ -81,6 +81,15 @@
       "remove": "删除",
       "emptyState": "尚未配置任何模型，fake streaming 处于关闭状态。点击 \"添加模型\" 即可为指定模型启用。"
     },
+    "providerOutputSafety": {
+      "title": "Provider 输出安全过滤",
+      "description": "过滤供应商响应中面向本机/系统破坏的高风险命令，只作用于转发给客户端的可见文本。",
+      "editRules": "编辑过滤规则",
+      "rulesLabel": "过滤规则（每行一个正则）",
+      "rulesHint": "规则按正则表达式匹配响应文本；普通 curl/wget 下载不会被默认规则拦截，下载后直接执行的链式命令会被过滤。",
+      "invalidRule": "第 {line} 行过滤规则无效：{message}",
+      "resetToDefault": "恢复默认规则"
+    },
     "enableCodexSessionIdCompletion": "启用 Codex Session ID 补全",
     "enableCodexSessionIdCompletionDesc": "当 Codex 请求仅提供 session_id（请求头）或 prompt_cache_key（请求体）之一时，自动补全另一个；若两者均缺失，则生成 UUID v7 会话 ID，并在同一对话内稳定复用。",
     "enableClaudeMetadataUserIdInjection": "启用 Claude metadata.user_id 注入",

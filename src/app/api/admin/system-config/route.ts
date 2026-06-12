@@ -78,6 +78,8 @@ export async function POST(req: Request) {
       enableThinkingBudgetRectifier: validated.enableThinkingBudgetRectifier,
       enableBillingHeaderRectifier: validated.enableBillingHeaderRectifier,
       enableResponseInputRectifier: validated.enableResponseInputRectifier,
+      enableProviderOutputSafetyFilter: validated.enableProviderOutputSafetyFilter,
+      providerOutputSafetyFilterRules: validated.providerOutputSafetyFilterRules,
       enableCodexSessionIdCompletion: validated.enableCodexSessionIdCompletion,
       enableClaudeMetadataUserIdInjection: validated.enableClaudeMetadataUserIdInjection,
       enableResponseFixer: validated.enableResponseFixer,

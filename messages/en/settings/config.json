@@ -83,6 +83,15 @@
       "remove": "Remove",
       "emptyState": "No models configured. Fake streaming is disabled — use \"Add model\" to enable it for specific models."
     },
+    "providerOutputSafety": {
+      "title": "Provider Output Safety Filter",
+      "description": "Filters high-risk local/system destructive commands in provider responses. Only client-visible text is modified.",
+      "editRules": "Edit filter rules",
+      "rulesLabel": "Filter rules (one regex per line)",
+      "rulesHint": "Rules are regular expressions matched against response text. Normal curl/wget downloads are not blocked by default; download-and-execute command chains are filtered.",
+      "invalidRule": "Filter rule on line {line} is invalid: {message}",
+      "resetToDefault": "Reset to default rules"
+    },
     "enableCodexSessionIdCompletion": "Enable Codex Session ID Completion",
     "enableCodexSessionIdCompletionDesc": "When Codex requests provide only one of session_id (header) or prompt_cache_key (body), automatically completes the other. If both are missing, generates a UUID v7 session id and reuses it stably within the same conversation.",
     "enableClaudeMetadataUserIdInjection": "Enable Claude metadata.user_id Injection",

@@ -84,6 +84,8 @@ describe("saveSystemSettings", () => {
       enableCodexSessionIdCompletion: false,
       enableClaudeMetadataUserIdInjection: false,
       enableResponseFixer: false,
+      enableProviderOutputSafetyFilter: true,
+      providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
       responseFixerConfig: {
         fixEncoding: false,
         fixStreamingJson: false,
@@ -187,6 +189,23 @@ describe("saveSystemSettings", () => {
     expect(updateSystemSettingsMock).toHaveBeenCalledWith(
       expect.not.objectContaining({
         passThroughUpstreamErrorMessage: false,
+      })
+    );
+  });
+
+  it("should pass provider output safety settings through validated updates", async () => {
+    const rules = [String.raw`shutdown\s+\/r`, String.raw`rm\s+-rf\s+\/`];
+
+    const result = await saveSystemSettings({
+      enableProviderOutputSafetyFilter: false,
+      providerOutputSafetyFilterRules: rules,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(updateSystemSettingsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableProviderOutputSafetyFilter: false,
+        providerOutputSafetyFilterRules: rules,
       })
     );
   });

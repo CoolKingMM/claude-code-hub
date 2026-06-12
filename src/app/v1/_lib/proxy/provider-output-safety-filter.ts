@@ -1,25 +1,11 @@
-const PROVIDER_OUTPUT_SAFETY_DISABLED_VALUES = new Set(["0", "false"]);
-const PROVIDER_OUTPUT_SAFETY_REPLACEMENT = "[CCH_FILTERED_DANGEROUS_LOCAL_COMMAND]";
-const STREAM_FILTER_OVERLAP_CHARS = 512;
+import {
+  compileProviderOutputSafetyFilterRules,
+  DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES,
+  PROVIDER_OUTPUT_SAFETY_REPLACEMENT,
+} from "@/lib/provider-output-safety-rules";
 
-const DANGEROUS_PROVIDER_OUTPUT_PATTERNS: RegExp[] = [
-  /\b(?:sudo\s+)?rm\s+(?=[^\r\n]{0,100}(?:-[^\s]*r[^\s]*|--recursive)\b)(?=[^\r\n]{0,100}(?:-[^\s]*f[^\s]*|--force)\b)[^\r\n]{0,160}?\s(?:\/(?:\s|$|[.;,，。])|\/(?:bin|boot|dev|etc|lib|lib64|proc|root|sbin|sys|usr|var)(?:\/|\s|$|[.;,，。])|\/\*)/gi,
-  /\b(?:Remove-Item|rm|del|erase)\s+(?=[^\r\n]{0,140}(?:-Recurse|-r)\b)(?=[^\r\n]{0,140}(?:-Force|-fo)\b)[^\r\n]{0,220}?(?:[a-z]:[\\/]+(?:windows|winnt|system32)(?:[\\/]|$|[.;,，。])|%windir%|%systemroot%|\$env:(?:windir|systemroot))/gi,
-  /\b(?:sudo\s+)?mkfs(?:\.[a-z0-9]+)?\s+(?:-[^\s]+\s+){0,8}\/dev\/(?:sd[a-z]\d*|vd[a-z]\d*|hd[a-z]\d*|nvme\d+n\d+(?:p\d+)?|mapper\/[^\s]+)/gi,
-  /\bdd\s+(?=[^\r\n]{0,160}\bif=\/dev\/(?:zero|random|urandom)\b)(?=[^\r\n]{0,160}\bof=\/dev\/(?:sd[a-z]\d*|vd[a-z]\d*|hd[a-z]\d*|nvme\d+n\d+(?:p\d+)?|mapper\/[^\s]+)\b)[^\r\n]*/gi,
-  /\bdiskpart\b(?=[^\r\n]{0,240}\bclean\b)[^\r\n]*/gi,
-  /\bformat(?:\.com)?\s+[a-z]:[^\r\n]*/gi,
-  /\bbcdedit\s+\/delete\b[^\r\n]*/gi,
-  /\bbootrec\s+\/(?:fixmbr|fixboot|rebuildbcd)\b[^\r\n]*/gi,
-  /\bshutdown\s+(?:\/[rs]|-[rhp])\b[^\r\n]*/gi,
-  /\b(?:sudo\s+)?systemctl\s+(?:reboot|poweroff)\b[^\r\n]*/gi,
-  /(?:^|[\r\n;|&]|\b(?:run|execute|type|执行|运行|输入)\s+)(?:sudo\s+)?(?:\/sbin\/)?reboot(?:\s+(?:now|--force|-f))?(?=\s|$|[.;,，。])/giu,
-  /\bRestart-Computer\b[^\r\n]*/gi,
-  /\b(?:curl|wget)\b(?=[^\r\n]{0,420}\bhttps?:\/\/)(?=[^\r\n]{0,420}(?:\|\s*(?:sudo\s+)?(?:bash|sh|zsh|python3?|perl|ruby|node|pwsh|powershell|cmd)(?:\.exe)?\b|(?:&&|;)\s*(?:sudo\s+)?(?:bash|sh|zsh|python3?|perl|ruby|node|pwsh|powershell|cmd)(?:\.exe)?\b))[^\r\n]*/gi,
-  /\b(?:iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b(?=[^\r\n]{0,420}\bhttps?:\/\/)(?=[^\r\n]{0,420}(?:\|\s*(?:iex|Invoke-Expression|powershell|pwsh|cmd)\b|(?:&&|;)\s*(?:powershell|pwsh|cmd)\b))[^\r\n]*/gi,
-  /\b(?:sudo\s+)?chmod\s+-R\s+777\s+(?:\/(?:\s|$)|\/(?:bin|boot|dev|etc|lib|lib64|proc|root|sbin|sys|usr|var)(?:\/|\s|$)|\/\*)[^\r\n]*/gi,
-  /\b(?:sudo\s+)?chown\s+-R\s+\S+\s+(?:\/(?:\s|$)|\/(?:bin|boot|dev|etc|lib|lib64|proc|root|sbin|sys|usr|var)(?:\/|\s|$)|\/\*)[^\r\n]*/gi,
-];
+const PROVIDER_OUTPUT_SAFETY_DISABLED_VALUES = new Set(["0", "false"]);
+const STREAM_FILTER_OVERLAP_CHARS = 512;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -75,39 +61,51 @@ function encodeSseEvent(eventName: string | null, data: unknown): string {
   return lines.join("\n");
 }
 
-export function filterProviderOutputSafetyText(text: string): string {
+function applyProviderOutputSafetyPatterns(text: string, patterns: readonly RegExp[]): string {
   let filtered = text;
-  for (const pattern of DANGEROUS_PROVIDER_OUTPUT_PATTERNS) {
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
     filtered = filtered.replace(pattern, PROVIDER_OUTPUT_SAFETY_REPLACEMENT);
   }
   return filtered;
 }
 
-function sanitizeTextValue(container: Record<string, unknown>, key: string): boolean {
+export function filterProviderOutputSafetyText(
+  text: string,
+  rules: readonly string[] = DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES
+): string {
+  return applyProviderOutputSafetyPatterns(text, compileProviderOutputSafetyFilterRules(rules));
+}
+
+function sanitizeTextValue(
+  container: Record<string, unknown>,
+  key: string,
+  patterns: readonly RegExp[]
+): boolean {
   const value = container[key];
   if (typeof value !== "string") return false;
 
-  const filtered = filterProviderOutputSafetyText(value);
+  const filtered = applyProviderOutputSafetyPatterns(value, patterns);
   if (filtered === value) return false;
 
   container[key] = filtered;
   return true;
 }
 
-function sanitizeProviderOutputJson(value: unknown): boolean {
+function sanitizeProviderOutputJson(value: unknown, patterns: readonly RegExp[]): boolean {
   let changed = false;
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      changed = sanitizeProviderOutputJson(item) || changed;
+      changed = sanitizeProviderOutputJson(item, patterns) || changed;
     }
     return changed;
   }
 
   if (!isRecord(value)) return false;
 
-  changed = sanitizeTextValue(value, "text") || changed;
-  changed = sanitizeTextValue(value, "content") || changed;
+  changed = sanitizeTextValue(value, "text", patterns) || changed;
+  changed = sanitizeTextValue(value, "content", patterns) || changed;
 
   const type = value.type;
   if (
@@ -115,31 +113,34 @@ function sanitizeProviderOutputJson(value: unknown): boolean {
     type === "response.output_text.done" ||
     type === "content_block_delta"
   ) {
-    changed = sanitizeTextValue(value, "delta") || changed;
+    changed = sanitizeTextValue(value, "delta", patterns) || changed;
   }
 
   for (const child of Object.values(value)) {
     if (typeof child === "object" && child !== null) {
-      changed = sanitizeProviderOutputJson(child) || changed;
+      changed = sanitizeProviderOutputJson(child, patterns) || changed;
     }
   }
 
   return changed;
 }
 
-function filterProviderOutputSafetySseEvent(eventText: string): string {
+function filterProviderOutputSafetySseEvent(
+  eventText: string,
+  patterns: readonly RegExp[]
+): string {
   const { eventName, dataText } = parseSseEvent(eventText);
-  if (!dataText) return filterProviderOutputSafetyText(eventText);
+  if (!dataText) return applyProviderOutputSafetyPatterns(eventText, patterns);
   if (dataText === "[DONE]") return eventText;
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(dataText);
   } catch {
-    return filterProviderOutputSafetyText(eventText);
+    return applyProviderOutputSafetyPatterns(eventText, patterns);
   }
 
-  const changed = sanitizeProviderOutputJson(parsed);
+  const changed = sanitizeProviderOutputJson(parsed, patterns);
   return changed ? encodeSseEvent(eventName, parsed) : eventText;
 }
 
@@ -147,7 +148,14 @@ function isDisabledEnvValue(value: string | undefined): boolean {
   return value !== undefined && PROVIDER_OUTPUT_SAFETY_DISABLED_VALUES.has(value.toLowerCase());
 }
 
-export function shouldFilterProviderOutputSafety(contentType: string | null | undefined): boolean {
+export function shouldFilterProviderOutputSafety(
+  contentType: string | null | undefined,
+  enabled = true
+): boolean {
+  if (!enabled) {
+    return false;
+  }
+
   if (isDisabledEnvValue(process.env.CCH_FILTER_DANGEROUS_PROVIDER_OUTPUT)) {
     return false;
   }
@@ -164,9 +172,12 @@ export function shouldFilterProviderOutputSafety(contentType: string | null | un
   );
 }
 
-export function createProviderOutputSafetyFilter(): TransformStream<Uint8Array, Uint8Array> {
+export function createProviderOutputSafetyFilter(
+  rules: readonly string[] = DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES
+): TransformStream<Uint8Array, Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
+  const patterns = compileProviderOutputSafetyFilterRules(rules);
   let buffer = "";
 
   return new TransformStream<Uint8Array, Uint8Array>({
@@ -179,7 +190,7 @@ export function createProviderOutputSafetyFilter(): TransformStream<Uint8Array, 
         const eventText = buffer.slice(0, end);
         buffer = buffer.slice(end);
 
-        const filtered = filterProviderOutputSafetySseEvent(eventText);
+        const filtered = filterProviderOutputSafetySseEvent(eventText, patterns);
         if (filtered) {
           controller.enqueue(encoder.encode(filtered));
         }
@@ -191,14 +202,14 @@ export function createProviderOutputSafetyFilter(): TransformStream<Uint8Array, 
         const emitLength = buffer.length - STREAM_FILTER_OVERLAP_CHARS;
         const emitText = buffer.slice(0, emitLength);
         buffer = buffer.slice(emitLength);
-        controller.enqueue(encoder.encode(filterProviderOutputSafetyText(emitText)));
+        controller.enqueue(encoder.encode(applyProviderOutputSafetyPatterns(emitText, patterns)));
       }
     },
     flush(controller) {
       buffer += decoder.decode();
       const filtered = buffer.includes("data:")
-        ? filterProviderOutputSafetySseEvent(buffer)
-        : filterProviderOutputSafetyText(buffer);
+        ? filterProviderOutputSafetySseEvent(buffer, patterns)
+        : applyProviderOutputSafetyPatterns(buffer, patterns);
       if (filtered) {
         controller.enqueue(encoder.encode(filtered));
       }

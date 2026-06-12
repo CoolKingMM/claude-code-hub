@@ -830,6 +830,13 @@ export const systemSettings = pgTable('system_settings', {
     Array<{ model: string; groupTags: string[] }>
   >(),
 
+  // Provider 输出安全过滤（默认开启）
+  // 仅过滤返回给客户端的文本/SSE/JSON 响应，不修改内部计费、调试快照或上游请求。
+  enableProviderOutputSafetyFilter: boolean('enable_provider_output_safety_filter')
+    .notNull()
+    .default(true),
+  providerOutputSafetyFilterRules: jsonb('provider_output_safety_filter_rules').$type<string[]>(),
+
   // Codex Session ID 补全（默认开启）
   // 开启后：当 Codex 请求缺少 session_id / prompt_cache_key 时，自动补全或生成稳定的会话标识
   enableCodexSessionIdCompletion: boolean('enable_codex_session_id_completion')

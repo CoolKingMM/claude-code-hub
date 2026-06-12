@@ -58,6 +58,8 @@ const baseSettings = {
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
   fakeStreamingWhitelist: [],
+  enableProviderOutputSafetyFilter: true,
+  providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   responseFixerConfig: {
     fixEncoding: true,
     fixSseFormat: true,
@@ -91,6 +93,9 @@ const baseSettings = {
   | "enableCodexSessionIdCompletion"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
+  | "fakeStreamingWhitelist"
+  | "enableProviderOutputSafetyFilter"
+  | "providerOutputSafetyFilterRules"
   | "responseFixerConfig"
   | "quotaDbRefreshIntervalSeconds"
   | "quotaLeasePercent5h"

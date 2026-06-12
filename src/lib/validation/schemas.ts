@@ -10,6 +10,10 @@ import { normalizeCustomHeadersRecord } from "@/lib/custom-headers";
 import { PROVIDER_ALLOWED_MODEL_RULES_SCHEMA } from "@/lib/provider-allowed-model-schema";
 import { PROVIDER_MODEL_REDIRECT_RULES_SCHEMA } from "@/lib/provider-model-redirect-schema";
 import {
+  PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS,
+  validateProviderOutputSafetyFilterRule,
+} from "@/lib/provider-output-safety-rules";
+import {
   MAX_PUBLIC_STATUS_RANGE_HOURS,
   PUBLIC_STATUS_INTERVAL_OPTIONS,
 } from "@/lib/public-status/constants";
@@ -1047,6 +1051,28 @@ export const UpdateSystemSettingsSchema = z.object({
         seen.add(model);
       }
     })
+    .optional(),
+  // Provider 输出安全过滤规则（可选）。数组为空表示不匹配任何内容；缺省保持现有设置。
+  enableProviderOutputSafetyFilter: z.boolean().optional(),
+  providerOutputSafetyFilterRules: z
+    .array(
+      z
+        .string()
+        .max(
+          PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRuleLength,
+          `单条过滤规则不能超过 ${PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRuleLength} 个字符`
+        )
+        .transform((value) => value.trim())
+        .refine((value) => value.length > 0, { message: "过滤规则不能为空" })
+        .refine((value) => validateProviderOutputSafetyFilterRule(value) === null, {
+          message: "过滤规则不是合法正则表达式",
+        })
+    )
+    .max(
+      PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRules,
+      `过滤规则数量不能超过 ${PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRules} 条`
+    )
+    .transform((rules) => Array.from(new Set(rules)))
     .optional(),
   // Codex Session ID 补全（可选）
   enableCodexSessionIdCompletion: z.boolean().optional(),

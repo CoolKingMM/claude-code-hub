@@ -1,5 +1,6 @@
 import { PROVIDER_TIMEOUT_DEFAULTS } from "@/lib/constants/provider.constants";
 import { normalizeProviderModelRedirectRules } from "@/lib/provider-model-redirects";
+import { normalizeProviderOutputSafetyFilterRules } from "@/lib/provider-output-safety-rules";
 import { formatCostForStorage } from "@/lib/utils/currency";
 import type { Key } from "@/types/key";
 import type { MessageRequest } from "@/types/message";
@@ -271,6 +272,10 @@ export function toSystemSettings(dbSettings: any): SystemSettings {
     allowNonConversationEndpointProviderFallback:
       dbSettings?.allowNonConversationEndpointProviderFallback ?? true,
     fakeStreamingWhitelist: normalizeFakeStreamingWhitelist(dbSettings?.fakeStreamingWhitelist),
+    enableProviderOutputSafetyFilter: dbSettings?.enableProviderOutputSafetyFilter ?? true,
+    providerOutputSafetyFilterRules: normalizeProviderOutputSafetyFilterRules(
+      dbSettings?.providerOutputSafetyFilterRules
+    ),
     enableCodexSessionIdCompletion: dbSettings?.enableCodexSessionIdCompletion ?? true,
     enableClaudeMetadataUserIdInjection: dbSettings?.enableClaudeMetadataUserIdInjection ?? true,
     enableResponseFixer: dbSettings?.enableResponseFixer ?? true,

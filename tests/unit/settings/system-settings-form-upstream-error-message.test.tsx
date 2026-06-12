@@ -48,6 +48,9 @@ type FormSettings = Pick<
   | "enableCodexSessionIdCompletion"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
+  | "fakeStreamingWhitelist"
+  | "enableProviderOutputSafetyFilter"
+  | "providerOutputSafetyFilterRules"
   | "responseFixerConfig"
   | "quotaDbRefreshIntervalSeconds"
   | "quotaLeasePercent5h"
@@ -90,6 +93,9 @@ const baseSettings: FormSettings = {
   enableCodexSessionIdCompletion: true,
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
+  fakeStreamingWhitelist: [],
+  enableProviderOutputSafetyFilter: true,
+  providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   responseFixerConfig: {
     fixEncoding: true,
     fixSseFormat: true,

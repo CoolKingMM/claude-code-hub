@@ -9,6 +9,7 @@ import { getCachedSystemSettings } from "@/lib/config/system-settings-cache";
 import { emitProxyLangfuseTrace } from "@/lib/langfuse/emit-proxy-trace";
 import { logger } from "@/lib/logger";
 import { requestCloudPriceTableSync } from "@/lib/price-sync/cloud-price-updater";
+import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
 import { ProxyStatusTracker } from "@/lib/proxy-status-tracker";
 import { RateLimitService } from "@/lib/rate-limit";
 import { deleteLiveChain } from "@/lib/redis/live-chain-store";
@@ -168,12 +169,40 @@ function cleanResponseHeaders(headers: Headers): Headers {
   return cleaned;
 }
 
-function applyProviderOutputSafetyFilterToResponse(response: Response): Response {
-  if (!response.body || !shouldFilterProviderOutputSafety(response.headers.get("content-type"))) {
+type ProviderOutputSafetyRuntimeConfig = {
+  enabled: boolean;
+  rules: readonly string[];
+};
+
+async function getProviderOutputSafetyRuntimeConfig(): Promise<ProviderOutputSafetyRuntimeConfig> {
+  try {
+    const settings = await getCachedSystemSettings();
+    return {
+      enabled: settings.enableProviderOutputSafetyFilter,
+      rules: settings.providerOutputSafetyFilterRules,
+    };
+  } catch (error) {
+    logger.warn("[ResponseHandler] Failed to read provider output safety settings", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      enabled: true,
+      rules: DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES,
+    };
+  }
+}
+
+async function applyProviderOutputSafetyFilterToResponse(response: Response): Promise<Response> {
+  if (!response.body) {
     return response;
   }
 
-  return new Response(response.body.pipeThrough(createProviderOutputSafetyFilter()), {
+  const config = await getProviderOutputSafetyRuntimeConfig();
+  if (!shouldFilterProviderOutputSafety(response.headers.get("content-type"), config.enabled)) {
+    return response;
+  }
+
+  return new Response(response.body.pipeThrough(createProviderOutputSafetyFilter(config.rules)), {
     status: response.status,
     statusText: response.statusText,
     headers: cleanResponseHeaders(response.headers),
@@ -1194,7 +1223,7 @@ export class ProxyResponseHandler {
           });
         }
 
-        return applyProviderOutputSafetyFilterToResponse(response);
+        return await applyProviderOutputSafetyFilterToResponse(response);
       } else {
         // ❌ 需要转换：客户端不是 Gemini 格式（如 OpenAI/Claude）
         try {
@@ -1694,7 +1723,7 @@ export class ProxyResponseHandler {
       });
     });
 
-    finalResponse = applyProviderOutputSafetyFilterToResponse(finalResponse);
+    finalResponse = await applyProviderOutputSafetyFilterToResponse(finalResponse);
 
     void persistNonStreamAfterSnapshot(finalResponse).catch((error) => {
       logger.error("[ResponseHandler] Failed to persist non-stream after snapshot", { error });
@@ -3035,8 +3064,16 @@ export class ProxyResponseHandler {
       ? clientStream.pipeThrough(createCodexCyberNoticeFilter())
       : clientStream;
 
-    if (shouldFilterProviderOutputSafety(finalStreamHeaders.get("content-type"))) {
-      visibleClientStream = visibleClientStream.pipeThrough(createProviderOutputSafetyFilter());
+    const providerOutputSafetyConfig = await getProviderOutputSafetyRuntimeConfig();
+    if (
+      shouldFilterProviderOutputSafety(
+        finalStreamHeaders.get("content-type"),
+        providerOutputSafetyConfig.enabled
+      )
+    ) {
+      visibleClientStream = visibleClientStream.pipeThrough(
+        createProviderOutputSafetyFilter(providerOutputSafetyConfig.rules)
+      );
     }
 
     return new Response(visibleClientStream, {

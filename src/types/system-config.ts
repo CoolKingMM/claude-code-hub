@@ -108,6 +108,11 @@ export interface SystemSettings {
   // Fake 流式输出白名单（缺省时使用 DEFAULT_FAKE_STREAMING_WHITELIST，持久化空数组表示显式禁用）
   fakeStreamingWhitelist: FakeStreamingWhitelistEntry[];
 
+  // Provider 输出安全过滤（默认开启）
+  // 仅过滤返回给客户端的文本/SSE/JSON 响应，不修改内部计费、会话调试原始响应或上游请求。
+  enableProviderOutputSafetyFilter: boolean;
+  providerOutputSafetyFilterRules: string[];
+
   // Codex Session ID 补全（默认开启）
   // 目标：当 Codex 请求缺少 session_id / prompt_cache_key 时，自动补全或生成稳定的会话标识
   enableCodexSessionIdCompletion: boolean;
@@ -207,6 +212,10 @@ export interface UpdateSystemSettingsInput {
 
   // Fake 流式输出白名单（可选）
   fakeStreamingWhitelist?: FakeStreamingWhitelistEntry[];
+
+  // Provider 输出安全过滤（可选）
+  enableProviderOutputSafetyFilter?: boolean;
+  providerOutputSafetyFilterRules?: string[];
 
   // Codex Session ID 补全（可选）
   enableCodexSessionIdCompletion?: boolean;

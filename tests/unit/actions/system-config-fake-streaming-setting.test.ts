@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
 
 const getSystemSettingsMock = vi.fn();
 const loggerWarnMock = vi.fn();
@@ -90,6 +91,8 @@ function createSettings(overrides: Record<string, unknown> = {}) {
     enableResponseFixer: true,
     allowNonConversationEndpointProviderFallback: true,
     fakeStreamingWhitelist: DEFAULT_FAKE_STREAMING_MODELS,
+    enableProviderOutputSafetyFilter: true,
+    providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     responseFixerConfig: {
       fixTruncatedJson: true,
       fixSseFormat: true,
@@ -173,6 +176,20 @@ describe("fake streaming whitelist system setting", () => {
       });
 
       expect(result.fakeStreamingWhitelist).toEqual(persisted);
+    });
+
+    test("defaults missing provider output safety config to enabled built-in rules", async () => {
+      const { toSystemSettings } = await import("@/repository/_shared/transformers");
+
+      const result = toSystemSettings({
+        id: 1,
+        siteTitle: "Claude Code Hub",
+      });
+
+      expect(result.enableProviderOutputSafetyFilter).toBe(true);
+      expect(result.providerOutputSafetyFilterRules).toEqual(
+        DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES
+      );
     });
 
     test("repository fallback (table missing) defaults to the empty default", async () => {
@@ -265,6 +282,22 @@ describe("fake streaming whitelist system setting", () => {
       });
 
       expect(parsed.fakeStreamingWhitelist).toEqual([]);
+    });
+
+    test("validates provider output safety filter rules", async () => {
+      const { UpdateSystemSettingsSchema } = await import("@/lib/validation/schemas");
+
+      const parsed = UpdateSystemSettingsSchema.parse({
+        enableProviderOutputSafetyFilter: true,
+        providerOutputSafetyFilterRules: [String.raw` shutdown\s+\/r `, String.raw`shutdown\s+\/r`],
+      });
+
+      expect(parsed.providerOutputSafetyFilterRules).toEqual([String.raw`shutdown\s+\/r`]);
+      expect(() =>
+        UpdateSystemSettingsSchema.parse({
+          providerOutputSafetyFilterRules: ["("],
+        })
+      ).toThrow();
     });
 
     test("rejects empty model string", async () => {

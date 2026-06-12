@@ -1,0 +1,2 @@
+ALTER TABLE "system_settings" ADD COLUMN "enable_provider_output_safety_filter" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "system_settings" ADD COLUMN "provider_output_safety_filter_rules" jsonb;

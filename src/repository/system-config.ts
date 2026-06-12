@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/drizzle/db";
 import { systemSettings } from "@/drizzle/schema";
 import { logger } from "@/lib/logger";
+import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
 import { DEFAULT_SITE_TITLE } from "@/lib/site-title";
 import {
   DEFAULT_FAKE_STREAMING_WHITELIST,
@@ -170,6 +171,8 @@ function createFallbackSettings(): SystemSettings {
       model: entry.model,
       groupTags: [...entry.groupTags],
     })),
+    enableProviderOutputSafetyFilter: true,
+    providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     enableCodexSessionIdCompletion: true,
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
@@ -284,6 +287,8 @@ export async function getSystemSettings(): Promise<SystemSettings> {
       billNonSuccessfulRequests: systemSettings.billNonSuccessfulRequests,
       passThroughUpstreamErrorMessage: systemSettings.passThroughUpstreamErrorMessage,
       fakeStreamingWhitelist: systemSettings.fakeStreamingWhitelist,
+      enableProviderOutputSafetyFilter: systemSettings.enableProviderOutputSafetyFilter,
+      providerOutputSafetyFilterRules: systemSettings.providerOutputSafetyFilterRules,
       enableOpenaiResponsesWebsocket: systemSettings.enableOpenaiResponsesWebsocket,
       ...selectionWithoutPassThrough,
     };
@@ -302,9 +307,34 @@ export async function getSystemSettings(): Promise<SystemSettings> {
           error,
         });
 
-        // 最新降级：移除最近新增的 billHedgeLosers 列。
+        // 最新降级：移除 provider output safety 相关列。
+        const {
+          enableProviderOutputSafetyFilter: _omitProviderOutputSafetyEnabled,
+          providerOutputSafetyFilterRules: _omitProviderOutputSafetyRules,
+          ...selectionWithoutProviderOutputSafety
+        } = fullSelection;
+
+        try {
+          const [row] = await db
+            .select(selectionWithoutProviderOutputSafety)
+            .from(systemSettings)
+            .orderBy(asc(systemSettings.id))
+            .limit(1);
+          return row ?? null;
+        } catch (providerOutputSafetyFallbackError) {
+          if (!isUndefinedColumnError(providerOutputSafetyFallbackError)) {
+            throw providerOutputSafetyFallbackError;
+          }
+
+          logger.warn(
+            "system_settings 表除 provider output safety 字段外仍有列缺失，继续回退到上一代字段集。",
+            { error: providerOutputSafetyFallbackError }
+          );
+        }
+
+        // 次新降级：移除 billHedgeLosers 列。
         const { billHedgeLosers: _omitBillHedgeLosers, ...selectionWithoutBillHedgeLosers } =
-          fullSelection;
+          selectionWithoutProviderOutputSafety;
 
         try {
           const [row] = await db
@@ -644,6 +674,8 @@ export async function updateSystemSettings(
     billNonSuccessfulRequests: systemSettings.billNonSuccessfulRequests,
     passThroughUpstreamErrorMessage: systemSettings.passThroughUpstreamErrorMessage,
     fakeStreamingWhitelist: systemSettings.fakeStreamingWhitelist,
+    enableProviderOutputSafetyFilter: systemSettings.enableProviderOutputSafetyFilter,
+    providerOutputSafetyFilterRules: systemSettings.providerOutputSafetyFilterRules,
     enableOpenaiResponsesWebsocket: systemSettings.enableOpenaiResponsesWebsocket,
     ...returningWithoutPassThrough,
   };
@@ -830,6 +862,14 @@ export async function updateSystemSettings(
       updates.fakeStreamingWhitelist = payload.fakeStreamingWhitelist;
     }
 
+    // Provider 输出安全过滤配置（如果提供）
+    if (payload.enableProviderOutputSafetyFilter !== undefined) {
+      updates.enableProviderOutputSafetyFilter = payload.enableProviderOutputSafetyFilter;
+    }
+    if (payload.providerOutputSafetyFilterRules !== undefined) {
+      updates.providerOutputSafetyFilterRules = payload.providerOutputSafetyFilterRules;
+    }
+
     let updated;
     try {
       [updated] = await executor
@@ -846,26 +886,57 @@ export async function updateSystemSettings(
         error,
       });
 
-      // 最新降级：移除最近新增的 billHedgeLosers 列。
-      const { billHedgeLosers: _omitUpdateBillHedgeLosers, ...updatesWithoutBillHedgeLosers } =
-        updates;
-      const { billHedgeLosers: _omitReturningBillHedgeLosers, ...returningWithoutBillHedgeLosers } =
-        fullReturning;
+      // 最新降级：移除 provider output safety 相关列。
+      const {
+        enableProviderOutputSafetyFilter: _omitUpdateProviderOutputSafetyEnabled,
+        providerOutputSafetyFilterRules: _omitUpdateProviderOutputSafetyRules,
+        ...updatesWithoutProviderOutputSafety
+      } = updates;
+      const {
+        enableProviderOutputSafetyFilter: _omitReturningProviderOutputSafetyEnabled,
+        providerOutputSafetyFilterRules: _omitReturningProviderOutputSafetyRules,
+        ...returningWithoutProviderOutputSafety
+      } = fullReturning;
 
       try {
         [updated] = await executor
           .update(systemSettings)
-          .set(updatesWithoutBillHedgeLosers)
+          .set(updatesWithoutProviderOutputSafety)
           .where(eq(systemSettings.id, current.id))
-          .returning(returningWithoutBillHedgeLosers);
-      } catch (billHedgeLosersFallbackError) {
-        if (!isUndefinedColumnError(billHedgeLosersFallbackError)) {
-          throw billHedgeLosersFallbackError;
+          .returning(returningWithoutProviderOutputSafety);
+      } catch (providerOutputSafetyFallbackError) {
+        if (!isUndefinedColumnError(providerOutputSafetyFallbackError)) {
+          throw providerOutputSafetyFallbackError;
         }
 
-        logger.warn("system_settings 表除 billHedgeLosers 外仍有列缺失，继续降级更新。", {
-          error: billHedgeLosersFallbackError,
-        });
+        logger.warn(
+          "system_settings 表除 provider output safety 字段外仍有列缺失，继续降级更新。",
+          { error: providerOutputSafetyFallbackError }
+        );
+      }
+
+      // 次新降级：移除 billHedgeLosers 列。
+      const { billHedgeLosers: _omitUpdateBillHedgeLosers, ...updatesWithoutBillHedgeLosers } =
+        updatesWithoutProviderOutputSafety;
+      const { billHedgeLosers: _omitReturningBillHedgeLosers, ...returningWithoutBillHedgeLosers } =
+        returningWithoutProviderOutputSafety;
+
+      if (!updated) {
+        try {
+          [updated] = await executor
+            .update(systemSettings)
+            .set(updatesWithoutBillHedgeLosers)
+            .where(eq(systemSettings.id, current.id))
+            .returning(returningWithoutBillHedgeLosers);
+        } catch (billHedgeLosersFallbackError) {
+          if (!isUndefinedColumnError(billHedgeLosersFallbackError)) {
+            throw billHedgeLosersFallbackError;
+          }
+
+          logger.warn("system_settings 表除 billHedgeLosers 外仍有列缺失，继续降级更新。", {
+            error: billHedgeLosersFallbackError,
+          });
+        }
       }
 
       // 次新降级：移除 billNonSuccessfulRequests 列。

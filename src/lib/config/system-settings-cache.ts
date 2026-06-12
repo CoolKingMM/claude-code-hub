@@ -13,6 +13,7 @@
  */
 
 import { logger } from "@/lib/logger";
+import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
 import { getSystemSettings } from "@/repository/system-config";
 import type { SystemSettings } from "@/types/system-config";
 
@@ -45,6 +46,8 @@ const DEFAULT_SETTINGS: Pick<
   | "enableResponseInputRectifier"
   | "allowNonConversationEndpointProviderFallback"
   | "fakeStreamingWhitelist"
+  | "enableProviderOutputSafetyFilter"
+  | "providerOutputSafetyFilterRules"
   | "enableCodexSessionIdCompletion"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
@@ -67,6 +70,8 @@ const DEFAULT_SETTINGS: Pick<
   // Fake streaming 在 DB 完全不可达时 fail-closed（空白名单 → 走原有直传路径），
   // 避免在不确定状态下劫持流式。Transformer / createFallbackSettings 仍走 4 个默认模型。
   fakeStreamingWhitelist: [],
+  enableProviderOutputSafetyFilter: true,
+  providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
   enableCodexSessionIdCompletion: true,
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
@@ -153,6 +158,8 @@ export async function getCachedSystemSettings(): Promise<SystemSettings> {
       allowNonConversationEndpointProviderFallback:
         DEFAULT_SETTINGS.allowNonConversationEndpointProviderFallback,
       fakeStreamingWhitelist: DEFAULT_SETTINGS.fakeStreamingWhitelist,
+      enableProviderOutputSafetyFilter: DEFAULT_SETTINGS.enableProviderOutputSafetyFilter,
+      providerOutputSafetyFilterRules: DEFAULT_SETTINGS.providerOutputSafetyFilterRules,
       enableCodexSessionIdCompletion: DEFAULT_SETTINGS.enableCodexSessionIdCompletion,
       enableClaudeMetadataUserIdInjection: DEFAULT_SETTINGS.enableClaudeMetadataUserIdInjection,
       enableResponseFixer: DEFAULT_SETTINGS.enableResponseFixer,

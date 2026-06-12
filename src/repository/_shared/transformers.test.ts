@@ -7,6 +7,7 @@ import {
   toSystemSettings,
   toUser,
 } from "./transformers";
+import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
 
 describe("src/repository/_shared/transformers.ts", () => {
   const now = new Date("2024-01-02T03:04:05.000Z");
@@ -288,6 +289,10 @@ describe("src/repository/_shared/transformers.ts", () => {
       expect(result.passThroughUpstreamErrorMessage).toBe(true);
       expect(result.enableHttp2).toBe(false);
       expect(result.enableOpenaiResponsesWebsocket).toBe(true);
+      expect(result.enableProviderOutputSafetyFilter).toBe(true);
+      expect(result.providerOutputSafetyFilterRules).toEqual(
+        DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES
+      );
       expect(result.interceptAnthropicWarmupRequests).toBe(false);
       expect(result.createdAt).toEqual(now);
       expect(result.updatedAt).toEqual(now);

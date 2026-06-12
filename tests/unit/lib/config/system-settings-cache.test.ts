@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
 import type { SystemSettings } from "@/types/system-config";
 
 const getSystemSettingsMock = vi.fn();
@@ -45,6 +46,11 @@ function createSettings(overrides: Partial<SystemSettings> = {}): SystemSettings
     enableThinkingSignatureRectifier: true,
     enableThinkingBudgetRectifier: true,
     enableBillingHeaderRectifier: true,
+    enableResponseInputRectifier: true,
+    allowNonConversationEndpointProviderFallback: true,
+    fakeStreamingWhitelist: [],
+    enableProviderOutputSafetyFilter: true,
+    providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     enableCodexSessionIdCompletion: true,
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
@@ -61,6 +67,10 @@ function createSettings(overrides: Partial<SystemSettings> = {}): SystemSettings
     quotaLeasePercentWeekly: 0.05,
     quotaLeasePercentMonthly: 0.05,
     quotaLeaseCapUsd: null,
+    publicStatusWindowHours: 24,
+    publicStatusAggregationIntervalMinutes: 5,
+    ipExtractionConfig: null,
+    ipGeoLookupEnabled: true,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
   };
@@ -151,6 +161,8 @@ describe("SystemSettingsCache", () => {
         interceptAnthropicWarmupRequests: false,
         codexPriorityBillingSource: "requested",
         passThroughUpstreamErrorMessage: true,
+        enableProviderOutputSafetyFilter: true,
+        providerOutputSafetyFilterRules: DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES,
       })
     );
     expect(loggerWarnMock).toHaveBeenCalledTimes(1);

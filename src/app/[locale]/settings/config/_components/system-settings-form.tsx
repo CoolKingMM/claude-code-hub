@@ -38,6 +38,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { saveSystemSettings } from "@/lib/api-client/v1/actions/system-config";
+import {
+  DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES,
+  validateProviderOutputSafetyFilterRule,
+} from "@/lib/provider-output-safety-rules";
 import type { CurrencyCode } from "@/lib/utils";
 import { CURRENCY_CONFIG } from "@/lib/utils";
 import { COMMON_TIMEZONES, getTimezoneLabel } from "@/lib/utils/timezone";
@@ -78,6 +82,8 @@ interface SystemSettingsFormProps {
     | "enableThinkingBudgetRectifier"
     | "allowNonConversationEndpointProviderFallback"
     | "fakeStreamingWhitelist"
+    | "enableProviderOutputSafetyFilter"
+    | "providerOutputSafetyFilterRules"
     | "enableCodexSessionIdCompletion"
     | "enableClaudeMetadataUserIdInjection"
     | "enableResponseFixer"
@@ -105,6 +111,19 @@ function formatIpExtractionConfig(config: IpExtractionConfig): string {
 }
 
 const DEFAULT_IP_EXTRACTION_CONFIG_TEXT = formatIpExtractionConfig(DEFAULT_IP_EXTRACTION_CONFIG);
+const DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES_TEXT =
+  DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES.join("\n");
+
+function formatProviderOutputSafetyFilterRules(rules: readonly string[]): string {
+  return rules.join("\n");
+}
+
+function parseProviderOutputSafetyFilterRules(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
 
 export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps) {
   const router = useRouter();
@@ -166,6 +185,13 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
       groupTags: [...entry.groupTags],
     }))
   );
+  const [enableProviderOutputSafetyFilter, setEnableProviderOutputSafetyFilter] = useState(
+    initialSettings.enableProviderOutputSafetyFilter
+  );
+  const [providerOutputSafetyFilterRulesText, setProviderOutputSafetyFilterRulesText] =
+    useState<string>(
+      formatProviderOutputSafetyFilterRules(initialSettings.providerOutputSafetyFilterRules)
+    );
   const [enableThinkingBudgetRectifier, setEnableThinkingBudgetRectifier] = useState(
     initialSettings.enableThinkingBudgetRectifier
   );
@@ -213,6 +239,7 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
   );
   const [isPending, startTransition] = useTransition();
   const [responseFixerOpen, setResponseFixerOpen] = useState(false);
+  const [providerOutputSafetyFilterOpen, setProviderOutputSafetyFilterOpen] = useState(false);
   const [quotaLeaseOpen, setQuotaLeaseOpen] = useState(false);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -253,6 +280,24 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
         return;
       }
       ipExtractionConfigToSave = parsed as IpExtractionConfig;
+    }
+
+    const providerOutputSafetyFilterRulesToSave = parseProviderOutputSafetyFilterRules(
+      providerOutputSafetyFilterRulesText
+    );
+    for (let index = 0; index < providerOutputSafetyFilterRulesToSave.length; index += 1) {
+      const error = validateProviderOutputSafetyFilterRule(
+        providerOutputSafetyFilterRulesToSave[index]
+      );
+      if (error) {
+        toast.error(
+          t("providerOutputSafety.invalidRule", {
+            line: index + 1,
+            message: error,
+          })
+        );
+        return;
+      }
     }
 
     const sanitizedFakeStreamingWhitelist: FakeStreamingWhitelistEntry[] = (() => {
@@ -316,6 +361,8 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
         enableResponseInputRectifier,
         allowNonConversationEndpointProviderFallback,
         fakeStreamingWhitelist: sanitizedFakeStreamingWhitelist,
+        enableProviderOutputSafetyFilter,
+        providerOutputSafetyFilterRules: providerOutputSafetyFilterRulesToSave,
         enableThinkingBudgetRectifier,
         enableCodexSessionIdCompletion,
         enableClaudeMetadataUserIdInjection,
@@ -362,6 +409,10 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
             model: entry.model,
             groupTags: [...entry.groupTags],
           }))
+        );
+        setEnableProviderOutputSafetyFilter(result.data.enableProviderOutputSafetyFilter);
+        setProviderOutputSafetyFilterRulesText(
+          formatProviderOutputSafetyFilterRules(result.data.providerOutputSafetyFilterRules)
         );
         setEnableThinkingBudgetRectifier(result.data.enableThinkingBudgetRectifier);
         setEnableCodexSessionIdCompletion(result.data.enableCodexSessionIdCompletion);
@@ -909,6 +960,86 @@ export function SystemSettingsForm({ initialSettings }: SystemSettingsFormProps)
             onCheckedChange={(checked) => setEnableClaudeMetadataUserIdInjection(checked)}
             disabled={isPending}
           />
+        </div>
+
+        {/* Provider Output Safety Filter */}
+        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 shrink-0">
+                <Terminal className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  {t("providerOutputSafety.title")}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("providerOutputSafety.description")}
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="enable-provider-output-safety-filter"
+              checked={enableProviderOutputSafetyFilter}
+              onCheckedChange={(checked) => setEnableProviderOutputSafetyFilter(checked)}
+              disabled={isPending}
+            />
+          </div>
+
+          <Collapsible
+            open={providerOutputSafetyFilterOpen}
+            onOpenChange={setProviderOutputSafetyFilterOpen}
+          >
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 mt-3 ml-11 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform ${providerOutputSafetyFilterOpen ? "" : "-rotate-90"}`}
+                />
+                {t("providerOutputSafety.editRules")}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-3 space-y-2 pl-11">
+                <Label
+                  htmlFor="provider-output-safety-filter-rules"
+                  className="text-sm font-medium text-foreground"
+                >
+                  {t("providerOutputSafety.rulesLabel")}
+                </Label>
+                <Textarea
+                  id="provider-output-safety-filter-rules"
+                  value={providerOutputSafetyFilterRulesText}
+                  onChange={(event) => setProviderOutputSafetyFilterRulesText(event.target.value)}
+                  placeholder={DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES_TEXT}
+                  disabled={isPending}
+                  rows={8}
+                  spellCheck={false}
+                  className={`${inputClassName} font-mono text-xs`}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("providerOutputSafety.rulesHint")}
+                </p>
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setProviderOutputSafetyFilterRulesText(
+                        DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES_TEXT
+                      )
+                    }
+                    disabled={isPending}
+                  >
+                    {t("providerOutputSafety.resetToDefault")}
+                  </Button>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         {/* Response Fixer Section */}

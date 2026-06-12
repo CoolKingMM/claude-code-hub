@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS } from "@/lib/provider-output-safety-rules";
 import { CURRENCY_CONFIG } from "@/lib/utils/currency";
 import { IsoDateTimeStringSchema } from "./_common";
 
@@ -64,6 +65,12 @@ const FakeStreamingWhitelistEntrySchema = z
       .describe("Provider group tags. Empty means all provider groups."),
   })
   .describe("Fake streaming whitelist entry.");
+
+const ProviderOutputSafetyFilterRuleSchema = z
+  .string()
+  .min(1)
+  .max(PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRuleLength)
+  .describe("Regular expression source for filtering dangerous provider output text.");
 
 const ResponseFixerConfigSchema = z
   .object({
@@ -138,6 +145,13 @@ export const SystemSettingsSchema = z
     fakeStreamingWhitelist: z
       .array(FakeStreamingWhitelistEntrySchema)
       .describe("Fake streaming model whitelist."),
+    enableProviderOutputSafetyFilter: z
+      .boolean()
+      .describe("Whether provider output safety filtering is enabled."),
+    providerOutputSafetyFilterRules: z
+      .array(ProviderOutputSafetyFilterRuleSchema)
+      .max(PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRules)
+      .describe("Provider output safety filter regex rules."),
     enableCodexSessionIdCompletion: z
       .boolean()
       .describe("Whether Codex session id completion is enabled."),

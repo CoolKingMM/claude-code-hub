@@ -75,6 +75,7 @@ function createSettings(overrides: Record<string, unknown> = {}) {
     cleanupBatchSize: 10000,
     enableClientVersionCheck: false,
     verboseProviderError: false,
+    passThroughUpstreamErrorMessage: true,
     enableHttp2: false,
     enableHighConcurrencyMode: false,
     interceptAnthropicWarmupRequests: false,
@@ -86,6 +87,9 @@ function createSettings(overrides: Record<string, unknown> = {}) {
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
     allowNonConversationEndpointProviderFallback: true,
+    fakeStreamingWhitelist: [],
+    enableProviderOutputSafetyFilter: true,
+    providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
     responseFixerConfig: {
       fixTruncatedJson: true,
       fixSseFormat: true,

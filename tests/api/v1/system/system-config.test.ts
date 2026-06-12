@@ -60,6 +60,8 @@ const settings: SystemSettings = {
   enableResponseInputRectifier: true,
   allowNonConversationEndpointProviderFallback: true,
   fakeStreamingWhitelist: [{ model: "gpt-image-2", groupTags: [] }],
+  enableProviderOutputSafetyFilter: true,
+  providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   enableCodexSessionIdCompletion: true,
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
@@ -113,13 +115,20 @@ describe("v1 system config endpoints", () => {
       method: "PUT",
       pathname: "/api/v1/system/settings",
       headers: { Authorization: "Bearer admin-token" },
-      body: { siteTitle: "CCH Ops", timezone: "UTC" },
+      body: {
+        siteTitle: "CCH Ops",
+        timezone: "UTC",
+        enableProviderOutputSafetyFilter: false,
+        providerOutputSafetyFilterRules: [String.raw`shutdown\s+\/r`],
+      },
     });
     expect(updated.response.status).toBe(200);
     expect(updated.json).toMatchObject({ siteTitle: "CCH Ops", timezone: "UTC" });
     expect(saveSystemSettingsMock).toHaveBeenCalledWith({
       siteTitle: "CCH Ops",
       timezone: "UTC",
+      enableProviderOutputSafetyFilter: false,
+      providerOutputSafetyFilterRules: [String.raw`shutdown\s+\/r`],
     });
   });
 

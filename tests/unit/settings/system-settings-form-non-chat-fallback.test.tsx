@@ -46,6 +46,8 @@ const baseSettings = {
   enableResponseFixer: true,
   allowNonConversationEndpointProviderFallback: true,
   fakeStreamingWhitelist: [],
+  enableProviderOutputSafetyFilter: true,
+  providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   responseFixerConfig: {
     fixEncoding: true,
     fixSseFormat: true,
@@ -80,6 +82,8 @@ const baseSettings = {
   | "enableResponseFixer"
   | "allowNonConversationEndpointProviderFallback"
   | "fakeStreamingWhitelist"
+  | "enableProviderOutputSafetyFilter"
+  | "providerOutputSafetyFilterRules"
   | "responseFixerConfig"
   | "quotaDbRefreshIntervalSeconds"
   | "quotaLeasePercent5h"

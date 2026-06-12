@@ -41,6 +41,7 @@ describe("provider output safety filter", () => {
     expect(shouldFilterProviderOutputSafety("text/event-stream")).toBe(true);
     expect(shouldFilterProviderOutputSafety("application/json")).toBe(true);
     expect(shouldFilterProviderOutputSafety("image/png")).toBe(false);
+    expect(shouldFilterProviderOutputSafety("text/event-stream", false)).toBe(false);
 
     process.env.CCH_FILTER_DANGEROUS_PROVIDER_OUTPUT = "0";
     expect(shouldFilterProviderOutputSafety("text/event-stream")).toBe(false);
@@ -59,6 +60,14 @@ describe("provider output safety filter", () => {
     ].join("\n");
 
     expect(filterProviderOutputSafetyText(input)).toBe(input);
+  });
+
+  test("supports custom regex rules", () => {
+    const filtered = filterProviderOutputSafetyText("Run custom-danger now.", [
+      String.raw`custom-danger`,
+    ]);
+
+    expect(filtered).toBe(`Run ${FILTER_REPLACEMENT} now.`);
   });
 
   test("filters destructive Linux and Windows local commands", () => {
