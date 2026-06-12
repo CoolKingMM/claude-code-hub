@@ -2,13 +2,18 @@
 
 import { ChevronDown, ShieldAlert, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { saveSystemSettings } from "@/lib/api-client/v1/actions/system-config";
@@ -17,12 +22,13 @@ import {
   validateProviderOutputSafetyFilterRule,
 } from "@/lib/provider-output-safety-rules";
 import { cn } from "@/lib/utils";
+import { resolveProviderGroupsWithDefault } from "@/lib/utils/provider-group";
 import type { ProviderDisplay } from "@/types/provider";
 import type { SystemSettings } from "@/types/system-config";
 
 type SpecialHandlingProvider = Pick<
   ProviderDisplay,
-  "id" | "name" | "groupTag" | "providerType" | "isEnabled"
+  "id" | "name" | "groupTag" | "priority" | "groupPriorities"
 >;
 
 type SpecialHandlingFormProps = {
@@ -46,14 +52,11 @@ export type SpecialHandlingFormLabels = {
     emptyState: string;
     providerLabel: string;
     selectedCount: string;
-    selectAll: string;
-    clearAll: string;
+    groupSelectLabel: string;
     noProviders: string;
-    providerIdLabel: string;
-    groupLabel: string;
+    noProvidersInGroup: string;
     defaultGroup: string;
-    enabledStatus: string;
-    disabledStatus: string;
+    providerToggleLabel: string;
   };
   providerOutputSafety: {
     title: string;
@@ -94,11 +97,36 @@ function sanitizeProviderIds(providerIds: readonly number[]): number[] {
 
 function formatGroupTag(groupTag: string | null, defaultGroup: string): string {
   const trimmed = groupTag?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : defaultGroup;
+  if (!trimmed || trimmed.length === 0 || trimmed === "default") return defaultGroup;
+  return trimmed;
 }
 
 function selectedCountLabel(template: string, count: number): string {
   return template.replace("{count}", String(count));
+}
+
+function uniqueGroupsForProviders(providers: readonly SpecialHandlingProvider[]): string[] {
+  const groups = new Set<string>();
+  for (const provider of providers) {
+    for (const group of resolveProviderGroupsWithDefault(provider.groupTag)) {
+      groups.add(group);
+    }
+  }
+
+  return Array.from(groups).sort((a, b) => {
+    if (a === "codex") return -1;
+    if (b === "codex") return 1;
+    if (a === "default") return -1;
+    if (b === "default") return 1;
+    return a.localeCompare(b);
+  });
+}
+
+function effectivePriority(provider: SpecialHandlingProvider, group: string): number {
+  const groupPriority = provider.groupPriorities?.[group];
+  return typeof groupPriority === "number" && Number.isSafeInteger(groupPriority)
+    ? groupPriority
+    : provider.priority;
 }
 
 export function SpecialHandlingForm({
@@ -121,6 +149,27 @@ export function SpecialHandlingForm({
   const [providerOutputSafetyFilterOpen, setProviderOutputSafetyFilterOpen] = useState(false);
 
   const selectedProviderIdSet = new Set(selectedProviderIds);
+  const providerGroups = useMemo(() => uniqueGroupsForProviders(providers), [providers]);
+  const initialGroup = providerGroups.includes("codex") ? "codex" : (providerGroups[0] ?? "");
+  const [selectedGroup, setSelectedGroup] = useState(initialGroup);
+  const visibleProviders = useMemo(
+    () =>
+      providers
+        .filter((provider) =>
+          resolveProviderGroupsWithDefault(provider.groupTag).includes(selectedGroup)
+        )
+        .toSorted((left, right) => {
+          const priorityDelta =
+            effectivePriority(left, selectedGroup) - effectivePriority(right, selectedGroup);
+          if (priorityDelta !== 0) return priorityDelta;
+          const nameDelta = left.name.localeCompare(right.name);
+          return nameDelta !== 0 ? nameDelta : left.id - right.id;
+        }),
+    [providers, selectedGroup]
+  );
+  const selectedVisibleProviderCount = visibleProviders.filter((provider) =>
+    selectedProviderIdSet.has(provider.id)
+  ).length;
   const inputClassName =
     "bg-muted/50 border border-border rounded-lg focus:border-primary focus:ring-1 focus:ring-primary";
 
@@ -202,33 +251,38 @@ export function SpecialHandlingForm({
                 {labels.fakeStreaming.providerLabel}
               </Label>
               <p className="text-xs text-muted-foreground">
-                {selectedProviderIds.length === 0
+                {visibleProviders.length === 0
                   ? labels.fakeStreaming.emptyState
                   : selectedCountLabel(
                       labels.fakeStreaming.selectedCount,
-                      selectedProviderIds.length
+                      selectedVisibleProviderCount
                     )}
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedProviderIds(providers.map((provider) => provider.id))}
-                disabled={isPending || providers.length === 0}
+            <div className="space-y-1">
+              <Label htmlFor="fake-streaming-provider-group" className="sr-only">
+                {labels.fakeStreaming.groupSelectLabel}
+              </Label>
+              <Select
+                value={selectedGroup}
+                onValueChange={setSelectedGroup}
+                disabled={isPending || providerGroups.length === 0}
               >
-                {labels.fakeStreaming.selectAll}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedProviderIds([])}
-                disabled={isPending || selectedProviderIds.length === 0}
-              >
-                {labels.fakeStreaming.clearAll}
-              </Button>
+                <SelectTrigger
+                  id="fake-streaming-provider-group"
+                  className="w-full min-w-40 bg-muted/50 sm:w-48"
+                  size="sm"
+                >
+                  <SelectValue placeholder={labels.fakeStreaming.groupSelectLabel} />
+                </SelectTrigger>
+                <SelectContent>
+                  {providerGroups.map((group) => (
+                    <SelectItem key={group} value={group}>
+                      {formatGroupTag(group, labels.fakeStreaming.defaultGroup)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -236,62 +290,39 @@ export function SpecialHandlingForm({
             <p className="rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               {labels.fakeStreaming.noProviders}
             </p>
+          ) : visibleProviders.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              {labels.fakeStreaming.noProvidersInGroup}
+            </p>
           ) : (
-            <div className="grid gap-2 md:grid-cols-2">
-              {providers.map((provider) => {
+            <div className="space-y-2">
+              {visibleProviders.map((provider) => {
                 const selected = selectedProviderIdSet.has(provider.id);
                 return (
-                  <label
+                  <div
                     key={provider.id}
                     data-testid={`fake-streaming-provider-${provider.id}`}
                     className={cn(
-                      "flex min-h-[92px] w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                      isPending
-                        ? "cursor-not-allowed opacity-70"
-                        : "cursor-pointer bg-muted/20 hover:bg-muted/35",
+                      "flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                      isPending ? "opacity-70" : "bg-muted/20 hover:bg-muted/35",
                       selected
                         ? "border-primary/60 bg-primary/10"
                         : "border-white/5 hover:border-white/10"
                     )}
                   >
-                    <Checkbox
+                    <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                      {provider.name}
+                    </span>
+                    <Switch
                       checked={selected}
                       onCheckedChange={() => toggleProvider(provider.id)}
                       disabled={isPending}
-                      aria-label={`${labels.fakeStreaming.providerLabel}: ${provider.name}`}
-                      className="mt-0.5"
+                      aria-label={labels.fakeStreaming.providerToggleLabel.replace(
+                        "{name}",
+                        provider.name
+                      )}
                     />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-1.5">
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {provider.name}
-                        </span>
-                        <Badge variant="secondary" className="text-[11px]">
-                          {provider.providerType}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[11px]",
-                            provider.isEnabled
-                              ? "border-emerald-500/30 text-emerald-400"
-                              : "border-muted-foreground/30 text-muted-foreground"
-                          )}
-                        >
-                          {provider.isEnabled
-                            ? labels.fakeStreaming.enabledStatus
-                            : labels.fakeStreaming.disabledStatus}
-                        </Badge>
-                      </span>
-                      <span className="mt-2 block text-xs text-muted-foreground">
-                        {labels.fakeStreaming.providerIdLabel}: {provider.id}
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {labels.fakeStreaming.groupLabel}:{" "}
-                        {formatGroupTag(provider.groupTag, labels.fakeStreaming.defaultGroup)}
-                      </span>
-                    </span>
-                  </label>
+                  </div>
                 );
               })}
             </div>

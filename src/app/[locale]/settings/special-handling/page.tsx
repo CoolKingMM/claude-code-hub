@@ -26,14 +26,11 @@ export default async function SpecialHandlingPage({
       emptyState: t("config.form.fakeStreaming.emptyState"),
       providerLabel: t("config.form.fakeStreaming.providerLabel"),
       selectedCount: t.raw("config.form.fakeStreaming.selectedCount") as string,
-      selectAll: t("config.form.fakeStreaming.selectAll"),
-      clearAll: t("config.form.fakeStreaming.clearAll"),
+      groupSelectLabel: t("config.form.fakeStreaming.groupSelectLabel"),
       noProviders: t("config.form.fakeStreaming.noProviders"),
-      providerIdLabel: t("config.form.fakeStreaming.providerIdLabel"),
-      groupLabel: t("config.form.fakeStreaming.groupLabel"),
+      noProvidersInGroup: t("config.form.fakeStreaming.noProvidersInGroup"),
       defaultGroup: t("config.form.fakeStreaming.defaultGroup"),
-      enabledStatus: t("config.form.fakeStreaming.enabledStatus"),
-      disabledStatus: t("config.form.fakeStreaming.disabledStatus"),
+      providerToggleLabel: t.raw("config.form.fakeStreaming.providerToggleLabel") as string,
     },
     providerOutputSafety: {
       title: t("config.form.providerOutputSafety.title"),
@@ -75,8 +72,8 @@ export default async function SpecialHandlingPage({
             id: provider.id,
             name: provider.name,
             groupTag: provider.groupTag,
-            providerType: provider.providerType,
-            isEnabled: provider.isEnabled,
+            priority: provider.priority,
+            groupPriorities: provider.groupPriorities,
           }))}
           labels={labels}
         />

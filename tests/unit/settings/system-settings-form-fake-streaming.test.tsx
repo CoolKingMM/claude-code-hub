@@ -121,15 +121,22 @@ const providers = [
     id: 101,
     name: "Anyrouter-codex",
     groupTag: "codex",
-    providerType: "codex" as const,
-    isEnabled: true,
+    priority: 20,
+    groupPriorities: null,
   },
   {
     id: 202,
     name: "rawchat",
+    groupTag: "codex",
+    priority: 10,
+    groupPriorities: null,
+  },
+  {
+    id: 303,
+    name: "default-channel",
     groupTag: null,
-    providerType: "codex" as const,
-    isEnabled: false,
+    priority: 0,
+    groupPriorities: null,
   },
 ];
 
@@ -241,12 +248,14 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
     );
     expect(document.body.textContent).toContain("供应商 / 渠道");
     expect(document.body.textContent).toContain("Anyrouter-codex");
+    expect(document.body.textContent).toContain("rawchat");
+    expect(document.body.textContent).not.toContain("default-channel");
     expect(document.body.textContent).toContain("渠道投毒命令过滤");
 
     unmount();
   });
 
-  test("special handling form can clear provider selection", async () => {
+  test("special handling form can disable provider switches", async () => {
     const { unmount } = render(
       <SpecialHandlingForm
         initialSettings={{
@@ -259,12 +268,21 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
       />
     );
 
-    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent === "清空"
-    );
-    if (!clearButton) throw new Error("未找到清空按钮");
+    const switches = [
+      document.body.querySelector(
+        'button[aria-label="为 Anyrouter-codex 启用避免长请求 499/CLIENT_ABORTED 中断"]'
+      ),
+      document.body.querySelector(
+        'button[aria-label="为 rawchat 启用避免长请求 499/CLIENT_ABORTED 中断"]'
+      ),
+    ];
+    if (switches.some((switchButton) => switchButton === null)) {
+      throw new Error("未找到渠道开关");
+    }
     await act(async () => {
-      clearButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      for (const switchButton of switches) {
+        switchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      }
       await Promise.resolve();
     });
     await submitForm();
@@ -274,6 +292,30 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
         fakeStreamingProviderIds: [],
       })
     );
+
+    unmount();
+  });
+
+  test("special handling form shows codex group providers sorted by priority", () => {
+    const { unmount } = render(
+      <SpecialHandlingForm
+        initialSettings={{
+          fakeStreamingProviderIds: baseSettings.fakeStreamingProviderIds,
+          enableProviderOutputSafetyFilter: baseSettings.enableProviderOutputSafetyFilter,
+          providerOutputSafetyFilterRules: baseSettings.providerOutputSafetyFilterRules,
+        }}
+        providers={providers}
+        labels={getSpecialHandlingLabels()}
+      />
+    );
+
+    const rawchatIndex = document.body.textContent?.indexOf("rawchat") ?? -1;
+    const anyrouterIndex = document.body.textContent?.indexOf("Anyrouter-codex") ?? -1;
+    const defaultIndex = document.body.textContent?.indexOf("default-channel") ?? -1;
+
+    expect(rawchatIndex).toBeGreaterThanOrEqual(0);
+    expect(anyrouterIndex).toBeGreaterThan(rawchatIndex);
+    expect(defaultIndex).toBe(-1);
 
     unmount();
   });
@@ -294,14 +336,11 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
     expect(section.description).toContain("供应商");
     expect(section.providerLabel).toBeTruthy();
     expect(section.selectedCount).toBeTruthy();
-    expect(section.selectAll).toBeTruthy();
-    expect(section.clearAll).toBeTruthy();
+    expect(section.groupSelectLabel).toBeTruthy();
     expect(section.noProviders).toBeTruthy();
-    expect(section.providerIdLabel).toBeTruthy();
-    expect(section.groupLabel).toBeTruthy();
+    expect(section.noProvidersInGroup).toBeTruthy();
     expect(section.defaultGroup).toBeTruthy();
-    expect(section.enabledStatus).toBeTruthy();
-    expect(section.disabledStatus).toBeTruthy();
+    expect(section.providerToggleLabel).toBeTruthy();
     expect(section.emptyState).toBeTruthy();
   });
 });
