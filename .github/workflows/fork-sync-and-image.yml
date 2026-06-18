@@ -46,6 +46,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Merge upstream
+        if: github.event_name != 'push'
         id: sync
         env:
           UPSTREAM_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.upstream_branch || 'main' }}
@@ -66,6 +67,11 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve build revision
+        id: revision
+        run: |
+          set -euo pipefail
+
           SHORT_SHA="$(git rev-parse --short=7 HEAD)"
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
           FULL_SHA="$(git rev-parse HEAD)"
@@ -76,7 +82,7 @@ jobs:
         env:
           FORCE_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_build || 'false' }}
           EVENT_NAME: ${{ github.event_name }}
-          UPSTREAM_CHANGED: ${{ steps.sync.outputs.changed }}
+          UPSTREAM_CHANGED: ${{ steps.sync.outputs.changed || 'false' }}
         run: |
           if [ "$EVENT_NAME" = "push" ] || [ "$FORCE_BUILD" = "true" ] || [ "$UPSTREAM_CHANGED" = "true" ]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
@@ -116,14 +122,14 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            APP_VERSION=main-${{ steps.sync.outputs.short_sha }}
+            APP_VERSION=main-${{ steps.revision.outputs.short_sha }}
           tags: |
             ${{ steps.image_names.outputs.ghcr_image }}:latest
             ${{ steps.image_names.outputs.ghcr_image }}:main
-            ${{ steps.image_names.outputs.ghcr_image }}:main-${{ steps.sync.outputs.short_sha }}
+            ${{ steps.image_names.outputs.ghcr_image }}:main-${{ steps.revision.outputs.short_sha }}
           labels: |
-            org.opencontainers.image.version=main-${{ steps.sync.outputs.short_sha }}
-            org.opencontainers.image.revision=${{ steps.sync.outputs.full_sha }}
+            org.opencontainers.image.version=main-${{ steps.revision.outputs.short_sha }}
+            org.opencontainers.image.revision=${{ steps.revision.outputs.full_sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
