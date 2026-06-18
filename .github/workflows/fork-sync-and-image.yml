@@ -1,6 +1,9 @@
 name: Fork Sync and Image
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       upstream_branch:
@@ -72,9 +75,10 @@ jobs:
         id: build_flag
         env:
           FORCE_BUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_build || 'false' }}
+          EVENT_NAME: ${{ github.event_name }}
           UPSTREAM_CHANGED: ${{ steps.sync.outputs.changed }}
         run: |
-          if [ "$FORCE_BUILD" = "true" ] || [ "$UPSTREAM_CHANGED" = "true" ]; then
+          if [ "$EVENT_NAME" = "push" ] || [ "$FORCE_BUILD" = "true" ] || [ "$UPSTREAM_CHANGED" = "true" ]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           else
             echo "should_build=false" >> "$GITHUB_OUTPUT"
