@@ -681,7 +681,7 @@ describe("ProxyForwarder - retry limit enforcement", () => {
     }
   });
 
-  test("provider switch should reapply provider-specific request filters before fallback forwarding", async () => {
+  test("provider switch should restore provider-attempt baseline before fallback filters", async () => {
     const session = createSession(new URL("https://example.com/v1/responses"));
     session.originalFormat = "response";
     session.request.model = "gpt-5.5";
@@ -715,8 +715,32 @@ describe("ProxyForwarder - retry limit enforcement", () => {
       fallbackProvider,
     ];
 
+    session.captureProviderAttemptBaseline();
+    session.headers.set("x-provider-filter", "anyrouter");
+    session.request.model = "anyrouter-model";
+    session.request.note = "first-provider-filter";
+    session.request.message = {
+      ...(session.request.message as Record<string, unknown>),
+      model: "anyrouter-model",
+      client_metadata: {
+        "x-codex-installation-id": "anyrouter-filtered-id",
+      },
+    };
+
     mocks.applyForProvider.mockImplementationOnce(async (fallbackSession: ProxySession) => {
       expect(fallbackSession.provider?.id).toBe(fallbackProvider.id);
+      expect(fallbackSession.headers.get("x-provider-filter")).toBeNull();
+      expect(fallbackSession.request.model).toBe("gpt-5.5");
+      expect(fallbackSession.request.note).toBeUndefined();
+      expect(
+        (
+          fallbackSession.request.message as {
+            client_metadata: { "x-codex-installation-id": string | null };
+          }
+        ).client_metadata["x-codex-installation-id"]
+      ).toBe("real-installation-id");
+
+      fallbackSession.headers.set("x-provider-filter", "rawchat");
       (
         fallbackSession.request.message as {
           client_metadata: { "x-codex-installation-id": string | null };
@@ -729,11 +753,23 @@ describe("ProxyForwarder - retry limit enforcement", () => {
       "doForward"
     );
 
-    doForward.mockImplementationOnce(async () => {
+    doForward.mockImplementationOnce(async (firstSession: ProxySession, provider: Provider) => {
+      expect(provider.id).toBe(firstProvider.id);
+      expect(firstSession.headers.get("x-provider-filter")).toBe("anyrouter");
+      expect(firstSession.request.model).toBe("anyrouter-model");
+      expect(
+        (
+          firstSession.request.message as {
+            client_metadata: { "x-codex-installation-id": string | null };
+          }
+        ).client_metadata["x-codex-installation-id"]
+      ).toBe("anyrouter-filtered-id");
       throw new ProxyError("first provider failed", 500);
     });
     doForward.mockImplementationOnce(async (fallbackSession: ProxySession, provider: Provider) => {
       expect(provider.id).toBe(fallbackProvider.id);
+      expect(fallbackSession.headers.get("x-provider-filter")).toBe("rawchat");
+      expect(fallbackSession.request.model).toBe("gpt-5.5");
       expect(
         (
           fallbackSession.request.message as {

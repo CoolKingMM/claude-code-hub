@@ -20,6 +20,8 @@ export class ProxyProviderRequestFilter {
       return;
     }
 
+    session.captureProviderAttemptBaseline();
+
     try {
       await requestFilterEngine.applyForProvider(session);
     } catch (error) {

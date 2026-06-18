@@ -1091,6 +1091,8 @@ export class ProxyForwarder {
     const shouldSkipRawRetryAndProviderSwitch =
       !endpointPolicy.allowRetry && !rawCrossProviderFallbackEnabled;
 
+    session.captureProviderAttemptBaseline();
+
     let lastError: Error | null = null;
     let currentProvider = session.provider;
     const failedProviderIds: number[] = []; // 记录已失败的供应商ID
@@ -2195,6 +2197,7 @@ export class ProxyForwarder {
 
       // 切换到新供应商
       currentProvider = alternativeProvider;
+      session.restoreProviderAttemptBaseline();
       session.setProvider(currentProvider);
       await ProxyForwarder.applyProviderRequestFiltersAfterSwitch(session);
 

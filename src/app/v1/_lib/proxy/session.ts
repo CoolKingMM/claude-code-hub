@@ -22,6 +22,7 @@ import { ProxyError } from "./errors";
 import type { ClientFormat } from "./format-mapper";
 import {
   buildOpenAIImageLogicalBody,
+  cloneOpenAIImageRequestMetadata,
   getOpenAIImageEndpoint,
   getOpenAIImageMultipartSummary,
   isOpenAIImageMultipartContentType,
@@ -73,6 +74,20 @@ export interface ProxyRequestPayload {
   note?: string;
   model: string | null;
   imageRequestMetadata?: OpenAIImageRequestMetadata | null;
+}
+
+interface ProviderAttemptBaselineSnapshot {
+  request: ProxyRequestPayload;
+  requestUrl: string;
+  headers: [string, string][];
+  originalModelName: string | null;
+  originalUrlPathname: string | null;
+  currentModelRedirect: {
+    providerId: number;
+    redirect: NonNullable<ProviderChainItem["modelRedirect"]>;
+  } | null;
+  cacheTtlResolved: CacheTtlResolved | null;
+  context1mApplied: boolean;
 }
 
 interface RequestBodyResult {
@@ -205,6 +220,9 @@ export class ProxySession {
   // 本请求已通过 Provider 并发检查获得的引用。
   // 失败切换 provider 时只能释放这里记录过的引用，避免 hedge/fallback 释放未 acquire 的 Redis 计数。
   private providerSessionRefs = new Set<number>();
+
+  // Provider attempt 基准请求：在 provider-specific filter 之前捕获。
+  private providerAttemptBaseline: ProviderAttemptBaselineSnapshot | null = null;
 
   private constructor(init: {
     startTime: number;
@@ -347,6 +365,71 @@ export class ProxySession {
     if (provider) {
       this.providerType = provider.providerType as ProviderType;
     }
+  }
+
+  captureProviderAttemptBaseline(): void {
+    if (this.providerAttemptBaseline) {
+      return;
+    }
+
+    this.providerAttemptBaseline = {
+      request: {
+        ...this.request,
+        message: structuredClone(this.request.message),
+        buffer: this.request.buffer ? this.request.buffer.slice(0) : undefined,
+        imageRequestMetadata: cloneOpenAIImageRequestMetadata(this.request.imageRequestMetadata),
+      },
+      requestUrl: this.requestUrl.toString(),
+      headers: Array.from(this.headers.entries()),
+      originalModelName: this.originalModelName,
+      originalUrlPathname: this.originalUrlPathname,
+      currentModelRedirect: this.currentModelRedirect
+        ? {
+            providerId: this.currentModelRedirect.providerId,
+            redirect: structuredClone(this.currentModelRedirect.redirect),
+          }
+        : null,
+      cacheTtlResolved: this.cacheTtlResolved,
+      context1mApplied: this.context1mApplied,
+    };
+  }
+
+  restoreProviderAttemptBaseline(): boolean {
+    const baseline = this.providerAttemptBaseline;
+    if (!baseline) {
+      return false;
+    }
+
+    this.request.message = structuredClone(baseline.request.message);
+    this.request.buffer = baseline.request.buffer ? baseline.request.buffer.slice(0) : undefined;
+    this.request.log = baseline.request.log;
+    this.request.note = baseline.request.note;
+    this.request.model = baseline.request.model;
+    this.request.imageRequestMetadata = cloneOpenAIImageRequestMetadata(
+      baseline.request.imageRequestMetadata
+    );
+    this.requestUrl = new URL(baseline.requestUrl);
+
+    for (const key of Array.from(this.headers.keys())) {
+      this.headers.delete(key);
+    }
+    for (const [key, value] of baseline.headers) {
+      this.headers.set(key, value);
+    }
+
+    this.originalModelName = baseline.originalModelName;
+    this.originalUrlPathname = baseline.originalUrlPathname;
+    this.currentModelRedirect = baseline.currentModelRedirect
+      ? {
+          providerId: baseline.currentModelRedirect.providerId,
+          redirect: structuredClone(baseline.currentModelRedirect.redirect),
+        }
+      : null;
+    this.cacheTtlResolved = baseline.cacheTtlResolved;
+    this.context1mApplied = baseline.context1mApplied;
+    this.forwardedRequestBody = null;
+
+    return true;
   }
 
   recordProviderSessionRef(providerId: number): void {
