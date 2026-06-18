@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
     enableThinkingSignatureRectifier: true,
     enableThinkingBudgetRectifier: true,
   })),
+  applyForProvider: vi.fn(async () => {}),
   storeSessionSpecialSettings: vi.fn(async () => {}),
   storeSessionRequestPhaseSnapshot: vi.fn(async () => {}),
   storeSessionResponsePhaseSnapshot: vi.fn(async () => {}),
@@ -101,6 +102,12 @@ vi.mock("@/lib/session-manager", () => ({
 vi.mock("@/app/v1/_lib/proxy/provider-selector", () => ({
   ProxyProviderResolver: {
     pickRandomProviderWithExclusion: mocks.pickRandomProviderWithExclusion,
+  },
+}));
+
+vi.mock("@/lib/request-filter-engine", () => ({
+  requestFilterEngine: {
+    applyForProvider: mocks.applyForProvider,
   },
 }));
 
@@ -336,6 +343,7 @@ describe("ProxyForwarder - first-byte hedge scheduling", () => {
       tracked: true,
       referenced: true,
     });
+    mocks.applyForProvider.mockResolvedValue(undefined);
   });
 
   test("shadow session redirect should not overwrite initial provider redirect and winner should keep its own redirect", () => {
@@ -1206,6 +1214,128 @@ describe("ProxyForwarder - first-byte hedge scheduling", () => {
       expect(await response.text()).toContain('"provider":"p2"');
       expect(controller1.signal.aborted).toBe(true);
       expect(session.provider?.id).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("hedge alternative should restore provider-attempt baseline before provider filters", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const provider1 = createProvider({
+        id: 1,
+        name: "anyrouter",
+        firstByteTimeoutStreamingMs: 100,
+      });
+      const provider2 = createProvider({
+        id: 2,
+        name: "rawchat",
+        firstByteTimeoutStreamingMs: 100,
+      });
+      const session = createSession();
+      session.originalFormat = "response";
+      session.request.model = "gpt-5.5";
+      session.request.message = {
+        model: "gpt-5.5",
+        stream: true,
+        client_metadata: {
+          "x-codex-installation-id": "real-installation-id",
+        },
+      };
+      setProviderWithSessionRef(session, provider1);
+      session.addProviderToChain(provider1, { reason: "initial_selection" });
+
+      mocks.pickRandomProviderWithExclusion.mockResolvedValueOnce(provider2);
+      mocks.applyForProvider.mockImplementationOnce(async (fallbackSession: ProxySession) => {
+        expect(fallbackSession.provider?.id).toBe(provider2.id);
+        expect(fallbackSession.headers.get("x-provider-filter")).toBeNull();
+        expect(fallbackSession.request.model).toBe("gpt-5.5");
+        expect(fallbackSession.request.note).toBeUndefined();
+        expect(
+          (
+            fallbackSession.request.message as {
+              client_metadata: { "x-codex-installation-id": string | null };
+            }
+          ).client_metadata["x-codex-installation-id"]
+        ).toBe("real-installation-id");
+
+        fallbackSession.headers.set("x-provider-filter", "rawchat");
+        (
+          fallbackSession.request.message as {
+            client_metadata: { "x-codex-installation-id": string | null };
+          }
+        ).client_metadata["x-codex-installation-id"] = null;
+      });
+
+      const doForward = vi.spyOn(
+        ProxyForwarder as unknown as {
+          doForward: (...args: unknown[]) => Promise<Response>;
+        },
+        "doForward"
+      );
+
+      const controller1 = new AbortController();
+      const controller2 = new AbortController();
+
+      doForward.mockImplementationOnce(async (attemptSession, providerForRequest) => {
+        const firstSession = attemptSession as ProxySession & AttemptRuntime;
+        firstSession.responseController = controller1;
+        firstSession.clearResponseTimeout = vi.fn();
+        firstSession.releaseAgent = vi.fn();
+        expect((providerForRequest as Provider).id).toBe(provider1.id);
+
+        firstSession.captureProviderAttemptBaseline();
+        firstSession.headers.set("x-provider-filter", "anyrouter");
+        firstSession.request.model = "anyrouter-model";
+        firstSession.request.note = "first-provider-filter";
+        firstSession.request.message = {
+          ...(firstSession.request.message as Record<string, unknown>),
+          model: "anyrouter-model",
+          client_metadata: {
+            "x-codex-installation-id": "anyrouter-filtered-id",
+          },
+        };
+
+        return createStreamingResponse({
+          label: "anyrouter",
+          firstChunkDelayMs: 220,
+          controller: controller1,
+        });
+      });
+
+      doForward.mockImplementationOnce(async (attemptSession, providerForRequest) => {
+        const fallbackSession = attemptSession as ProxySession & AttemptRuntime;
+        fallbackSession.responseController = controller2;
+        fallbackSession.clearResponseTimeout = vi.fn();
+        fallbackSession.releaseAgent = vi.fn();
+        expect((providerForRequest as Provider).id).toBe(provider2.id);
+        expect(fallbackSession.headers.get("x-provider-filter")).toBe("rawchat");
+        expect(fallbackSession.request.model).toBe("gpt-5.5");
+        expect(
+          (
+            fallbackSession.request.message as {
+              client_metadata: { "x-codex-installation-id": string | null };
+            }
+          ).client_metadata["x-codex-installation-id"]
+        ).toBeNull();
+
+        return createStreamingResponse({
+          label: "rawchat",
+          firstChunkDelayMs: 40,
+          controller: controller2,
+        });
+      });
+
+      const responsePromise = ProxyForwarder.send(session);
+
+      await vi.advanceTimersByTimeAsync(100);
+      expect(doForward).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(50);
+      const response = await responsePromise;
+      expect(await response.text()).toContain('"provider":"rawchat"');
+      expect(mocks.applyForProvider).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

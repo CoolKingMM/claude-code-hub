@@ -1078,6 +1078,8 @@ export class ProxyForwarder {
       throw new Error("代理上下文缺少供应商或鉴权信息");
     }
 
+    session.captureProviderAttemptBaseline();
+
     if (ProxyForwarder.shouldUseStreamingHedge(session)) {
       const hedgePromise = ProxyForwarder.sendStreamingWithHedge(session);
       void hedgePromise.catch(() => undefined);
@@ -1090,8 +1092,6 @@ export class ProxyForwarder {
     const endpointPolicy = ProxyForwarder.getEndpointPolicy(session);
     const shouldSkipRawRetryAndProviderSwitch =
       !endpointPolicy.allowRetry && !rawCrossProviderFallbackEnabled;
-
-    session.captureProviderAttemptBaseline();
 
     let lastError: Error | null = null;
     let currentProvider = session.provider;
@@ -4434,13 +4434,27 @@ export class ProxyForwarder {
         }
       }
 
+      const attemptSession = useOriginalSession
+        ? session
+        : ProxyForwarder.createStreamingShadowSession(session, provider);
+      if (!useOriginalSession) {
+        attemptSession.restoreProviderAttemptBaseline();
+      }
+      attemptSession.setProvider(provider);
+      if (!useOriginalSession) {
+        await ProxyForwarder.applyProviderRequestFiltersAfterSwitch(attemptSession);
+      }
+
       let endpointSelection: {
         endpointId: number | null;
         baseUrl: string;
         endpointUrl: string;
       };
       try {
-        endpointSelection = await ProxyForwarder.resolveStreamingHedgeEndpoint(session, provider);
+        endpointSelection = await ProxyForwarder.resolveStreamingHedgeEndpoint(
+          attemptSession,
+          provider
+        );
       } catch (endpointError) {
         lastError = endpointError as Error;
         lastErrorCategory = null;
@@ -4450,11 +4464,6 @@ export class ProxyForwarder {
       }
 
       launchedProviderCount += 1;
-
-      const attemptSession = useOriginalSession
-        ? session
-        : ProxyForwarder.createStreamingShadowSession(session, provider);
-      attemptSession.setProvider(provider);
 
       const attempt: StreamingHedgeAttempt = {
         provider,
