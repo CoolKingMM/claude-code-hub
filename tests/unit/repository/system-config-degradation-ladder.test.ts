@@ -218,9 +218,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       "allowNonConversationEndpointProviderFallback"
     );
     expect(selections[lastRecentAttemptIndex]).toContain("passThroughUpstreamErrorMessage");
-    expect(selections[passThroughAttemptIndex]).toContain(
-      "enableThinkingEffortConflictRectifier"
-    );
+    expect(selections[passThroughAttemptIndex]).toContain("enableThinkingEffortConflictRectifier");
     expect(selections[passThroughAttemptIndex]).toContain(
       "allowNonConversationEndpointProviderFallback"
     );
