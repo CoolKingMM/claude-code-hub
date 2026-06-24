@@ -280,6 +280,8 @@ export function toSystemSettings(dbSettings: any): SystemSettings {
     interceptAnthropicWarmupRequests: dbSettings?.interceptAnthropicWarmupRequests ?? false,
     enableThinkingSignatureRectifier: dbSettings?.enableThinkingSignatureRectifier ?? true,
     enableThinkingBudgetRectifier: dbSettings?.enableThinkingBudgetRectifier ?? true,
+    enableThinkingEffortConflictRectifier:
+      dbSettings?.enableThinkingEffortConflictRectifier ?? true,
     enableBillingHeaderRectifier: dbSettings?.enableBillingHeaderRectifier ?? true,
     enableResponseInputRectifier: dbSettings?.enableResponseInputRectifier ?? true,
     allowNonConversationEndpointProviderFallback:
