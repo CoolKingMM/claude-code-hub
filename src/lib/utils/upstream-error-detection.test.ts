@@ -67,11 +67,21 @@ describe("detectUpstreamErrorFromSseOrJsonText", () => {
     expect(res.isError).toBe(true);
   });
 
-  test("纯 JSON：error 为对象且 error.message 非空视为错误", () => {
+  test("纯 JSON：error 为对象且 error.message 非空不视为错误", () => {
     const res = detectUpstreamErrorFromSseOrJsonText(
-      JSON.stringify({ error: { message: "error: no credentials" } })
+      JSON.stringify({ error: { message: "error: no credentials", code: "invalid_api_key" } })
+    );
+    expect(res.isError).toBe(false);
+  });
+
+  test("纯 JSON：error 为对象但不含 error.message 时仍视为错误", () => {
+    const res = detectUpstreamErrorFromSseOrJsonText(
+      JSON.stringify({ error: { code: "invalid_api_key" } })
     );
     expect(res.isError).toBe(true);
+    if (res.isError) {
+      expect(res.code).toBe("FAKE_200_JSON_ERROR_NON_EMPTY");
+    }
   });
 
   test.each([
@@ -223,10 +233,22 @@ describe("detectUpstreamErrorFromSseOrJsonText", () => {
     expect(res.isError).toBe(true);
   });
 
-  test("SSE：data JSON error 为对象且 error.message 非空视为错误", () => {
-    const sse = ['data: {"error":{"message":"ERROR: no credentials"}}', ""].join("\n");
+  test("SSE：data JSON error 为对象且 error.message 非空不视为错误", () => {
+    const sse = [
+      'data: {"error":{"message":"all upstream attempts failed","code":"upstream_all_attempts_failed"}}',
+      "",
+    ].join("\n");
+    const res = detectUpstreamErrorFromSseOrJsonText(sse);
+    expect(res.isError).toBe(false);
+  });
+
+  test("SSE：data JSON error 为对象但不含 error.message 时仍视为错误", () => {
+    const sse = ['data: {"error":{"code":"upstream_all_attempts_failed"}}', ""].join("\n");
     const res = detectUpstreamErrorFromSseOrJsonText(sse);
     expect(res.isError).toBe(true);
+    if (res.isError) {
+      expect(res.code).toBe("FAKE_200_JSON_ERROR_NON_EMPTY");
+    }
   });
 
   test("SSE：data JSON 小于 1000 字符且 message 包含 error 字样视为错误", () => {

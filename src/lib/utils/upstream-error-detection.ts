@@ -281,27 +281,29 @@ function detectFromJsonObject(
   options: Required<Pick<DetectionOptions, "maxJsonCharsForMessageCheck" | "messageKeyword">>
 ): UpstreamErrorDetectionResult {
   // 判定优先级：
-  // 1) `error` 非空：直接判定为错误（强信号）
-  // 2) 小体积 JSON 下，`message` 命中关键字：判定为错误（弱信号，但能覆盖部分“错误只写在 message”场景）
+  // 1) `error` 字符串/非对象值非空：直接判定为错误（强信号）
+  // 2) `error` 对象非空且不含非空 message：判定为错误
+  // 3) 小体积 JSON 下，`message` 命中关键字：判定为错误（弱信号，但能覆盖部分“错误只写在 message”场景）
   const errorValue = obj.error;
-  if (hasNonEmptyValue(errorValue)) {
-    // 优先展示 string 或 error.message，避免把整个对象塞进 detail
-    if (typeof errorValue === "string") {
+  if (typeof errorValue === "string") {
+    if (hasNonEmptyValue(errorValue)) {
       return {
         isError: true,
         code: FAKE_200_CODES.JSON_ERROR_NON_EMPTY,
         detail: truncateForDetail(errorValue),
       };
     }
-
-    if (isPlainRecord(errorValue) && typeof errorValue.message === "string") {
-      return {
-        isError: true,
-        code: FAKE_200_CODES.JSON_ERROR_MESSAGE_NON_EMPTY,
-        detail: truncateForDetail(errorValue.message),
-      };
+  } else if (isPlainRecord(errorValue)) {
+    // Codex 兼容上游可能在已经输出有效内容后追加 terminal `error.message`。
+    // 这里全局放行该形态，让客户端按原始流自行处理；其它 error 形态仍按 fake-200 处理。
+    if (typeof errorValue.message === "string" && errorValue.message.trim().length > 0) {
+      return { isError: false };
     }
 
+    if (hasNonEmptyValue(errorValue)) {
+      return { isError: true, code: FAKE_200_CODES.JSON_ERROR_NON_EMPTY };
+    }
+  } else if (hasNonEmptyValue(errorValue)) {
     return { isError: true, code: FAKE_200_CODES.JSON_ERROR_NON_EMPTY };
   }
 
