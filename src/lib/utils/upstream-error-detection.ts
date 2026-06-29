@@ -60,7 +60,7 @@ type DetectionOptions = {
    * message 关键字匹配规则（默认 /error/i）。
    *
    * 注意：该规则只用于检查 `message` 字段（字符串）。
-   * `error.message` 属于更强信号：只要 `error` 非空（含对象形式），就会直接判定为错误。
+   * `error.message` 属于 Codex 兼容放行形态，不参与 fake-200 判定。
    */
   messageKeyword?: RegExp;
 };
@@ -326,7 +326,7 @@ function detectFromJsonObject(
 /**
  * 用于“流式 SSE 已经结束后”的补充检查：
  * - 响应体为空：视为错误
- * - JSON 里包含非空 error 字段：视为错误
+ * - JSON 里包含非空 error 字段：视为错误；但 `error.message` 对象形态会放行
  * - 小于 1000 字符的 JSON：若 message 包含 "error" 字样：视为错误
  *
  * 注意与限制：
