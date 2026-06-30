@@ -1162,14 +1162,21 @@ export class ProxyForwarder {
     }
   }
 
-  static async send(session: ProxySession): Promise<Response> {
+  static async send(
+    session: ProxySession,
+    options: {
+      allowProviderSwitch?: boolean;
+      excludeProviderIds?: number[];
+    } = {}
+  ): Promise<Response> {
     if (!session.provider || !session.authState?.success) {
       throw new Error("代理上下文缺少供应商或鉴权信息");
     }
 
     session.captureProviderAttemptBaseline();
 
-    if (ProxyForwarder.shouldUseStreamingHedge(session)) {
+    const allowProviderSwitch = options.allowProviderSwitch !== false;
+    if (allowProviderSwitch && ProxyForwarder.shouldUseStreamingHedge(session)) {
       const hedgePromise = ProxyForwarder.sendStreamingWithHedge(session);
       void hedgePromise.catch(() => undefined);
       return await hedgePromise;
@@ -1184,8 +1191,36 @@ export class ProxyForwarder {
 
     let lastError: Error | null = null;
     let currentProvider = session.provider;
-    const failedProviderIds: number[] = []; // 记录已失败的供应商ID
+    const failedProviderIds: number[] = Array.from(
+      new Set((options.excludeProviderIds ?? []).filter((id) => Number.isInteger(id) && id > 0))
+    ); // 记录已失败的供应商ID
     let totalProvidersAttempted = 0; // 已尝试的供应商数量（用于日志）
+
+    if (failedProviderIds.includes(currentProvider.id)) {
+      const alternativeProvider = await ProxyForwarder.selectAlternative(
+        session,
+        failedProviderIds
+      );
+
+      if (!alternativeProvider) {
+        logger.error("ProxyForwarder: No provider available after excluding initial providers", {
+          excludedProviderCount: failedProviderIds.length,
+        });
+        await ProxyForwarder.clearSessionProviderBinding(session);
+        throw ProxyForwarder.buildAllProvidersUnavailableError(lastError);
+      }
+
+      currentProvider = alternativeProvider;
+      session.restoreProviderAttemptBaseline();
+      session.setProvider(currentProvider);
+      await ProxyForwarder.applyProviderRequestFiltersAfterSwitch(session);
+
+      logger.info("ProxyForwarder: Starting with alternative provider", {
+        newProviderId: currentProvider.id,
+        newProviderName: currentProvider.name,
+        excludedProviderCount: failedProviderIds.length,
+      });
+    }
 
     // ========== 外层循环：供应商切换（最多 MAX_PROVIDER_SWITCHES 次）==========
     while (totalProvidersAttempted < MAX_PROVIDER_SWITCHES) {
@@ -2270,6 +2305,15 @@ export class ProxyForwarder {
       } // ========== 内层循环结束 ==========
 
       // ========== 供应商切换逻辑 ==========
+      if (!allowProviderSwitch) {
+        logger.debug("ProxyForwarder: Provider switch disabled for this send call", {
+          providerId: currentProvider.id,
+          providerName: currentProvider.name,
+          totalProvidersAttempted,
+        });
+        break;
+      }
+
       const alternativeProvider = await ProxyForwarder.selectAlternative(
         session,
         failedProviderIds

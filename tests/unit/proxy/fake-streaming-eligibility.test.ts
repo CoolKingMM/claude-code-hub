@@ -204,6 +204,72 @@ describe("tryFakeStreamingPath provider eligibility", () => {
     expect(buildFakeStreamingNonStreamResponse).not.toHaveBeenCalled();
     expect(session.request.message.stream).toBe(true);
   });
+
+  test("restores original stream body before fallback after current fake-streaming provider fails", async () => {
+    vi.doUnmock("@/app/v1/_lib/proxy/fake-streaming/runner");
+
+    const send = vi.fn(async (sessionArg: FakeStreamingTestSession, options?: unknown) => {
+      if (
+        (options as { allowProviderSwitch?: boolean } | undefined)?.allowProviderSwitch === false
+      ) {
+        expect(sessionArg.request.message.stream).toBe(false);
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: "current provider failed",
+            },
+          }),
+          {
+            status: 502,
+            headers: { "content-type": "application/json" },
+          }
+        );
+      }
+
+      expect(options).toMatchObject({ excludeProviderIds: [42] });
+      expect(sessionArg.request.message.stream).toBe(true);
+      expect(sessionArg.requestUrl.pathname).toBe("/v1/responses");
+      sessionArg.provider = { id: 84, groupTag: "codex" };
+
+      return new Response('event: response.completed\ndata: {"type":"response.completed"}\n\n', {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    });
+
+    vi.doMock("@/app/v1/_lib/proxy/forwarder", () => ({
+      ProxyForwarder: {
+        send,
+      },
+    }));
+
+    const { tryFakeStreamingPath } = await import(
+      "@/app/v1/_lib/proxy/fake-streaming/proxy-integration"
+    );
+    const session = createFakeStreamingSession({
+      model: "provider-custom-model",
+      providerId: 42,
+      stream: true,
+      format: "response",
+      pathname: "/v1/responses",
+    });
+
+    const response = await tryFakeStreamingPath(
+      session,
+      createSystemSettings({
+        fakeStreamingProviderIds: [42],
+        fakeStreamingWhitelist: [],
+      })
+    );
+
+    expect(response).not.toBeNull();
+    const body = await response?.text();
+
+    expect(body).toContain("response.completed");
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(session.request.message.stream).toBe(true);
+    expect(session.provider?.id).toBe(84);
+  });
 });
 
 function createFakeStreamingSession({
@@ -211,12 +277,14 @@ function createFakeStreamingSession({
   providerId,
   stream,
   format = "claude",
+  pathname = "/v1/messages",
 }: {
   model: string;
   providerId: number;
   stream: boolean;
   format?: ClientFormat;
-}) {
+  pathname?: string;
+}): FakeStreamingTestSession {
   const abortController = new AbortController();
   return {
     request: {
@@ -228,10 +296,43 @@ function createFakeStreamingSession({
       groupTag: "codex",
     },
     originalFormat: format,
-    requestUrl: new URL("http://localhost/v1/messages"),
+    requestUrl: new URL(`http://localhost${pathname}`),
     clientAbortSignal: abortController.signal,
-  } as never;
+    captureProviderAttemptBaseline() {
+      if (this.baseline) return;
+      this.baseline = {
+        message: structuredClone(this.request.message),
+        requestUrl: this.requestUrl.toString(),
+      };
+    },
+    restoreProviderAttemptBaseline() {
+      if (!this.baseline) return false;
+      this.request.message = structuredClone(this.baseline.message);
+      this.requestUrl = new URL(this.baseline.requestUrl);
+      return true;
+    },
+  };
 }
+
+type FakeStreamingTestSession = {
+  request: {
+    model: string;
+    message: Record<string, unknown>;
+  };
+  provider: {
+    id: number;
+    groupTag: string;
+  };
+  originalFormat: ClientFormat;
+  requestUrl: URL;
+  clientAbortSignal: AbortSignal;
+  baseline?: {
+    message: Record<string, unknown>;
+    requestUrl: string;
+  };
+  captureProviderAttemptBaseline(): void;
+  restoreProviderAttemptBaseline(): boolean;
+};
 
 function createSystemSettings(
   overrides: Pick<SystemSettings, "fakeStreamingProviderIds" | "fakeStreamingWhitelist">

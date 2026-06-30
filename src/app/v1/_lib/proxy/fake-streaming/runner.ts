@@ -6,10 +6,13 @@ export type { AttemptPerformer } from "./orchestrator";
 
 const HEARTBEAT_FRAME = ": ping\n\n";
 
+export type FallbackPerformer = () => Promise<Response>;
+
 export interface FakeStreamingRunInput {
   family: ProtocolFamily;
   isStream: boolean;
   performAttempt: AttemptPerformer;
+  performFallback?: FallbackPerformer;
   abortSignal: AbortSignal;
   maxAttempts: number;
   heartbeatIntervalMs: number;
@@ -81,7 +84,7 @@ function buildStreamResponse(input: FakeStreamingRunInput): Response {
         maxAttempts: input.maxAttempts,
         isStream: false,
       })
-        .then((result) => {
+        .then(async (result) => {
           cleanupHeartbeat();
           input.abortSignal.removeEventListener("abort", onAbort);
           if (input.abortSignal.aborted) {
@@ -102,6 +105,8 @@ function buildStreamResponse(input: FakeStreamingRunInput): Response {
             }
           } else if (result.errorCode === "client_abort") {
             // Already handled by abort listener; nothing to emit.
+          } else if (input.performFallback) {
+            await pipeFallbackResponse(input.performFallback, input.family, safeEnqueue);
           } else {
             safeEnqueue(
               emitStreamError({
@@ -140,6 +145,72 @@ function buildStreamResponse(input: FakeStreamingRunInput): Response {
       "X-Accel-Buffering": "no",
     },
   });
+}
+
+async function pipeFallbackResponse(
+  performFallback: FallbackPerformer,
+  family: ProtocolFamily,
+  enqueue: (chunk: string) => void
+): Promise<void> {
+  let fallbackResponse: Response;
+  try {
+    fallbackResponse = await performFallback();
+  } catch (error) {
+    enqueue(
+      emitStreamError({
+        family,
+        errorMessage: error instanceof Error ? error.message : "fallback request failed",
+        errorCode: "fallback_error",
+      })
+    );
+    return;
+  }
+
+  const body = fallbackResponse.body;
+  const contentType = fallbackResponse.headers.get("content-type") ?? "";
+  if (!body || !contentType.toLowerCase().includes("text/event-stream")) {
+    let errorBody = "";
+    try {
+      errorBody = await fallbackResponse.text();
+    } catch {
+      errorBody = "";
+    }
+
+    if (fallbackResponse.ok && errorBody) {
+      try {
+        enqueue(emitFinalStream({ family, finalBody: errorBody }));
+        return;
+      } catch {
+        // Fall through to a protocol error below if the body is not valid for
+        // this client protocol.
+      }
+    }
+
+    enqueue(
+      emitStreamError({
+        family,
+        errorMessage: errorBody || `fallback returned HTTP ${fallbackResponse.status}`,
+        errorCode: "fallback_non_stream_response",
+      })
+    );
+    return;
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value && value.byteLength > 0) {
+        enqueue(decoder.decode(value, { stream: true }));
+      }
+    }
+    const flushed = decoder.decode();
+    if (flushed) enqueue(flushed);
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 /**
@@ -198,6 +269,10 @@ export async function buildFakeStreamingNonStreamResponse(
         headers: { "Content-Type": "application/json; charset=utf-8" },
       }
     );
+  }
+
+  if (input.performFallback) {
+    return await input.performFallback();
   }
 
   return new Response(

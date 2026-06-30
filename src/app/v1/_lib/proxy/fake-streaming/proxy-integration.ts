@@ -1,5 +1,6 @@
 import { logger } from "@/lib/logger";
 import type { SystemSettings } from "@/types/system-config";
+import { categorizeErrorAsync, ErrorCategory } from "../errors";
 import type { ClientFormat } from "../format-mapper";
 import { ProxyForwarder } from "../forwarder";
 import type { ProxySession } from "../session";
@@ -9,6 +10,7 @@ import {
   type AttemptPerformer,
   buildFakeStreamingNonStreamResponse,
   buildFakeStreamingResponse,
+  type FallbackPerformer,
 } from "./runner";
 import { cloneRequestForInternalNonStreamAttempt, detectClientStreamIntent } from "./stream-intent";
 
@@ -57,6 +59,7 @@ export async function tryFakeStreamingPath(
 
   const family = familyFromFormat(session.originalFormat);
   if (!family) return null;
+  const fakeStreamingProviderId = providerId;
 
   const isStream = detectClientStreamIntent({
     format: session.originalFormat,
@@ -68,9 +71,11 @@ export async function tryFakeStreamingPath(
   // Convert the session request to a non-stream upstream attempt before the
   // forwarder runs. We never let upstream open a streaming response because
   // we need to fully buffer + validate before emitting anything.
+  session.captureProviderAttemptBaseline();
   applyNonStreamMutation(session);
 
   const performAttempt = buildAttemptPerformer(session);
+  const performFallback = buildFallbackPerformer(session, fakeStreamingProviderId);
   if (session.clientAbortSignal === null) {
     // No client abort signal means heartbeat / orchestrator can't observe
     // client disconnect — surface the silent degradation in the log so it's
@@ -93,6 +98,7 @@ export async function tryFakeStreamingPath(
       family,
       isStream: true,
       performAttempt,
+      performFallback,
       abortSignal,
       maxAttempts: MAX_ATTEMPTS,
       heartbeatIntervalMs: HEARTBEAT_INTERVAL_MS,
@@ -108,6 +114,7 @@ export async function tryFakeStreamingPath(
   return await buildFakeStreamingNonStreamResponse({
     family,
     performAttempt,
+    performFallback,
     abortSignal,
     maxAttempts: MAX_ATTEMPTS,
   });
@@ -144,7 +151,25 @@ function buildAttemptPerformer(session: ProxySession): AttemptPerformer {
     if (abortSignal.aborted) {
       throw Object.assign(new Error("aborted"), { name: "AbortError" });
     }
-    const response = await ProxyForwarder.send(session);
+    let response: Response;
+    try {
+      response = await ProxyForwarder.send(session, { allowProviderSwitch: false });
+    } catch (error) {
+      releaseForwarderResources(session);
+      const normalized = error instanceof Error ? error : new Error(String(error));
+      const category = await categorizeErrorAsync(normalized);
+      if (category === ErrorCategory.CLIENT_ABORT) {
+        throw Object.assign(normalized, { name: "AbortError" });
+      }
+      if (category === ErrorCategory.NON_RETRYABLE_CLIENT_ERROR) {
+        throw normalized;
+      }
+      return {
+        status: getErrorStatus(normalized),
+        body: getErrorBody(normalized),
+        providerId: session.provider?.id != null ? String(session.provider.id) : "unknown",
+      };
+    }
     try {
       const body = await response.text();
       return {
@@ -161,6 +186,73 @@ function buildAttemptPerformer(session: ProxySession): AttemptPerformer {
       releaseForwarderResources(session);
     }
   };
+}
+
+function buildFallbackPerformer(
+  session: ProxySession,
+  failedProviderId: number | null
+): FallbackPerformer {
+  return async () => {
+    session.restoreProviderAttemptBaseline();
+    const response = await ProxyForwarder.send(session, {
+      excludeProviderIds: failedProviderId != null ? [failedProviderId] : [],
+    });
+    return prepareFallbackResponse(session, response);
+  };
+}
+
+function prepareFallbackResponse(session: ProxySession, response: Response): Response {
+  const contentType = response.headers.get("content-type") ?? "";
+  const isSse = contentType.toLowerCase().includes("text/event-stream");
+  if (!response.body || !isSse) {
+    clearForwarderResponseTimeout(session);
+    return response;
+  }
+
+  let timeoutCleared = false;
+  const stream = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        if (!timeoutCleared && chunk.byteLength > 0) {
+          timeoutCleared = true;
+          clearForwarderResponseTimeout(session);
+        }
+        controller.enqueue(chunk);
+      },
+    })
+  );
+
+  return new Response(stream, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+function getErrorStatus(error: unknown): number {
+  const statusCode = (error as { statusCode?: unknown })?.statusCode;
+  return typeof statusCode === "number" && Number.isInteger(statusCode) ? statusCode : 502;
+}
+
+function getErrorBody(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return "upstream attempt failed";
+}
+
+function clearForwarderResponseTimeout(session: ProxySession): void {
+  const augmented = session as ProxySession & {
+    clearResponseTimeout?: (() => void) | null;
+  };
+  try {
+    augmented.clearResponseTimeout?.();
+  } catch {
+    /* swallow cleanup errors */
+  }
 }
 
 function releaseForwarderResources(session: ProxySession): void {

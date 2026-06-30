@@ -2531,10 +2531,12 @@ export class ProxyResponseHandler {
         clientAborted: boolean,
         abortReason?: string
       ): Promise<void> => {
+        const finalizationStatusCode =
+          peekDeferredStreamingFinalization(session)?.upstreamStatusCode ?? statusCode;
         const finalized = await finalizeDeferredStreamingFinalizationIfNeeded(
           session,
           allContent,
-          statusCode,
+          finalizationStatusCode,
           streamEndedNormally,
           clientAborted,
           abortReason
@@ -2542,6 +2544,7 @@ export class ProxyResponseHandler {
         const effectiveStatusCode = finalized.effectiveStatusCode;
         const streamErrorMessage = finalized.errorMessage;
         const providerIdForPersistence = finalized.providerIdForPersistence;
+        const effectiveProvider = session.provider ?? provider;
 
         // 存储响应体到 Redis（5分钟过期）
         if (session.sessionId && session.shouldPersistSessionDebugArtifacts()) {
@@ -2583,9 +2586,9 @@ export class ProxyResponseHandler {
 
         // U11：门控已在 finalize 内解析过同一份 allContent，类型一致时直接复用
         const usageResult =
-          finalized.clientAbortGateUsage?.providerType === provider.providerType
+          finalized.clientAbortGateUsage?.providerType === effectiveProvider.providerType
             ? { usageMetrics: finalized.clientAbortGateUsage.usageMetrics }
-            : parseUsageFromResponseText(allContent, provider.providerType);
+            : parseUsageFromResponseText(allContent, effectiveProvider.providerType);
         usageForCost = usageResult.usageMetrics;
 
         const actualServiceTier = parseServiceTierFromResponseText(allContent);
@@ -2602,14 +2605,18 @@ export class ProxyResponseHandler {
           usageForCost = normalizeUsageWithSwap(
             usageForCost,
             session,
-            provider.swapCacheTtlBilling
+            effectiveProvider.swapCacheTtlBilling
           );
         }
 
-        maybeSetCodexContext1m(session, provider, usageForCost?.input_tokens);
+        maybeSetCodexContext1m(session, effectiveProvider, usageForCost?.input_tokens);
 
         // Codex: Extract prompt_cache_key from SSE events and update session binding
-        if (provider.providerType === "codex" && session.sessionId && provider.id) {
+        if (
+          effectiveProvider.providerType === "codex" &&
+          session.sessionId &&
+          effectiveProvider.id
+        ) {
           try {
             const sseEvents = parseSSEData(allContent);
             for (const event of sseEvents) {
@@ -2621,7 +2628,7 @@ export class ProxyResponseHandler {
                   void SessionManager.updateSessionWithCodexCacheKey(
                     session.sessionId,
                     promptCacheKey,
-                    provider.id,
+                    effectiveProvider.id,
                     session.authState?.key?.id ?? session.messageContext?.key?.id ?? null
                   ).catch((err) => {
                     logger.error("[ResponseHandler] Failed to update Codex session (stream):", err);
@@ -2637,13 +2644,17 @@ export class ProxyResponseHandler {
 
         const billableUsageForCost = await resolveBillableUsageMetricsForCost(
           session,
-          provider,
+          effectiveProvider,
           usageForCost,
           effectiveStatusCode,
           allContent
         );
 
-        const billing = sessionBillingInputs(session, provider, priorityServiceTierApplied);
+        const billing = sessionBillingInputs(
+          session,
+          effectiveProvider,
+          priorityServiceTierApplied
+        );
         const costUpdateResult = await updateRequestCostFromUsage(
           messageContext.id,
           session,
@@ -2673,7 +2684,8 @@ export class ProxyResponseHandler {
         if (billableUsageForCost) {
           try {
             if (session.request.model) {
-              const resolvedPricing = await session.getResolvedPricingByBillingSource(provider);
+              const resolvedPricing =
+                await session.getResolvedPricingByBillingSource(effectiveProvider);
               if (resolvedPricing) {
                 ensurePricingResolutionSpecialSetting(session, resolvedPricing);
                 const longContextPricing =
@@ -2683,7 +2695,7 @@ export class ProxyResponseHandler {
                   billableUsageForCost,
                   resolvedPricing.priceData,
                   buildCostCalculationOptions(
-                    provider.costMultiplier,
+                    effectiveProvider.costMultiplier,
                     session.getContext1mApplied(),
                     priorityServiceTierApplied,
                     longContextPricing,
@@ -2694,7 +2706,10 @@ export class ProxyResponseHandler {
                   costUsdStr = cost.toString();
                 }
                 // Raw cost without multiplier for Langfuse
-                if (provider.costMultiplier !== 1 || session.getGroupCostMultiplier() !== 1) {
+                if (
+                  effectiveProvider.costMultiplier !== 1 ||
+                  session.getGroupCostMultiplier() !== 1
+                ) {
                   const rawCost = calculateRequestCost(
                     billableUsageForCost,
                     resolvedPricing.priceData,
@@ -2765,7 +2780,7 @@ export class ProxyResponseHandler {
         const currentRequestedModel = session.getCurrentModel();
         const thinkingActuallyEnabled = isThinkingEnabled(session.request.message);
         const anthropicModelDetection = resolveAnthropicStreamActualResponseModel({
-          providerType: provider.providerType,
+          providerType: effectiveProvider.providerType,
           requestedModel: currentRequestedModel,
           thinkingEnabled: thinkingActuallyEnabled,
           responseStreamText: allContent,
@@ -2784,7 +2799,7 @@ export class ProxyResponseHandler {
         }
         const finalActualResponseModel = anthropicModelDetection.source
           ? anthropicModelDetection.actualResponseModel
-          : extractActualResponseModelForProvider(provider.providerType, true, allContent);
+          : extractActualResponseModelForProvider(effectiveProvider.providerType, true, allContent);
 
         // 保存扩展信息（status code, tokens, provider chain）
         await updateMessageRequestDetails(messageContext.id, {
@@ -2803,7 +2818,7 @@ export class ProxyResponseHandler {
           actualResponseModel: finalActualResponseModel,
           providerId: providerIdForPersistence ?? session.provider?.id, // 更新最终供应商ID（重试切换后）
           context1mApplied: session.getContext1mApplied(),
-          swapCacheTtlApplied: provider.swapCacheTtlBilling ?? false,
+          swapCacheTtlApplied: effectiveProvider.swapCacheTtlBilling ?? false,
           specialSettings: session.getSpecialSettings() ?? undefined,
         });
 
