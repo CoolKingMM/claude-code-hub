@@ -60,9 +60,18 @@ type DetectionOptions = {
    * message 关键字匹配规则（默认 /error/i）。
    *
    * 注意：该规则只用于检查 `message` 字段（字符串）。
-   * `error.message` 属于 Codex 兼容放行形态，不参与 fake-200 判定。
+   * 普通 `error.message` 属于 Codex 兼容放行形态，不参与 fake-200 判定；
+   * 但明确的 SSE terminal error event 仍会判定为错误。
    */
   messageKeyword?: RegExp;
+};
+
+type JsonDetectionContext = {
+  /**
+   * 明确的 SSE terminal error event（如 `response.error` / `event: error`）不能按普通
+   * Codex `error.message` 兼容形态放行，否则 fake-streaming 失败会被落成成功 200。
+   */
+  treatErrorMessageAsError?: boolean;
 };
 
 const DEFAULT_MAX_JSON_CHARS_FOR_MESSAGE_CHECK = 1000;
@@ -278,7 +287,8 @@ function truncateForDetail(text: string, maxLen: number = 200): string {
 function detectFromJsonObject(
   obj: Record<string, unknown>,
   rawJsonChars: number,
-  options: Required<Pick<DetectionOptions, "maxJsonCharsForMessageCheck" | "messageKeyword">>
+  options: Required<Pick<DetectionOptions, "maxJsonCharsForMessageCheck" | "messageKeyword">>,
+  context: JsonDetectionContext = {}
 ): UpstreamErrorDetectionResult {
   // 判定优先级：
   // 1) `error` 字符串/非对象值非空：直接判定为错误（强信号）
@@ -295,8 +305,16 @@ function detectFromJsonObject(
     }
   } else if (isPlainRecord(errorValue)) {
     // Codex 兼容上游可能在已经输出有效内容后追加 terminal `error.message`。
-    // 这里全局放行该形态，让客户端按原始流自行处理；其它 error 形态仍按 fake-200 处理。
+    // 普通 JSON/SSE data 里继续放行该形态，让客户端按原始流自行处理；
+    // 明确的 SSE terminal error event 不能放行，否则本地 fake-streaming 失败会被记作成功。
     if (typeof errorValue.message === "string" && errorValue.message.trim().length > 0) {
+      if (context.treatErrorMessageAsError) {
+        return {
+          isError: true,
+          code: FAKE_200_CODES.JSON_ERROR_MESSAGE_NON_EMPTY,
+          detail: `JSON body contains a non-empty \`error.message\`: ${truncateForDetail(errorValue.message)}`,
+        };
+      }
       return { isError: false };
     }
 
@@ -323,10 +341,20 @@ function detectFromJsonObject(
   return { isError: false };
 }
 
+function isExplicitSseErrorEvent(eventName: string, data: Record<string, unknown>): boolean {
+  if (eventName === "response.error" || eventName === "response.failed" || eventName === "error") {
+    return true;
+  }
+
+  const type = data.type;
+  return type === "response.error" || type === "response.failed" || type === "error";
+}
+
 /**
  * 用于“流式 SSE 已经结束后”的补充检查：
  * - 响应体为空：视为错误
- * - JSON 里包含非空 error 字段：视为错误；但 `error.message` 对象形态会放行
+ * - JSON 里包含非空 error 字段：视为错误；但普通 `error.message` 对象形态会放行
+ * - 明确的 SSE terminal error event 中，`error.message` 对象形态仍视为错误
  * - 小于 1000 字符的 JSON：若 message 包含 "error" 字样：视为错误
  *
  * 注意与限制：
@@ -417,7 +445,9 @@ export function detectUpstreamErrorFromSseOrJsonText(
       }
     }
 
-    const res = detectFromJsonObject(evt.data, chars, merged);
+    const res = detectFromJsonObject(evt.data, chars, merged, {
+      treatErrorMessageAsError: isExplicitSseErrorEvent(evt.event, evt.data),
+    });
     if (res.isError) return res;
   }
 

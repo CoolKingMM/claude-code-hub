@@ -242,6 +242,45 @@ describe("detectUpstreamErrorFromSseOrJsonText", () => {
     expect(res.isError).toBe(false);
   });
 
+  test("SSE：event=response.error 且 error.message 非空应视为错误", () => {
+    const sse = [
+      "event: response.error",
+      'data: {"type":"response.error","error":{"message":"all upstream attempts failed","code":"upstream_all_attempts_failed"}}',
+      "",
+    ].join("\n");
+    const res = detectUpstreamErrorFromSseOrJsonText(sse);
+    expect(res).toEqual({
+      isError: true,
+      code: "FAKE_200_JSON_ERROR_MESSAGE_NON_EMPTY",
+      detail: expect.stringContaining("all upstream attempts failed"),
+    });
+  });
+
+  test("SSE：data.type=response.error 且 error.message 非空应视为错误", () => {
+    const sse = [
+      'data: {"type":"response.error","error":{"message":"all upstream attempts failed","code":"upstream_all_attempts_failed"}}',
+      "",
+    ].join("\n");
+    const res = detectUpstreamErrorFromSseOrJsonText(sse);
+    expect(res.isError).toBe(true);
+    if (res.isError) {
+      expect(res.code).toBe("FAKE_200_JSON_ERROR_MESSAGE_NON_EMPTY");
+    }
+  });
+
+  test("SSE：event=error 且 error.message 非空应视为错误", () => {
+    const sse = [
+      "event: error",
+      'data: {"type":"error","error":{"message":"upstream failed","type":"upstream_all_attempts_failed"}}',
+      "",
+    ].join("\n");
+    const res = detectUpstreamErrorFromSseOrJsonText(sse);
+    expect(res.isError).toBe(true);
+    if (res.isError) {
+      expect(res.code).toBe("FAKE_200_JSON_ERROR_MESSAGE_NON_EMPTY");
+    }
+  });
+
   test("SSE：data JSON error 为对象但不含 error.message 时仍视为错误", () => {
     const sse = ['data: {"error":{"code":"upstream_all_attempts_failed"}}', ""].join("\n");
     const res = detectUpstreamErrorFromSseOrJsonText(sse);

@@ -4,6 +4,7 @@ import {
   emitFinalStream,
   emitStreamError,
 } from "@/app/v1/_lib/proxy/fake-streaming/emitters";
+import { detectUpstreamErrorFromSseOrJsonText } from "@/lib/utils/upstream-error-detection";
 import type { ProtocolFamily } from "@/app/v1/_lib/proxy/fake-streaming/response-validator";
 
 function parseSseEvents(body: string): Array<{ event: string | null; data: string }> {
@@ -331,6 +332,20 @@ describe("emitStreamError", () => {
     const errEvent = events.find((e) => e.event === "response.error");
     expect(errEvent).toBeTruthy();
     expect(events.some((e) => e.event === "response.completed")).toBe(false);
+  });
+
+  test("openai-responses error stream is detected as fake-200 failure", () => {
+    const sse = emitStreamError({
+      family: "openai-responses",
+      errorMessage: "all upstream attempts failed",
+      errorCode: "upstream_all_attempts_failed",
+    });
+
+    const detected = detectUpstreamErrorFromSseOrJsonText(sse);
+    expect(detected.isError).toBe(true);
+    if (detected.isError) {
+      expect(detected.code).toBe("FAKE_200_JSON_ERROR_MESSAGE_NON_EMPTY");
+    }
   });
 
   test("gemini emits an error data frame", () => {
