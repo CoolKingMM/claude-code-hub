@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS: Pick<
   | "enableThinkingSignatureRectifier"
   | "enableThinkingBudgetRectifier"
   | "enableThinkingEffortConflictRectifier"
+  | "enableGeminiFunctionIdRectifier"
   | "enableBillingHeaderRectifier"
   | "enableResponseInputRectifier"
   | "allowNonConversationEndpointProviderFallback"
@@ -66,6 +67,7 @@ const DEFAULT_SETTINGS: Pick<
   enableThinkingSignatureRectifier: true,
   enableThinkingBudgetRectifier: true,
   enableThinkingEffortConflictRectifier: true,
+  enableGeminiFunctionIdRectifier: true,
   enableBillingHeaderRectifier: true,
   enableResponseInputRectifier: true,
   // 安全敏感开关：冷缓存 / DB 读取失败时 fail-closed，避免意外重新开启跨供应商 raw fallback。
@@ -158,6 +160,7 @@ export async function getCachedSystemSettings(): Promise<SystemSettings> {
       enableThinkingSignatureRectifier: DEFAULT_SETTINGS.enableThinkingSignatureRectifier,
       enableThinkingBudgetRectifier: DEFAULT_SETTINGS.enableThinkingBudgetRectifier,
       enableThinkingEffortConflictRectifier: DEFAULT_SETTINGS.enableThinkingEffortConflictRectifier,
+      enableGeminiFunctionIdRectifier: DEFAULT_SETTINGS.enableGeminiFunctionIdRectifier,
       enableBillingHeaderRectifier: DEFAULT_SETTINGS.enableBillingHeaderRectifier,
       enableResponseInputRectifier: DEFAULT_SETTINGS.enableResponseInputRectifier,
       allowNonConversationEndpointProviderFallback:

@@ -15,6 +15,7 @@ import { LEDGER_BILLING_CONDITION } from "./_shared/ledger-conditions";
 import { escapeLike } from "./_shared/like";
 import { EXCLUDE_WARMUP_CONDITION } from "./_shared/message-request-conditions";
 import {
+  buildActualResponseModelMismatchCondition,
   buildDefaultHiddenUsageLogEndpointCondition,
   buildUsageLogConditions,
   buildUsageLogEndpointMatchCondition,
@@ -35,6 +36,8 @@ export interface UsageLogFilters {
   /** 排除 200 状态码（筛选所有非 200 的请求，包括 NULL） */
   excludeStatusCode200?: boolean;
   model?: string;
+  /** 仅筛选请求模型与实际响应模型不一致的记录（不按 originalModel/模型重定向判断） */
+  actualResponseModelMismatch?: boolean;
   endpoint?: string;
   /** 最低重试次数（按 provider_chain 中“实际请求”数量 - 1 计算；<= 0 视为不筛选） */
   minRetryCount?: number;
@@ -323,6 +326,16 @@ export async function findUsageLogsBatch(
     ledgerConditions.push(eq(usageLedger.model, filters.model));
   }
 
+  if (filters.actualResponseModelMismatch) {
+    ledgerConditions.push(
+      buildActualResponseModelMismatchCondition(
+        usageLedger.model,
+        usageLedger.actualResponseModel,
+        usageLedger.originalModel
+      )
+    );
+  }
+
   const hiddenLedgerEndpointCondition = buildDefaultHiddenUsageLogEndpointCondition(
     usageLedger.endpoint,
     filters.endpoint
@@ -459,6 +472,7 @@ interface UsageLogSlimFilters {
   /** 排除 200 状态码（筛选所有非 200 的请求，包括 NULL） */
   excludeStatusCode200?: boolean;
   model?: string;
+  actualResponseModelMismatch?: boolean;
   endpoint?: string;
   /** 最低重试次数（按 provider_chain 中“实际请求”数量 - 1 计算；<= 0 视为不筛选） */
   minRetryCount?: number;
@@ -512,6 +526,7 @@ export async function findUsageLogsForKeySlim(
     filters.statusCode ?? "",
     filters.excludeStatusCode200 ? "1" : "0",
     filters.model ?? "",
+    filters.actualResponseModelMismatch ? "1" : "0",
     filters.endpoint ?? "",
     filters.minRetryCount ?? "",
   ].join("\u0001");
@@ -728,6 +743,16 @@ function buildKeyLedgerConditions(
 
   if (filters.model) {
     conditions.push(eq(usageLedger.model, filters.model));
+  }
+
+  if (filters.actualResponseModelMismatch) {
+    conditions.push(
+      buildActualResponseModelMismatchCondition(
+        usageLedger.model,
+        usageLedger.actualResponseModel,
+        usageLedger.originalModel
+      )
+    );
   }
 
   const hiddenKeyLedgerEndpointCondition = buildDefaultHiddenUsageLogEndpointCondition(
@@ -1469,10 +1494,20 @@ export async function getUsedModels(): Promise<string[]> {
   const results = await db
     .selectDistinct({ model: messageRequest.model })
     .from(messageRequest)
-    .where(and(isNull(messageRequest.deletedAt), sql`${messageRequest.model} IS NOT NULL`))
+    .where(
+      and(
+        isNull(messageRequest.deletedAt),
+        sql`${messageRequest.model} IS NOT NULL`,
+        sql`btrim(${messageRequest.model}) <> ''`
+      )
+    )
     .orderBy(messageRequest.model);
 
-  return results.map((r) => r.model).filter((m): m is string => m !== null);
+  return results.map((r) => r.model).filter(isNonBlankString);
+}
+
+function isNonBlankString(value: string | null): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 /**
@@ -1675,6 +1710,16 @@ export async function findUsageLogsStats(
 
   if (filters.model) {
     conditions.push(eq(usageLedger.model, filters.model));
+  }
+
+  if (filters.actualResponseModelMismatch) {
+    conditions.push(
+      buildActualResponseModelMismatchCondition(
+        usageLedger.model,
+        usageLedger.actualResponseModel,
+        usageLedger.originalModel
+      )
+    );
   }
 
   const hiddenStatsLedgerEndpointCondition = buildDefaultHiddenUsageLogEndpointCondition(

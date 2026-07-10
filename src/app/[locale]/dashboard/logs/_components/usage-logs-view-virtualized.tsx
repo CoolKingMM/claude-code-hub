@@ -166,6 +166,7 @@ function UsageLogsViewContent({
       endTime: _params.get("endTime") ?? undefined,
       statusCode: _params.get("statusCode") ?? undefined,
       model: _params.get("model") ?? undefined,
+      actualResponseModelMismatch: _params.get("actualResponseModelMismatch") ?? undefined,
       endpoint: _params.get("endpoint") ?? undefined,
       minRetry: _params.get("minRetry") ?? undefined,
       page: _params.get("page") ?? undefined,
@@ -265,6 +266,7 @@ function UsageLogsViewContent({
     if (statsFilters.sessionId) count++;
     if (statsFilters.statusCode !== undefined || statsFilters.excludeStatusCode200) count++;
     if (statsFilters.model) count++;
+    if (statsFilters.actualResponseModelMismatch) count++;
     if (statsFilters.endpoint) count++;
     if (statsFilters.minRetryCount !== undefined && statsFilters.minRetryCount > 0) count++;
     return count;
@@ -387,6 +389,7 @@ function UsageLogsViewContent({
             autoRefreshEnabled={!isFullscreenOpen && isAutoRefresh}
             autoRefreshIntervalMs={logsRefreshIntervalMs ?? 5000}
             hiddenColumns={hiddenColumns}
+            serverTimeZone={serverTimeZone}
           />
         </div>
       </div>
@@ -477,6 +480,7 @@ function UsageLogsViewContent({
               hideScrollToTop={true}
               hiddenColumns={hideProviderColumn ? ["provider"] : undefined}
               bodyClassName="h-[calc(var(--cch-viewport-height,100vh)_-_56px_-_32px_-_40px)]"
+              serverTimeZone={serverTimeZone}
             />
           </div>
         </div>

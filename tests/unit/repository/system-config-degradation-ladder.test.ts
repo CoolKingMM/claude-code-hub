@@ -7,6 +7,7 @@ import type { UpdateSystemSettingsInput } from "@/types/system-config";
 
 // 近代新增列（最新在前），降级链按引入顺序逐层累计剥离。
 const RECENT_COLUMNS = [
+  "enableGeminiFunctionIdRectifier",
   "enableThinkingEffortConflictRectifier",
   "fakeStreamingProviderIds",
   "enableProviderOutputSafetyFilter",
@@ -18,8 +19,9 @@ const RECENT_COLUMNS = [
   "allowNonConversationEndpointProviderFallback",
 ] as const;
 
-// 全量字段集（46 列）。
+// 全量字段集（47 列）。
 const FULL_COLUMNS = [
+  "enableGeminiFunctionIdRectifier",
   "billHedgeLosers",
   "billNonSuccessfulRequests",
   "passThroughUpstreamErrorMessage",
@@ -131,7 +133,7 @@ function createResolvingSelectQuery(rows: unknown[]) {
 }
 
 describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
-  test("getSystemSettings 全部列缺失时按既定顺序尝试 14 套字段集", async () => {
+  test("getSystemSettings 全部列缺失时按既定顺序尝试 15 套字段集", async () => {
     vi.resetModules();
 
     const selections: string[][] = [];
@@ -233,7 +235,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
     expect(result.passThroughUpstreamErrorMessage).toBe(true);
   });
 
-  test("updateSystemSettings 全部列缺失时按既定顺序尝试 13 套 set/returning 组合", async () => {
+  test("updateSystemSettings 全部列缺失时按既定顺序尝试 14 套 set/returning 组合", async () => {
     vi.resetModules();
 
     const now = new Date("2026-01-04T00:00:00.000Z");
@@ -287,6 +289,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       enableOpenaiResponsesWebsocket: false,
       enableHighConcurrencyMode: true,
       enableThinkingEffortConflictRectifier: false,
+      enableGeminiFunctionIdRectifier: false,
       allowNonConversationEndpointProviderFallback: false,
       fakeStreamingWhitelist: [],
       fakeStreamingProviderIds: [121],
@@ -302,7 +305,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       "system_settings 表列缺失，请执行数据库迁移以升级数据库结构。"
     );
 
-    expect(updateMock).toHaveBeenCalledTimes(13);
+    expect(updateMock).toHaveBeenCalledTimes(14);
 
     const expectedReturningSequence = [
       [...FULL_COLUMNS],
@@ -323,6 +326,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       "enableOpenaiResponsesWebsocket",
       "enableHighConcurrencyMode",
       "enableThinkingEffortConflictRectifier",
+      "enableGeminiFunctionIdRectifier",
       "fakeStreamingProviderIds",
       "enableProviderOutputSafetyFilter",
       "providerOutputSafetyFilterRules",

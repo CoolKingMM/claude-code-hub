@@ -754,8 +754,15 @@
     {
       "idx": 107,
       "version": "7",
-      "when": 1781156586163,
+      "when": 1781253720071,
       "tag": "0107_chief_rocket_racer",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1783649658477,
+      "tag": "0108_sudden_fabian_cortez",
       "breakpoints": true
     }
   ]
