@@ -103,7 +103,6 @@ interface SystemSettingsFormProps {
     | "fakeStreamingWhitelist"
     | "enableProviderOutputSafetyFilter"
     | "providerOutputSafetyFilterRules"
-
     | "streamGateMode"
     | "affinityIgnoreClientSessionId"
     | "replayEnabled"
@@ -150,14 +149,11 @@ function parseProviderOutputSafetyFilterRules(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-export function SystemSettingsForm({
-  initialSettings,
-  showSpecialHandling = false,
-
 type DiscoveryNumberValue = number | "";
 
 export function SystemSettingsForm({
   initialSettings,
+  showSpecialHandling = false,
   sessionTtlSeconds = 300,
   replayDefaultEnabled = true,
 }: SystemSettingsFormProps) {

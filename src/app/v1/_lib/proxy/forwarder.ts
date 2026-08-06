@@ -34,8 +34,8 @@ import {
 } from "@/lib/provider-endpoints/endpoint-selector";
 import { getGlobalAgentPool, getProxyAgentForProvider } from "@/lib/proxy-agent";
 import { RateLimitService } from "@/lib/rate-limit/service";
-import { requestFilterEngine } from "@/lib/request-filter-engine";
 import type { SessionBindingSnapshot } from "@/lib/redis/session-binding";
+import { requestFilterEngine } from "@/lib/request-filter-engine";
 import { SessionManager } from "@/lib/session-manager";
 import {
   detectUpstreamErrorFromSseOrJsonText,
@@ -1390,6 +1390,8 @@ export class ProxyForwarder {
 
     session.captureProviderAttemptBaseline();
 
+    const allowProviderSwitch = options.allowProviderSwitch !== false;
+
     const requestStartedAt = Date.now();
     const discoverySettings = await getCachedSystemSettings();
     const configuredSessionTtlSeconds = getEnvConfig().SESSION_TTL;
@@ -1481,7 +1483,7 @@ export class ProxyForwarder {
         logger.error("ProxyForwarder: No provider available after excluding initial providers", {
           excludedProviderCount: failedProviderIds.length,
         });
-        await ProxyForwarder.clearSessionProviderBinding(session);
+        await ProxyForwarder.clearSessionProviderBinding(session, currentProvider.id);
         throw ProxyForwarder.buildAllProvidersUnavailableError(lastError);
       }
 

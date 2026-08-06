@@ -47,8 +47,6 @@ const h = vi.hoisted(() => ({
   },
 
   settingsError: null as unknown,
-  systemSettings: {} as Record<string, unknown>,
-  fakeStreamingResponse: null as Response | null,
   normalizeInputCalls: 0,
 
   endpointFormat: null as string | null,

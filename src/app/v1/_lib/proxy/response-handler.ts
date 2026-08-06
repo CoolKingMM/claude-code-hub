@@ -60,17 +60,17 @@ import {
   createCodexCyberNoticeFilter,
   shouldHideCodexCyberNotice,
 } from "./codex-cyber-notice-filter";
+import {
+  createDemandDrivenResponsePump,
+  type DemandDrivenResponsePump,
+} from "./demand-driven-response-pump";
+import { isDiscoveryProtocolErrorPayload } from "./discovery-validity";
 import { isClientAbortError, isTransportError } from "./errors";
 import {
   createProviderOutputSafetyFilter,
   filterProviderOutputSafetyText,
   shouldFilterProviderOutputSafety,
 } from "./provider-output-safety-filter";
-  createDemandDrivenResponsePump,
-  type DemandDrivenResponsePump,
-} from "./demand-driven-response-pump";
-import { isDiscoveryProtocolErrorPayload } from "./discovery-validity";
-import { isClientAbortError, isTransportError } from "./errors";
 import {
   abortReplayOwnership,
   createReplaySpoolIfOwner,
@@ -4608,7 +4608,11 @@ export class ProxyResponseHandler {
           )
         );
 
-        const billing = sessionBillingInputs(session, effectiveProvider, priorityServiceTierApplied);
+        const billing = sessionBillingInputs(
+          session,
+          effectiveProvider,
+          priorityServiceTierApplied
+        );
         const costUpdateResult = await awaitFinalization(
           updateRequestCostFromUsage(
             messageContext.id,

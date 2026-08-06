@@ -524,8 +524,6 @@ export class ProxySession {
     return true;
   }
 
-  recordProviderSessionRef(providerId: number): void {
-
   addLiveActiveProvider(provider: Pick<Provider, "id" | "name">): void {
     if (!this.liveActiveProviders) {
       this.liveActiveProviders = new Map<number, LiveProviderSnapshot>();

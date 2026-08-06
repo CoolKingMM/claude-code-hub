@@ -1114,38 +1114,36 @@ export const UpdateSystemSettingsSchema = z
           }
           seen.add(model);
         }
-        seen.add(model);
-      }
-    })
-    .optional(),
-  // 按供应商启用 Fake 流式输出。命中供应商后，该供应商下所有模型均生效。
-  fakeStreamingProviderIds: z
-    .array(z.number().int().positive())
-    .max(1000, "fakeStreamingProviderIds 不能超过 1000 个供应商")
-    .transform((providerIds) => Array.from(new Set(providerIds)))
-    .optional(),
-  // Provider 输出安全过滤规则（可选）。数组为空表示不匹配任何内容；缺省保持现有设置。
-  enableProviderOutputSafetyFilter: z.boolean().optional(),
-  providerOutputSafetyFilterRules: z
-    .array(
-      z
-        .string()
-        .max(
-          PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRuleLength,
-          `单条过滤规则不能超过 ${PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRuleLength} 个字符`
-        )
-        .transform((value) => value.trim())
-        .refine((value) => value.length > 0, { message: "过滤规则不能为空" })
-        .refine((value) => validateProviderOutputSafetyFilterRule(value) === null, {
-          message: "过滤规则不是合法正则表达式",
-        })
-    )
-    .max(
-      PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRules,
-      `过滤规则数量不能超过 ${PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRules} 条`
-    )
-    .transform((rules) => Array.from(new Set(rules)))
-    .optional(),
+      })
+      .optional(),
+    // 按供应商启用 Fake 流式输出。命中供应商后，该供应商下所有模型均生效。
+    fakeStreamingProviderIds: z
+      .array(z.number().int().positive())
+      .max(1000, "fakeStreamingProviderIds 不能超过 1000 个供应商")
+      .transform((providerIds) => Array.from(new Set(providerIds)))
+      .optional(),
+    // Provider 输出安全过滤规则（可选）。数组为空表示不匹配任何内容；缺省保持现有设置。
+    enableProviderOutputSafetyFilter: z.boolean().optional(),
+    providerOutputSafetyFilterRules: z
+      .array(
+        z
+          .string()
+          .max(
+            PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRuleLength,
+            `单条过滤规则不能超过 ${PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRuleLength} 个字符`
+          )
+          .transform((value) => value.trim())
+          .refine((value) => value.length > 0, { message: "过滤规则不能为空" })
+          .refine((value) => validateProviderOutputSafetyFilterRule(value) === null, {
+            message: "过滤规则不是合法正则表达式",
+          })
+      )
+      .max(
+        PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRules,
+        `过滤规则数量不能超过 ${PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS.maxRules} 条`
+      )
+      .transform((rules) => Array.from(new Set(rules)))
+      .optional(),
     // F1 流式内容门控模式（可选）
     streamGateMode: z
       .enum(["off", "shadow", "enforce"], { message: "不支持的流式门控模式" })
@@ -1156,27 +1154,27 @@ export const UpdateSystemSettingsSchema = z
     replayEnabled: z.boolean().nullable().optional(),
     // F3b 最长前缀匹配缓存模拟（可选；null = 跟随环境变量）
     cacheEffectivenessEnabled: z.boolean().nullable().optional(),
-  // Codex Session ID 补全（可选）
-  enableCodexSessionIdCompletion: z.boolean().optional(),
-  // Claude metadata.user_id 注入（可选）
-  enableClaudeMetadataUserIdInjection: z.boolean().optional(),
-  // 响应整流（可选）
-  enableResponseFixer: z.boolean().optional(),
-  responseFixerConfig: z
-    .object({
-      fixTruncatedJson: z.boolean().optional(),
-      fixSseFormat: z.boolean().optional(),
-      fixEncoding: z.boolean().optional(),
-      maxJsonDepth: z.coerce.number().int("maxJsonDepth 必须是整数").min(1).max(2000).optional(),
-      maxFixSize: z.coerce
-        .number()
-        .int("maxFixSize 必须是整数")
-        .min(1024)
-        .max(10 * 1024 * 1024)
-        .optional(),
-    })
-    .partial()
-    .optional(),
+    // Codex Session ID 补全（可选）
+    enableCodexSessionIdCompletion: z.boolean().optional(),
+    // Claude metadata.user_id 注入（可选）
+    enableClaudeMetadataUserIdInjection: z.boolean().optional(),
+    // 响应整流（可选）
+    enableResponseFixer: z.boolean().optional(),
+    responseFixerConfig: z
+      .object({
+        fixTruncatedJson: z.boolean().optional(),
+        fixSseFormat: z.boolean().optional(),
+        fixEncoding: z.boolean().optional(),
+        maxJsonDepth: z.coerce.number().int("maxJsonDepth 必须是整数").min(1).max(2000).optional(),
+        maxFixSize: z.coerce
+          .number()
+          .int("maxFixSize 必须是整数")
+          .min(1024)
+          .max(10 * 1024 * 1024)
+          .optional(),
+      })
+      .partial()
+      .optional(),
 
     // Quota lease settings
     quotaDbRefreshIntervalSeconds: z.coerce
