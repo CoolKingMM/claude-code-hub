@@ -262,9 +262,10 @@ describe("Non-200 Status Code Handling", () => {
       expect(result.code).toBe("FAKE_200_JSON_ERROR_NON_EMPTY");
     });
 
-    it("should allow JSON error object with nested error.message", () => {
+    it("should detect JSON error response with nested error.message", () => {
       const result = detectUpstreamErrorFromSseOrJsonText('{"error":{"message":"nested error"}}');
-      expect(result.isError).toBe(false);
+      expect(result.isError).toBe(true);
+      expect(result.code).toBe("FAKE_200_JSON_ERROR_MESSAGE_NON_EMPTY");
     });
 
     it("should detect empty body as error", () => {
@@ -516,7 +517,7 @@ describe("Non-200 Status Code Handling", () => {
       );
     });
 
-    it("should use HTTP status for 400 JSON error object with error.message", async () => {
+    it("should handle 400 status with JSON error", async () => {
       const session = createSession({
         provider: mockProvider,
         messageContext: mockMessageContext,
@@ -541,7 +542,7 @@ describe("Non-200 Status Code Handling", () => {
 
       expect(mockRecordFailure).toHaveBeenCalledWith(
         mockProvider.id,
-        expect.objectContaining({ message: "HTTP 400" })
+        expect.objectContaining({ message: "FAKE_200_JSON_ERROR_MESSAGE_NON_EMPTY" })
       );
     });
 

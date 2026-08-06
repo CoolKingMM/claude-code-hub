@@ -1058,7 +1058,7 @@ async function getProviderOutputSafetyRuntimeConfig(): Promise<ProviderOutputSaf
   try {
     const settings = await getCachedSystemSettings();
     return {
-      enabled: settings.enableProviderOutputSafetyFilter,
+      enabled: settings.enableProviderOutputSafetyFilter === true,
       rules: settings.providerOutputSafetyFilterRules,
     };
   } catch (error) {
@@ -4572,8 +4572,11 @@ export class ProxyResponseHandler {
         // Codex: Extract prompt_cache_key from SSE events and update session binding
         if (
           effectiveProvider.providerType === "codex" &&
+          effectiveStatusCode >= 200 &&
+          effectiveStatusCode < 300 &&
           session.sessionId &&
-          effectiveProvider.id
+          effectiveProvider.id &&
+          finalized.allowAuxiliarySessionBinding
         ) {
           try {
             const sseEvents = parseSSEData(allContent);
