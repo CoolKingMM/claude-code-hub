@@ -45,7 +45,7 @@ const userSession = {
 
 const settings: SystemSettings = {
   id: 1,
-  siteTitle: "Claude Code Hub",
+  siteTitle: "CC Hub",
   allowGlobalUsageView: true,
   currencyDisplay: "USD",
   billingModelSource: "original",
@@ -121,7 +121,7 @@ describe("v1 system config endpoints", () => {
     });
     expect(got.response.status).toBe(200);
     expect(got.json).toMatchObject({
-      siteTitle: "Claude Code Hub",
+      siteTitle: "CC Hub",
       updatedAt: "2026-04-28T00:00:00.000Z",
     });
 
@@ -167,7 +167,7 @@ describe("v1 system config endpoints", () => {
 
     expect(got.response.status).toBe(200);
     expect(got.json).toEqual({
-      siteTitle: "Claude Code Hub",
+      siteTitle: "CC Hub",
       currencyDisplay: "USD",
       billingModelSource: "original",
     });
@@ -197,6 +197,21 @@ describe("v1 system config endpoints", () => {
     });
     expect(invalidTimezone.response.status).toBe(400);
     expect(invalidTimezone.json).toMatchObject({ errorCode: "request.validation_failed" });
+  });
+
+  test("returns a stable error code for out-of-range Discovery settings", async () => {
+    const invalidDiscovery = await callV1Route({
+      method: "PUT",
+      pathname: "/api/v1/system/settings",
+      headers: { Authorization: "Bearer admin-token" },
+      body: { discoveryConcurrency: 33 },
+    });
+
+    expect(invalidDiscovery.response.status).toBe(400);
+    expect(invalidDiscovery.json).toMatchObject({
+      errorCode: "DISCOVERY_SETTINGS_INVALID",
+    });
+    expect(saveSystemSettingsMock).not.toHaveBeenCalled();
   });
 
   test("rejects malformed and non-json system settings update bodies", async () => {

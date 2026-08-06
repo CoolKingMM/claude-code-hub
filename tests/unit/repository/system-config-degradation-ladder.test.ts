@@ -7,6 +7,17 @@ import type { UpdateSystemSettingsInput } from "@/types/system-config";
 
 // 近代新增列（最新在前），降级链按引入顺序逐层累计剥离。
 const RECENT_COLUMNS = [
+  "cacheEffectivenessEnabled",
+  "replayEnabled",
+  "affinityIgnoreClientSessionId",
+  "streamGateMode",
+  "stickyTimeoutCooldownMs",
+  "racingTotalTimeoutMs",
+  "stickySlaMs",
+  "discoverySlaMs",
+  "maxDiscoveryRounds",
+  "discoveryConcurrency",
+  "discoveryEnabled",
   "enableGeminiFunctionIdRectifier",
   "enableThinkingEffortConflictRectifier",
   "fakeStreamingProviderIds",
@@ -21,6 +32,17 @@ const RECENT_COLUMNS = [
 
 // 全量字段集（47 列）。
 const FULL_COLUMNS = [
+  "cacheEffectivenessEnabled",
+  "replayEnabled",
+  "affinityIgnoreClientSessionId",
+  "streamGateMode",
+  "discoveryEnabled",
+  "discoveryConcurrency",
+  "maxDiscoveryRounds",
+  "discoverySlaMs",
+  "stickySlaMs",
+  "racingTotalTimeoutMs",
+  "stickyTimeoutCooldownMs",
   "enableGeminiFunctionIdRectifier",
   "billHedgeLosers",
   "billNonSuccessfulRequests",
@@ -243,7 +265,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       createResolvingSelectQuery([
         {
           id: 1,
-          siteTitle: "Claude Code Hub",
+          siteTitle: "CC Hub",
           allowGlobalUsageView: false,
           currencyDisplay: "USD",
           billingModelSource: "original",
@@ -295,6 +317,8 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       fakeStreamingProviderIds: [121],
       enableProviderOutputSafetyFilter: false,
       providerOutputSafetyFilterRules: [],
+      streamGateMode: "shadow",
+      affinityIgnoreClientSessionId: false,
       publicStatusWindowHours: 48,
       publicStatusAggregationIntervalMinutes: 10,
       ipExtractionConfig: null,
@@ -332,6 +356,8 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       "providerOutputSafetyFilterRules",
       "allowNonConversationEndpointProviderFallback",
       "fakeStreamingWhitelist",
+      "streamGateMode",
+      "affinityIgnoreClientSessionId",
       "publicStatusWindowHours",
       "publicStatusAggregationIntervalMinutes",
       "ipExtractionConfig",
@@ -364,7 +390,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       createResolvingSelectQuery([
         {
           id: 1,
-          siteTitle: "Claude Code Hub",
+          siteTitle: "CC Hub",
           allowGlobalUsageView: false,
           currencyDisplay: "USD",
           billingModelSource: "original",
@@ -429,7 +455,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       createResolvingSelectQuery([
         {
           id: 1,
-          siteTitle: "Claude Code Hub",
+          siteTitle: "CC Hub",
           allowGlobalUsageView: false,
           currencyDisplay: "USD",
           billingModelSource: "original",
