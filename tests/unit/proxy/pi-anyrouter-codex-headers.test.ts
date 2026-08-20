@@ -20,8 +20,7 @@ function createSession(
     requestSequence?: number;
   } = {}
 ): ProxySession {
-  const sessionId =
-    overrides.sessionId === undefined ? DEFAULT_SESSION_ID : overrides.sessionId;
+  const sessionId = overrides.sessionId === undefined ? DEFAULT_SESSION_ID : overrides.sessionId;
   const headerSessionId =
     overrides.headerSessionId === undefined ? sessionId : overrides.headerSessionId;
   const headers = new Headers([["user-agent", PI_USER_AGENT]]);
@@ -30,10 +29,7 @@ function createSession(
     headers.set(PI_CLIENT_MARKER_HEADER, overrides.marker);
   }
   if (overrides.installationId !== null) {
-    headers.set(
-      PI_INSTALLATION_ID_HEADER,
-      overrides.installationId ?? DEFAULT_INSTALLATION_ID
-    );
+    headers.set(PI_INSTALLATION_ID_HEADER, overrides.installationId ?? DEFAULT_INSTALLATION_ID);
   }
   if (headerSessionId) {
     headers.set("session_id", headerSessionId);
