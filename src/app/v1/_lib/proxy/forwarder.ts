@@ -107,6 +107,11 @@ import {
   syncOpenAIImageMultipartFromLogicalBody,
   validateOpenAIImageRequest,
 } from "./openai-image-compat";
+import {
+  applyPiAnyRouterCodexRequest,
+  PI_CLIENT_MARKER_HEADER,
+  PI_INSTALLATION_ID_HEADER,
+} from "./pi-anyrouter-codex-headers";
 import { ProxyProviderResolver } from "./provider-selector";
 import { abortReplayOwnership, releaseReplayOwnership } from "./replay/replay-spool";
 import { isJsonResponseContentType, isMalformedJsonResponseBody } from "./response-content-type";
@@ -182,6 +187,8 @@ const OUTBOUND_TRANSPORT_HEADER_BLACKLIST = [
   "content-length",
   "connection",
   "transfer-encoding",
+  PI_CLIENT_MARKER_HEADER,
+  PI_INSTALLATION_ID_HEADER,
   ...RESERVED_INTERNAL_HEADERS,
 ];
 
@@ -3395,6 +3402,21 @@ export class ProxyForwarder {
             throw new ProxyError(validation.message ?? "Invalid request.", 400);
           }
 
+          const piCodexRequest = applyPiAnyRouterCodexRequest({
+            session,
+            provider,
+            upstreamUrl: proxyUrl,
+            headers: processedHeaders,
+            body: messageToSend,
+          });
+          if (piCodexRequest.applied) {
+            logger.debug("ProxyForwarder: Applied Pi AnyRouter Codex-compatible request", {
+              providerId: provider.id,
+              providerName: provider.name,
+              requestSequence: session.requestSequence,
+            });
+          }
+
           const bodyString = JSON.stringify(messageToSend);
           requestBody = bodyString;
           session.forwardedRequestBody = bodyString;
@@ -3431,6 +3453,11 @@ export class ProxyForwarder {
         }
       }
     }
+
+    // CCH-only Pi markers are never valid upstream headers, including when a
+    // final request filter added them after the initial header blacklist ran.
+    processedHeaders.delete(PI_CLIENT_MARKER_HEADER);
+    processedHeaders.delete(PI_INSTALLATION_ID_HEADER);
 
     if (session.shouldPersistSessionDebugArtifacts()) {
       const detailSnapshotSession = session as ProxySessionWithDetailSnapshotRuntime;
