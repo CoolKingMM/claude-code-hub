@@ -11,8 +11,7 @@ export const PI_CLIENT_MARKER_VALUE = "pi";
 export const PI_INSTALLATION_ID_HEADER = "x-cch-pi-installation-id";
 
 const PI_ORIGINATOR = "pi";
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_V5_DNS_NAMESPACE = Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex");
 
 export type PiAnyRouterCodexRequestResult =
@@ -69,10 +68,7 @@ function deterministicUuid(seed: string): string {
   )}-${hex.slice(20)}`;
 }
 
-function getInstallationId(
-  session: ProxySession,
-  body: Record<string, unknown>
-): string | null {
+function getInstallationId(session: ProxySession, body: Record<string, unknown>): string | null {
   const clientMetadata = isRecord(body.client_metadata) ? body.client_metadata : null;
   const suppliedHeader = session.headers.get(PI_INSTALLATION_ID_HEADER)?.trim();
   const suppliedBody = clientMetadata?.["x-codex-installation-id"];
