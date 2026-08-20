@@ -9,7 +9,8 @@ import type { Provider } from "@/types/provider";
 
 const DEFAULT_SESSION_ID = "019ea62d-bd1e-7ae0-85fa-f5885477e977";
 const DEFAULT_INSTALLATION_ID = "e3aa4cb3-82e2-4585-ac99-ae1a4b983972";
-const PI_USER_AGENT = "OpenAI/JS 6.40.0";
+const CODEX_USER_AGENT =
+  "codex-tui/0.148.0 (Ubuntu 22.4.0; x86_64) vscode/1.120.0 (codex-tui; 0.148.0)";
 
 function createSession(
   overrides: {
@@ -23,7 +24,7 @@ function createSession(
   const sessionId = overrides.sessionId === undefined ? DEFAULT_SESSION_ID : overrides.sessionId;
   const headerSessionId =
     overrides.headerSessionId === undefined ? sessionId : overrides.headerSessionId;
-  const headers = new Headers([["user-agent", PI_USER_AGENT]]);
+  const headers = new Headers([["user-agent", CODEX_USER_AGENT]]);
 
   if (overrides.marker !== undefined) {
     headers.set(PI_CLIENT_MARKER_HEADER, overrides.marker);
@@ -77,10 +78,10 @@ function applyRequest(args: {
 }
 
 describe("Pi AnyRouter Codex-compatible request metadata", () => {
-  it("adds matching headers and client_metadata without impersonating Codex TUI", () => {
+  it("adds matching headers and client_metadata with Codex TUI identity", () => {
     const session = createSession({ marker: "pi" });
     const headers = new Headers([
-      ["user-agent", PI_USER_AGENT],
+      ["user-agent", CODEX_USER_AGENT],
       [PI_CLIENT_MARKER_HEADER, "pi"],
       [PI_INSTALLATION_ID_HEADER, DEFAULT_INSTALLATION_ID],
     ]);
@@ -95,8 +96,8 @@ describe("Pi AnyRouter Codex-compatible request metadata", () => {
     expect(result.applied).toBe(true);
     expect(headers.get(PI_CLIENT_MARKER_HEADER)).toBeNull();
     expect(headers.get(PI_INSTALLATION_ID_HEADER)).toBeNull();
-    expect(headers.get("originator")).toBe("pi");
-    expect(headers.get("user-agent")).toBe(PI_USER_AGENT);
+    expect(headers.get("originator")).toBe("codex-tui");
+    expect(headers.get("user-agent")).toBe(CODEX_USER_AGENT);
     expect(headers.get("session_id")).toBe(DEFAULT_SESSION_ID);
     expect(headers.get("session-id")).toBe(DEFAULT_SESSION_ID);
     expect(headers.get("x-session-id")).toBe(DEFAULT_SESSION_ID);
@@ -154,6 +155,7 @@ describe("Pi AnyRouter Codex-compatible request metadata", () => {
     const existingTurnId = "01a01d61-341d-7b52-a55f-448dfdcb4470";
     const session = createSession({ marker: "pi", installationId: null });
     const body = {
+      model: "gpt-5.6-sol",
       prompt_cache_key: DEFAULT_SESSION_ID,
       client_metadata: {
         "x-codex-installation-id": DEFAULT_INSTALLATION_ID,
@@ -165,7 +167,7 @@ describe("Pi AnyRouter Codex-compatible request metadata", () => {
         custom: "preserved",
       },
     };
-    const headers = new Headers([["user-agent", PI_USER_AGENT]]);
+    const headers = new Headers([["user-agent", CODEX_USER_AGENT]]);
 
     const result = applyRequest({ session, headers, body });
 
@@ -232,6 +234,24 @@ describe("Pi AnyRouter Codex-compatible request metadata", () => {
     expect(headers.get("originator")).toBeNull();
     expect(headers.get("x-codex-turn-metadata")).toBeNull();
     expect(body).toEqual({ model: "gpt-5.6-sol" });
+  });
+
+  it("does not modify gpt-5.6-luna requests", () => {
+    const session = createSession({ marker: "pi" });
+    const headers = new Headers([
+      [PI_CLIENT_MARKER_HEADER, "pi"],
+      [PI_INSTALLATION_ID_HEADER, DEFAULT_INSTALLATION_ID],
+    ]);
+    const body = { model: "gpt-5.6-luna", max_output_tokens: 65536 };
+
+    const result = applyRequest({ session, headers, body });
+
+    expect(result).toEqual({ applied: false });
+    expect(headers.get(PI_CLIENT_MARKER_HEADER)).toBeNull();
+    expect(headers.get(PI_INSTALLATION_ID_HEADER)).toBeNull();
+    expect(headers.get("originator")).toBeNull();
+    expect(headers.get("x-codex-turn-metadata")).toBeNull();
+    expect(body).toEqual({ model: "gpt-5.6-luna", max_output_tokens: 65536 });
   });
 
   it("requires the exact Responses endpoint path", () => {

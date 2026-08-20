@@ -10,7 +10,8 @@ export const PI_CLIENT_MARKER_VALUE = "pi";
 /** Optional stable UUID supplied by Pi and consumed only by CCH. */
 export const PI_INSTALLATION_ID_HEADER = "x-cch-pi-installation-id";
 
-const PI_ORIGINATOR = "pi";
+const CODEX_TUI_ORIGINATOR = "codex-tui";
+const TARGET_MODEL = "gpt-5.6-sol";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_V5_DNS_NAMESPACE = Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex");
 
@@ -110,8 +111,8 @@ function isAnyRouterResponsesUrl(upstreamUrl: string): boolean {
  * Add the non-secret request metadata that Codex TUI sends to AnyRouter.
  *
  * This is deliberately opt-in and limited to Codex providers on AnyRouter's
- * Responses endpoint. It does not change Claude requests, ordinary Codex
- * requests, or the client's identity/user-agent.
+ * Responses endpoint. It does not change Claude requests or ordinary Codex
+ * requests. The Pi extension supplies the Codex User-Agent separately.
  */
 export function applyPiAnyRouterCodexRequest(args: {
   session: ProxySession;
@@ -128,7 +129,12 @@ export function applyPiAnyRouterCodexRequest(args: {
   headers.delete(PI_CLIENT_MARKER_HEADER);
   headers.delete(PI_INSTALLATION_ID_HEADER);
 
-  if (!marked || provider.providerType !== "codex" || !isAnyRouterResponsesUrl(upstreamUrl)) {
+  if (
+    !marked ||
+    body.model !== TARGET_MODEL ||
+    provider.providerType !== "codex" ||
+    !isAnyRouterResponsesUrl(upstreamUrl)
+  ) {
     return { applied: false };
   }
 
@@ -181,10 +187,9 @@ export function applyPiAnyRouterCodexRequest(args: {
   };
   const turnMetadataValue = JSON.stringify(turnMetadata);
 
-  // Keep Pi's own User-Agent and originator value. The compatibility fields
-  // describe the request shape; they are not an attempt to forge client
-  // software identity or inject OpenAI-internal headers.
-  headers.set("originator", PI_ORIGINATOR);
+  // Preserve the Codex User-Agent supplied by the Pi extension and align the
+  // originator with Codex TUI without injecting OpenAI-internal headers.
+  headers.set("originator", CODEX_TUI_ORIGINATOR);
   headers.set("session_id", sessionId);
   headers.set("session-id", sessionId);
   headers.set("x-session-id", sessionId);
