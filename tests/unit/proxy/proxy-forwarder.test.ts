@@ -7,6 +7,7 @@ import {
   RESPONSES_WS_SESSION_HEADER,
   WS_FORWARD_FLAG_HEADER,
 } from "@/app/v1/_lib/responses-ws/internal-secret";
+import { applyOpenCodeGoSessionHeader } from "@/app/v1/_lib/proxy/opencode-session-header";
 
 function createSession({
   userAgent,
@@ -606,6 +607,87 @@ describe("ProxyForwarder - buildHeaders custom headers", () => {
     expect(resultHeaders.get(INTERNAL_SECRET_HEADER)).toBeNull();
     expect(resultHeaders.get(WS_FORWARD_FLAG_HEADER)).toBeNull();
     expect(resultHeaders.get(RESPONSES_WS_SESSION_HEADER)).toBeNull();
+  });
+});
+
+describe("OpenCode Go session header", () => {
+  it("derives the same UUID from the same CCH session", () => {
+    const provider = Object.assign(createClaudeProvider("https://opencode.ai/zen/go"), {
+      name: "OpenCode Go",
+    });
+    const firstSession = createSession({
+      userAgent: "pi/1.0",
+      headers: new Headers(),
+    });
+    const secondSession = createSession({
+      userAgent: "pi/1.0",
+      headers: new Headers(),
+    });
+    firstSession.sessionId = "sess_conversation_123";
+    secondSession.sessionId = "sess_conversation_123";
+
+    const firstHeaders = new Headers();
+    const secondHeaders = new Headers();
+    const first = applyOpenCodeGoSessionHeader({
+      session: firstSession,
+      provider,
+      upstreamUrl: "https://opencode.ai/zen/go/v1/messages",
+      headers: firstHeaders,
+    });
+    const second = applyOpenCodeGoSessionHeader({
+      session: secondSession,
+      provider,
+      upstreamUrl: "https://opencode.ai/zen/go/v1/messages",
+      headers: secondHeaders,
+    });
+
+    expect(first.applied).toBe(true);
+    expect(second.applied).toBe(true);
+    expect(firstHeaders.get("x-opencode-session")).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    );
+    expect(secondHeaders.get("x-opencode-session")).toBe(firstHeaders.get("x-opencode-session"));
+  });
+
+  it("preserves a valid client-provided UUID", () => {
+    const session = createSession({
+      userAgent: "pi/1.0",
+      headers: new Headers({ "x-opencode-session": "550e8400-e29b-41d4-a716-446655440000" }),
+    });
+    session.sessionId = "sess_conversation_123";
+    const headers = new Headers();
+
+    const result = applyOpenCodeGoSessionHeader({
+      session,
+      provider: Object.assign(createClaudeProvider(), { name: "OpenCode Go" }),
+      upstreamUrl: "https://api.example.com/v1/messages",
+      headers,
+    });
+
+    expect(result).toEqual({
+      applied: true,
+      sessionId: "550e8400-e29b-41d4-a716-446655440000",
+      source: "client",
+    });
+    expect(headers.get("x-opencode-session")).toBe("550e8400-e29b-41d4-a716-446655440000");
+  });
+
+  it("removes the header from non-OpenCode providers", () => {
+    const session = createSession({
+      userAgent: "pi/1.0",
+      headers: new Headers(),
+    });
+    const headers = new Headers({ "x-opencode-session": "550e8400-e29b-41d4-a716-446655440000" });
+
+    const result = applyOpenCodeGoSessionHeader({
+      session,
+      provider: createClaudeProvider("https://api.anthropic.com/v1/messages"),
+      upstreamUrl: "https://api.anthropic.com/v1/messages",
+      headers,
+    });
+
+    expect(result).toEqual({ applied: false });
+    expect(headers.has("x-opencode-session")).toBe(false);
   });
 });
 

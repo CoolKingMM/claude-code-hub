@@ -107,6 +107,7 @@ import {
   syncOpenAIImageMultipartFromLogicalBody,
   validateOpenAIImageRequest,
 } from "./openai-image-compat";
+import { applyOpenCodeGoSessionHeader } from "./opencode-session-header";
 import {
   applyPiAnyRouterCodexRequest,
   PI_CLIENT_MARKER_HEADER,
@@ -3452,6 +3453,21 @@ export class ProxyForwarder {
           );
         }
       }
+    }
+
+    const openCodeSession = applyOpenCodeGoSessionHeader({
+      session,
+      provider,
+      upstreamUrl: proxyUrl,
+      headers: processedHeaders,
+    });
+    if (openCodeSession.applied) {
+      logger.debug("ProxyForwarder: Applied OpenCode Go session header", {
+        providerId: provider.id,
+        providerName: provider.name,
+        requestSequence: session.requestSequence,
+        source: openCodeSession.source,
+      });
     }
 
     // CCH-only Pi markers are never valid upstream headers, including when a
