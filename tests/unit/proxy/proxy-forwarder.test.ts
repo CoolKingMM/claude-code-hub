@@ -7,7 +7,7 @@ import {
   RESPONSES_WS_SESSION_HEADER,
   WS_FORWARD_FLAG_HEADER,
 } from "@/app/v1/_lib/responses-ws/internal-secret";
-import { applyOpenCodeGoSessionHeader } from "@/app/v1/_lib/proxy/opencode-session-header";
+import { applyOpenCodeSessionHeader } from "@/app/v1/_lib/proxy/opencode-session-header";
 
 function createSession({
   userAgent,
@@ -610,11 +610,8 @@ describe("ProxyForwarder - buildHeaders custom headers", () => {
   });
 });
 
-describe("OpenCode Go session header", () => {
+describe("OpenCode session header", () => {
   it("derives the same UUID from the same CCH session", () => {
-    const provider = Object.assign(createClaudeProvider("https://opencode.ai/zen/go"), {
-      name: "OpenCode Go",
-    });
     const firstSession = createSession({
       userAgent: "pi/1.0",
       headers: new Headers(),
@@ -628,15 +625,13 @@ describe("OpenCode Go session header", () => {
 
     const firstHeaders = new Headers();
     const secondHeaders = new Headers();
-    const first = applyOpenCodeGoSessionHeader({
+    const first = applyOpenCodeSessionHeader({
       session: firstSession,
-      provider,
       upstreamUrl: "https://opencode.ai/zen/go/v1/messages",
       headers: firstHeaders,
     });
-    const second = applyOpenCodeGoSessionHeader({
+    const second = applyOpenCodeSessionHeader({
       session: secondSession,
-      provider,
       upstreamUrl: "https://opencode.ai/zen/go/v1/messages",
       headers: secondHeaders,
     });
@@ -657,10 +652,9 @@ describe("OpenCode Go session header", () => {
     session.sessionId = "sess_conversation_123";
     const headers = new Headers();
 
-    const result = applyOpenCodeGoSessionHeader({
+    const result = applyOpenCodeSessionHeader({
       session,
-      provider: Object.assign(createClaudeProvider(), { name: "OpenCode Go" }),
-      upstreamUrl: "https://api.example.com/v1/messages",
+      upstreamUrl: "https://opencode.ai/models/any-model/v1/messages",
       headers,
     });
 
@@ -672,19 +666,35 @@ describe("OpenCode Go session header", () => {
     expect(headers.get("x-opencode-session")).toBe("550e8400-e29b-41d4-a716-446655440000");
   });
 
-  it("removes the header from non-OpenCode providers", () => {
+  it("removes the header from non-OpenCode URLs", () => {
     const session = createSession({
       userAgent: "pi/1.0",
       headers: new Headers(),
     });
     const headers = new Headers({ "x-opencode-session": "550e8400-e29b-41d4-a716-446655440000" });
 
-    const result = applyOpenCodeGoSessionHeader({
+    const result = applyOpenCodeSessionHeader({
       session,
-      provider: createClaudeProvider("https://api.anthropic.com/v1/messages"),
-      upstreamUrl: "https://api.anthropic.com/v1/messages",
+      upstreamUrl: "https://api.example.com/v1/messages",
       headers,
     });
+
+    expect(result).toEqual({ applied: false });
+    expect(headers.has("x-opencode-session")).toBe(false);
+  });
+
+  it.each([
+    "http://opencode.ai/zen/go/v1/messages",
+    "https://opencode.ai.evil.example/zen/go/v1/messages",
+    "https://subdomain.opencode.ai/zen/go/v1/messages",
+  ])("rejects a URL outside the exact OpenCode origin: %s", (upstreamUrl) => {
+    const session = createSession({
+      userAgent: "pi/1.0",
+      headers: new Headers(),
+    });
+    const headers = new Headers({ "x-opencode-session": "550e8400-e29b-41d4-a716-446655440000" });
+
+    const result = applyOpenCodeSessionHeader({ session, upstreamUrl, headers });
 
     expect(result).toEqual({ applied: false });
     expect(headers.has("x-opencode-session")).toBe(false);

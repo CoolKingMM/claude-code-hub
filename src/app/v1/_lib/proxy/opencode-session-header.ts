@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Provider } from "@/types/provider";
 import type { ProxySession } from "./session";
 
 export const OPENCODE_SESSION_HEADER = "x-opencode-session";
+const OPENCODE_ORIGIN = "https://opencode.ai";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_V5_DNS_NAMESPACE = Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex");
@@ -34,28 +34,15 @@ function deterministicUuid(seed: string): string {
   )}-${hex.slice(20)}`;
 }
 
-function isOpenCodeGoUrl(value: string | null | undefined): boolean {
+function isOpenCodeUrl(value: string | null | undefined): boolean {
   if (!value) return false;
 
   try {
     const url = new URL(value);
-    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
-    const pathname = url.pathname.replace(/\/+$/, "") || "/";
-    return (
-      (hostname === "opencode.ai" || hostname.endsWith(".opencode.ai")) &&
-      (pathname === "/zen/go" || pathname.startsWith("/zen/go/"))
-    );
+    return url.origin === OPENCODE_ORIGIN && !url.username && !url.password;
   } catch {
     return false;
   }
-}
-
-function isOpenCodeGoProvider(provider: Provider, upstreamUrl: string): boolean {
-  return (
-    provider.name?.trim().toLowerCase() === "opencode go" ||
-    isOpenCodeGoUrl(upstreamUrl) ||
-    isOpenCodeGoUrl(provider.url)
-  );
 }
 
 function resolveSessionUuid(session: ProxySession): {
@@ -79,19 +66,18 @@ function resolveSessionUuid(session: ProxySession): {
 }
 
 /**
- * Add the stable per-conversation UUID required by the OpenCode Go endpoint.
+ * Add the stable per-conversation UUID required by the OpenCode endpoint.
  * The client-provided header is accepted only when it is already a UUID;
  * otherwise the CCH session identity is converted to a deterministic UUID.
  */
-export function applyOpenCodeGoSessionHeader(args: {
+export function applyOpenCodeSessionHeader(args: {
   session: ProxySession;
-  provider: Provider;
   upstreamUrl: string;
   headers: Headers;
 }): OpenCodeSessionHeaderResult {
-  const { session, provider, upstreamUrl, headers } = args;
+  const { session, upstreamUrl, headers } = args;
 
-  if (!isOpenCodeGoProvider(provider, upstreamUrl)) {
+  if (!isOpenCodeUrl(upstreamUrl)) {
     headers.delete(OPENCODE_SESSION_HEADER);
     return { applied: false };
   }
