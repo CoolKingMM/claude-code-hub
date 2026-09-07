@@ -23,6 +23,8 @@ export type ProtocolFamily = "anthropic" | "openai-chat" | "openai-responses" | 
 
 export type FrameVerdict = "content" | "error" | "malformed" | "terminal" | "neutral";
 
+export type TerminalKind = "complete" | "incomplete" | null;
+
 interface ValueMatch {
   path: string;
   values: string[];
@@ -323,6 +325,27 @@ export function classifyFrame(
   }
 }
 
+/** OpenAI Responses 明确以 incomplete 状态结束；这是可透传终态，但不是成功完成。 */
+export function isResponsesIncompleteCompletion(eventName: string | null, data: string): boolean {
+  const effective = (eventName ?? "").trim();
+  if (effective !== "" && effective !== "response.incomplete") return false;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    return false;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+
+  const record = parsed as Record<string, unknown>;
+  if (record.type !== "response.incomplete") return false;
+  const response = record.response;
+  if (response === null || typeof response !== "object" || Array.isArray(response)) return false;
+
+  return (response as Record<string, unknown>).status === "incomplete";
+}
+
 function classifyFrameInner(
   family: ProtocolFamily,
   signal: StreamSignal,
@@ -350,7 +373,19 @@ function classifyFrameInner(
     return "malformed";
   }
 
-  const outerVerdict = classifyParsedFrame(signal, eventName, parsed);
+  return classifyStructuredFrame(family, eventName, parsed);
+}
+
+/**
+ * 对已经完成 JSON 解析的帧分类，供同一读取路径复用解析结果，避免热路径重复 JSON.parse。
+ */
+export function classifyStructuredFrame(
+  family: ProtocolFamily,
+  eventName: string | null,
+  parsed: object
+): FrameVerdict {
+  const signal = STREAM_SIGNALS[family];
+  const outerVerdict = classifyParsedFrame(family, signal, eventName, parsed);
   if (outerVerdict !== "neutral" || family !== "gemini" || Array.isArray(parsed)) {
     return outerVerdict;
   }
@@ -359,11 +394,59 @@ function classifyFrameInner(
   // 只有外层中性时才解包，供所有门控与 observer 共用同一分类结果。
   const response = (parsed as Record<string, unknown>).response;
   return response && typeof response === "object" && !Array.isArray(response)
-    ? classifyParsedFrame(signal, eventName, response)
+    ? classifyParsedFrame(family, signal, eventName, response)
     : outerVerdict;
 }
 
+/** 区分正常完成与仅表示停止的 incomplete 终态。 */
+export function classifyTerminalKind(
+  family: ProtocolFamily,
+  eventName: string | null,
+  parsed?: object
+): TerminalKind {
+  if (parsed) {
+    const structured = classifyStructuredTerminalKind(family, eventName, parsed);
+    if (structured !== null) return structured;
+  }
+  if (family !== "openai-responses") return "complete";
+  let effective = (eventName ?? "").trim();
+  if ((effective === "" || effective === "message") && parsed && !Array.isArray(parsed)) {
+    const type = (parsed as Record<string, unknown>).type;
+    if (typeof type === "string") effective = type;
+  }
+  if (effective === "response.incomplete") return "incomplete";
+  if (effective === "response.completed" || effective === "response.done") return "complete";
+  return null;
+}
+
+/** 独立检测结构化帧的终态信号；内容与终态可能出现在同一 Gemini/Responses 帧。 */
+export function classifyStructuredTerminalKind(
+  family: ProtocolFamily,
+  eventName: string | null,
+  parsed: object
+): TerminalKind {
+  let effective = (eventName ?? "").trim();
+  if ((effective === "" || effective === "message") && !Array.isArray(parsed)) {
+    const type = (parsed as Record<string, unknown>).type;
+    if (typeof type === "string") effective = type;
+  }
+
+  if (family === "openai-responses") {
+    if (effective === "response.incomplete") return "incomplete";
+    if (effective === "response.completed" || effective === "response.done") return "complete";
+    return null;
+  }
+
+  const signal = STREAM_SIGNALS[family];
+  if (effective !== "" && signal.terminalEvents?.includes(effective)) return "complete";
+  for (const rule of signal.terminalRules ?? []) {
+    if (frameRuleMatches(rule, effective, parsed)) return "complete";
+  }
+  return null;
+}
+
 function classifyParsedFrame(
+  family: ProtocolFamily,
   signal: StreamSignal,
   eventName: string | null,
   parsed: object
@@ -379,6 +462,9 @@ function classifyParsedFrame(
   for (const rule of signal.errorRules) {
     if (frameRuleMatches(rule, effective, parsed)) return "error";
   }
+  if (family === "openai-responses" && isResponsesCompactionContent(effective, parsed)) {
+    return "content";
+  }
   for (const rule of signal.contentRules) {
     if (frameRuleMatches(rule, effective, parsed)) return "content";
   }
@@ -389,6 +475,39 @@ function classifyParsedFrame(
     return "terminal";
   }
   return "neutral";
+}
+
+/**
+ * Remote/server-side compaction 的 opaque state 是完整协议 payload。部分上游只在
+ * response.completed 中返回 output, 不会先发送 response.output_item.done。
+ */
+function isResponsesCompactionContent(eventType: string, parsed: object): boolean {
+  if (Array.isArray(parsed)) return false;
+
+  const record = parsed as Record<string, unknown>;
+  if (eventType === "response.output_item.done") {
+    return isNonEmptyCompactionItem(record.item);
+  }
+  if (eventType !== "response.completed") return false;
+
+  const response = record.response;
+  if (response === null || typeof response !== "object" || Array.isArray(response)) return false;
+
+  const output = (response as Record<string, unknown>).output;
+  if (!Array.isArray(output)) return false;
+
+  return output.some(isNonEmptyCompactionItem);
+}
+
+/** 同一 output item 内的 type 与 opaque state 必须同时满足协议类型约束。 */
+function isNonEmptyCompactionItem(item: unknown): boolean {
+  if (item === null || typeof item !== "object" || Array.isArray(item)) return false;
+  const record = item as Record<string, unknown>;
+  return (
+    record.type === "compaction" &&
+    typeof record.encrypted_content === "string" &&
+    record.encrypted_content !== ""
+  );
 }
 
 /** 单条帧规则 AND 语义；空规则永不命中（防目录笔误把所有帧判成内容/错误）。 */
@@ -481,7 +600,7 @@ function resolveSegments(node: unknown, segments: string[], index: number): unkn
  * - 数组：任一元素非空（覆盖 # 收集结果）
  * - 对象：至少一个键（空对象不算内容）
  */
-function isNonEmptyValue(value: unknown): boolean {
+export function isNonEmptyValue(value: unknown): boolean {
   if (value === undefined || value === null || value === false) return false;
   if (typeof value === "string") return value !== "";
   if (typeof value === "number" || value === true) return true;
@@ -498,4 +617,32 @@ function isNonEmptyValue(value: unknown): boolean {
     return false;
   }
   return false;
+}
+
+/**
+ * 干净完成帧判定：`response.completed` 且 `response.status === "completed"`。
+ *
+ * 这类帧在 classifyFrame 中仍是 `terminal`（StreamProtocolObserver 依赖该判定来确认流
+ * 正常收尾），但对门控而言它是协议层面的成功响应：即使可见内容为空也应当透传，而不是
+ * 当成空流触发 failover。空回复是合法结果 —— 例如审阅 / watchdog 类 prompt 的契约就是
+ * 「无问题时保持沉默」，把沉默重试到「开口」反而扭曲了上游语义。
+ *
+ * 非成功终止（`response.incomplete`、`status=failed` 等）与携带非空 error 的帧不在此列。
+ */
+export function isCleanResponsesCompletion(eventName: string | null, data: string): boolean {
+  const effective = (eventName ?? "").trim();
+  if (effective !== "" && effective !== "response.completed") return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    return false;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+  const record = parsed as Record<string, unknown>;
+  if (record.type !== "response.completed") return false;
+  const response = record.response;
+  if (response === null || typeof response !== "object" || Array.isArray(response)) return false;
+  const inner = response as Record<string, unknown>;
+  return inner.status === "completed" && !isNonEmptyValue(inner.error);
 }

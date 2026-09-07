@@ -12139,6 +12139,8 @@ export interface operations {
                         billNonSuccessfulRequests: boolean;
                         /** @description Whether streaming-hedge (provider racing) losers are kept alive, drained, and billed (their cost accumulates into the request total). */
                         billHedgeLosers: boolean;
+                        /** @description Maximum simultaneously active provider attempts for one legacy streaming hedge request (including the primary attempt). */
+                        legacyHedgeMaxInFlight: number;
                         /** @description Whether bounded streaming Discovery is enabled. */
                         discoveryEnabled: boolean;
                         /** @description Maximum number of normal Discovery attempts in the initial batch. */
@@ -12268,6 +12270,8 @@ export interface operations {
                         affinityIgnoreClientSessionId: boolean;
                         /** @description Request replay (response caching and upstream connection reuse) override. Null follows the ENABLE_REQUEST_REPLAY environment variable. */
                         replayEnabled: boolean | null;
+                        /** @description Replay completed payload reuse window in minutes. */
+                        replayCacheTtlMinutes: number;
                         /** @description Longest-prefix cache-effectiveness simulation override (observability only). Null follows the ENABLE_CACHE_EFFECTIVENESS environment variable. */
                         cacheEffectivenessEnabled: boolean | null;
                         /**
@@ -12432,6 +12436,8 @@ export interface operations {
                     billNonSuccessfulRequests?: boolean;
                     /** @description Whether streaming-hedge (provider racing) losers are kept alive, drained, and billed (their cost accumulates into the request total). */
                     billHedgeLosers?: boolean;
+                    /** @description Maximum simultaneously active provider attempts for one legacy streaming hedge request (including the primary attempt). */
+                    legacyHedgeMaxInFlight?: number;
                     /** @description Whether bounded streaming Discovery is enabled. */
                     discoveryEnabled?: boolean;
                     /** @description Maximum number of normal Discovery attempts in the initial batch. */
@@ -12560,6 +12566,8 @@ export interface operations {
                     affinityIgnoreClientSessionId?: boolean;
                     /** @description Request replay (response caching and upstream connection reuse) override. Null follows the ENABLE_REQUEST_REPLAY environment variable. */
                     replayEnabled?: boolean | null;
+                    /** @description Replay completed payload reuse window in minutes. */
+                    replayCacheTtlMinutes?: number;
                     /** @description Longest-prefix cache-effectiveness simulation override (observability only). Null follows the ENABLE_CACHE_EFFECTIVENESS environment variable. */
                     cacheEffectivenessEnabled?: boolean | null;
                 };
@@ -12598,6 +12606,8 @@ export interface operations {
                         billNonSuccessfulRequests: boolean;
                         /** @description Whether streaming-hedge (provider racing) losers are kept alive, drained, and billed (their cost accumulates into the request total). */
                         billHedgeLosers: boolean;
+                        /** @description Maximum simultaneously active provider attempts for one legacy streaming hedge request (including the primary attempt). */
+                        legacyHedgeMaxInFlight: number;
                         /** @description Whether bounded streaming Discovery is enabled. */
                         discoveryEnabled: boolean;
                         /** @description Maximum number of normal Discovery attempts in the initial batch. */
@@ -12727,6 +12737,8 @@ export interface operations {
                         affinityIgnoreClientSessionId: boolean;
                         /** @description Request replay (response caching and upstream connection reuse) override. Null follows the ENABLE_REQUEST_REPLAY environment variable. */
                         replayEnabled: boolean | null;
+                        /** @description Replay completed payload reuse window in minutes. */
+                        replayCacheTtlMinutes: number;
                         /** @description Longest-prefix cache-effectiveness simulation override (observability only). Null follows the ENABLE_CACHE_EFFECTIVENESS environment variable. */
                         cacheEffectivenessEnabled: boolean | null;
                         /**

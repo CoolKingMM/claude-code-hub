@@ -1,5 +1,7 @@
+import { normalizeEndpointPath, V1_ENDPOINT_PATHS } from "@/app/v1/_lib/proxy/endpoint-paths";
 import { extractAnthropicEffortFromRequestBody } from "@/lib/utils/anthropic-effort";
 import { extractCodexReasoningEffortFromRequestBody } from "@/lib/utils/codex-reasoning-effort";
+import { extractOpenAIReasoningEffortFromRequestBody } from "@/lib/utils/openai-reasoning-effort";
 import { createMessageRequest } from "@/repository/message";
 import type { ProxySession } from "./session";
 
@@ -26,8 +28,8 @@ export class ProxyMessageService {
       return;
     }
 
-    // Extract endpoint from URL pathname (nullable)
-    const endpoint = session.getEndpoint() ?? undefined;
+    // v2 compaction 记录为 compact 管理端点，以复用非对话日志和计费语义。
+    const endpoint = session.getManagedEndpoint?.() ?? session.getEndpoint() ?? undefined;
     const sessionIdentity = session.getSessionIdentityMetadata();
 
     // 修复模型重定向记录问题：
@@ -71,6 +73,30 @@ export class ProxyMessageService {
           scope: "request",
           hit: true,
           effort: reasoningEffort,
+        });
+      }
+    }
+
+    // openai-compatible 供应商的 chat/completions 请求：解析并记录思考强度审计。
+    // 兼容顶层 reasoning_effort（OpenAI 官方及多数 openai-compatible 供应商）与嵌套
+    // reasoning.effort（OpenRouter / Ollama / Vercel AI Gateway 等），见 openai-reasoning-effort。
+    const hasOpenAIReasoningEffortAudit = session
+      .getSpecialSettings()
+      ?.some((setting) => setting.type === "openai_reasoning_effort");
+
+    if (
+      provider.providerType === "openai-compatible" &&
+      normalizeEndpointPath(endpoint ?? "") === V1_ENDPOINT_PATHS.CHAT_COMPLETIONS &&
+      !hasOpenAIReasoningEffortAudit
+    ) {
+      const extraction = extractOpenAIReasoningEffortFromRequestBody(session.request.message);
+      if (extraction) {
+        session.addSpecialSetting({
+          type: "openai_reasoning_effort",
+          scope: "request",
+          hit: true,
+          effort: extraction.effort,
+          source: extraction.source,
         });
       }
     }

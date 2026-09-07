@@ -2,6 +2,7 @@ import "server-only";
 
 import { getEnvConfig } from "@/lib/config/env.schema";
 import { getCachedSystemSettings } from "@/lib/config/system-settings-cache";
+import { REPLAY_CACHE_TTL_MINUTES_DEFAULT } from "@/lib/validation/replay-settings";
 
 /**
  * 代理热路径消费的系统设置快照。
@@ -20,11 +21,13 @@ export interface ProxyRuntimeSettings {
   streamGateMode: "off" | "shadow" | "enforce";
   affinityIgnoreClientSessionId: boolean;
   replayEnabled: boolean;
+  replayCacheTtlMinutes: number;
   cacheEffectivenessEnabled: boolean;
 }
 
 // 最近一次成功读取的快照；同步热路径消费，异步读取与开机预热负责保鲜。
 let lastKnown: ProxyRuntimeSettings | null = null;
+let highConcurrencyModeEnabled = false;
 
 function envReplayDefault(): boolean {
   try {
@@ -49,6 +52,7 @@ function envFallback(): ProxyRuntimeSettings {
       streamGateMode: env.STREAM_GATE_MODE,
       affinityIgnoreClientSessionId: true,
       replayEnabled: env.ENABLE_REQUEST_REPLAY,
+      replayCacheTtlMinutes: REPLAY_CACHE_TTL_MINUTES_DEFAULT,
       cacheEffectivenessEnabled: env.ENABLE_CACHE_EFFECTIVENESS,
     };
   } catch {
@@ -56,6 +60,7 @@ function envFallback(): ProxyRuntimeSettings {
       streamGateMode: "off",
       affinityIgnoreClientSessionId: true,
       replayEnabled: false,
+      replayCacheTtlMinutes: REPLAY_CACHE_TTL_MINUTES_DEFAULT,
       cacheEffectivenessEnabled: true,
     };
   }
@@ -68,9 +73,11 @@ export async function getProxyRuntimeSettings(): Promise<ProxyRuntimeSettings> {
       streamGateMode: settings.streamGateMode,
       affinityIgnoreClientSessionId: settings.affinityIgnoreClientSessionId,
       replayEnabled: settings.replayEnabled ?? envReplayDefault(),
+      replayCacheTtlMinutes: settings.replayCacheTtlMinutes ?? REPLAY_CACHE_TTL_MINUTES_DEFAULT,
       cacheEffectivenessEnabled:
         settings.cacheEffectivenessEnabled ?? envCacheEffectivenessDefault(),
     };
+    highConcurrencyModeEnabled = settings.enableHighConcurrencyMode === true;
     return lastKnown;
   } catch {
     // getCachedSystemSettings 自身已 fail-safe；此处兜底其意外异常
@@ -88,4 +95,9 @@ export function getCachedProxyRuntimeSettings(): ProxyRuntimeSettings | null {
 /** F3b 有效开关（同步）：系统设置覆写优先，无快照时跟随 env。 */
 export function isCacheEffectivenessEnabled(): boolean {
   return lastKnown?.cacheEffectivenessEnabled ?? envCacheEffectivenessDefault();
+}
+
+/** Shrinks long-lived Redis projections while high-concurrency mode is active. */
+export function resolveRedisRetentionTtlSeconds(defaultTtlSeconds: number): number {
+  return highConcurrencyModeEnabled ? Math.min(defaultTtlSeconds, 24 * 60 * 60) : defaultTtlSeconds;
 }

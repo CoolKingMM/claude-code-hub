@@ -7,6 +7,8 @@ import type { UpdateSystemSettingsInput } from "@/types/system-config";
 
 // 近代新增列（最新在前），降级链按引入顺序逐层累计剥离。
 const RECENT_COLUMNS = [
+  "legacyHedgeMaxInFlight",
+  "replayCacheTtlMinutes",
   "cacheEffectivenessEnabled",
   "replayEnabled",
   "affinityIgnoreClientSessionId",
@@ -32,6 +34,7 @@ const RECENT_COLUMNS = [
 
 // 全量字段集（47 列）。
 const FULL_COLUMNS = [
+  "replayCacheTtlMinutes",
   "cacheEffectivenessEnabled",
   "replayEnabled",
   "affinityIgnoreClientSessionId",
@@ -45,6 +48,7 @@ const FULL_COLUMNS = [
   "stickyTimeoutCooldownMs",
   "enableGeminiFunctionIdRectifier",
   "billHedgeLosers",
+  "legacyHedgeMaxInFlight",
   "billNonSuccessfulRequests",
   "passThroughUpstreamErrorMessage",
   "fakeStreamingWhitelist",
@@ -95,6 +99,7 @@ const FULL_COLUMNS = [
 // 历史世代字段集（冻结）：passThrough 世代之前的 schema 没有以下字段，
 // 但仍包含 enableThinkingEffortConflictRectifier / allowNonConversationEndpointProviderFallback。
 const PASS_THROUGH_ERA_OMIT = [
+  "legacyHedgeMaxInFlight",
   "billHedgeLosers",
   "billNonSuccessfulRequests",
   "passThroughUpstreamErrorMessage",
@@ -231,22 +236,17 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
 
     const result = await getSystemSettings();
 
-    expect(selectMock).toHaveBeenCalledTimes(RECENT_COLUMNS.length + 2);
-    const lastRecentAttemptIndex = RECENT_COLUMNS.length;
-    const passThroughAttemptIndex = RECENT_COLUMNS.length + 1;
-    // 近代链末层不含这两列；passThrough 世代重新包含。
-    expect(selections[lastRecentAttemptIndex]).not.toContain(
-      "enableThinkingEffortConflictRectifier"
-    );
-    expect(selections[lastRecentAttemptIndex]).not.toContain(
+    const lastRecentIndex = RECENT_COLUMNS.length;
+    const passThroughIndex = lastRecentIndex + 1;
+    expect(selectMock).toHaveBeenCalledTimes(passThroughIndex + 1);
+    expect(selections[lastRecentIndex]).not.toContain("enableThinkingEffortConflictRectifier");
+    expect(selections[lastRecentIndex]).not.toContain(
       "allowNonConversationEndpointProviderFallback"
     );
-    expect(selections[lastRecentAttemptIndex]).toContain("passThroughUpstreamErrorMessage");
-    expect(selections[passThroughAttemptIndex]).toContain("enableThinkingEffortConflictRectifier");
-    expect(selections[passThroughAttemptIndex]).toContain(
-      "allowNonConversationEndpointProviderFallback"
-    );
-    expect(selections[passThroughAttemptIndex]).not.toContain("passThroughUpstreamErrorMessage");
+    expect(selections[lastRecentIndex]).toContain("passThroughUpstreamErrorMessage");
+    expect(selections[passThroughIndex]).toContain("enableThinkingEffortConflictRectifier");
+    expect(selections[passThroughIndex]).toContain("allowNonConversationEndpointProviderFallback");
+    expect(selections[passThroughIndex]).not.toContain("passThroughUpstreamErrorMessage");
 
     // 世代字段集选出的真实值要透传，缺失列由 transformer 落默认值。
     expect(result.siteTitle).toBe("Era Row");
@@ -304,6 +304,7 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
 
     const payload: UpdateSystemSettingsInput = {
       siteTitle: "Ladder Pin",
+      replayCacheTtlMinutes: 45,
       codexPriorityBillingSource: "actual",
       billNonSuccessfulRequests: true,
       billHedgeLosers: false,
@@ -329,8 +330,6 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       "system_settings 表列缺失，请执行数据库迁移以升级数据库结构。"
     );
 
-    expect(updateMock).toHaveBeenCalledTimes(14);
-
     const expectedReturningSequence = [
       [...FULL_COLUMNS],
       ...RECENT_COLUMNS.map((_, index) => omit(FULL_COLUMNS, RECENT_COLUMNS.slice(0, index + 1))),
@@ -338,11 +337,13 @@ describe("SystemSettings：列降级阶梯的尝试序列锁定", () => {
       omit(FULL_COLUMNS, HIGH_CONCURRENCY_ERA_OMIT),
       omit(FULL_COLUMNS, CODEX_ERA_RETURNING_OMIT),
     ].map(sorted);
+    expect(updateMock).toHaveBeenCalledTimes(expectedReturningSequence.length);
     expect(returningKeySequence).toEqual(expectedReturningSequence);
 
     const fullSetKeys = [
       "updatedAt",
       "siteTitle",
+      "replayCacheTtlMinutes",
       "codexPriorityBillingSource",
       "billNonSuccessfulRequests",
       "billHedgeLosers",

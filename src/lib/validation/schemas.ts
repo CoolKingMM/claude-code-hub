@@ -19,17 +19,36 @@ import {
   PUBLIC_STATUS_INTERVAL_OPTIONS,
 } from "@/lib/public-status/constants";
 import { CURRENCY_CONFIG } from "@/lib/utils/currency";
-import { isValidIANATimezone } from "@/lib/utils/timezone";
+import { isValidIANATimezone } from "@/lib/utils/timezone-shared";
 import {
   DISCOVERY_FIELD_LIMITS,
   DISCOVERY_SETTINGS_INVALID_ERROR_CODE,
   DISCOVERY_WINDOW_INVALID_ERROR_CODE,
-} from "./discovery-settings";
+} from "@/lib/validation/discovery-settings";
+import {
+  REPLAY_CACHE_TTL_INVALID_ERROR_CODE,
+  REPLAY_CACHE_TTL_MINUTES_MAX,
+  REPLAY_CACHE_TTL_MINUTES_MIN,
+} from "@/lib/validation/replay-settings";
 
 export {
   DISCOVERY_SETTINGS_INVALID_ERROR_CODE,
   DISCOVERY_WINDOW_INVALID_ERROR_CODE,
-} from "./discovery-settings";
+} from "@/lib/validation/discovery-settings";
+
+export const LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID_ERROR_CODE = "LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID";
+
+export function getLegacyHedgeMaxInFlightValidationErrorCode(
+  issues: ReadonlyArray<{ message: string; path: readonly PropertyKey[] }>
+): string | undefined {
+  return issues.some(
+    (issue) =>
+      issue.path[0] === "legacyHedgeMaxInFlight" ||
+      issue.message === LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID_ERROR_CODE
+  )
+    ? LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID_ERROR_CODE
+    : undefined;
+}
 
 const CACHE_TTL_PREFERENCE = z.enum(["inherit", "5m", "1h"]);
 const CONTEXT_1M_PREFERENCE = z.enum(["inherit", "force_enable", "disabled"]);
@@ -1021,6 +1040,16 @@ export const UpdateSystemSettingsSchema = z
     billNonSuccessfulRequests: z.boolean().optional(),
     // 供应商竞速输家计费（可选；默认开启）
     billHedgeLosers: z.boolean().optional(),
+    // Legacy streaming hedge concurrency cap (inclusive of the primary attempt).
+    legacyHedgeMaxInFlight: z.preprocess(
+      (value) => (typeof value === "string" && value.trim() !== "" ? Number(value.trim()) : value),
+      z
+        .number(LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID_ERROR_CODE)
+        .int(LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID_ERROR_CODE)
+        .min(1, LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID_ERROR_CODE)
+        .max(4, LEGACY_HEDGE_MAX_IN_FLIGHT_INVALID_ERROR_CODE)
+        .optional()
+    ),
     // Bounded streaming Discovery（默认关闭；启用前需满足总窗口约束）
     discoveryEnabled: z.boolean().optional(),
     discoveryConcurrency: z.coerce
@@ -1152,6 +1181,13 @@ export const UpdateSystemSettingsSchema = z
     affinityIgnoreClientSessionId: z.boolean().optional(),
     // F2 Replay 响应缓存与复用（可选；null = 跟随环境变量）
     replayEnabled: z.boolean().nullable().optional(),
+    // F2 Replay 完成 payload 可重放窗口(分钟)
+    replayCacheTtlMinutes: z.coerce
+      .number()
+      .int(REPLAY_CACHE_TTL_INVALID_ERROR_CODE)
+      .min(REPLAY_CACHE_TTL_MINUTES_MIN, REPLAY_CACHE_TTL_INVALID_ERROR_CODE)
+      .max(REPLAY_CACHE_TTL_MINUTES_MAX, REPLAY_CACHE_TTL_INVALID_ERROR_CODE)
+      .optional(),
     // F3b 最长前缀匹配缓存模拟（可选；null = 跟随环境变量）
     cacheEffectivenessEnabled: z.boolean().nullable().optional(),
     // Codex Session ID 补全（可选）

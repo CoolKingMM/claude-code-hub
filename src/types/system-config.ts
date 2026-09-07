@@ -51,6 +51,9 @@ export interface SystemSettings {
   //         其费用异步累加进该请求的总花费（与上游对多个供应商分别计费保持一致）。
   billHedgeLosers: boolean;
 
+  // Legacy streaming hedge concurrency cap (includes the primary attempt).
+  legacyHedgeMaxInFlight: number;
+
   // 系统时区配置 (IANA timezone identifier)
   // 用于统一后端时间边界计算和前端日期/时间显示
   // null 表示使用环境变量 TZ 或默认 UTC
@@ -170,6 +173,8 @@ export interface SystemSettings {
   // F2 Replay（响应缓存与上游连接复用）开关覆写
   // null = 跟随环境变量 ENABLE_REQUEST_REPLAY（默认 true）
   replayEnabled: boolean | null;
+  // F2 Replay 完成 payload 的可重放窗口(分钟)
+  replayCacheTtlMinutes: number;
 
   // F3b 最长前缀匹配缓存模拟（理论 vs 实际缓存命中率，仅观测不影响路由）开关覆写
   // null = 跟随环境变量 ENABLE_CACHE_EFFECTIVENESS（默认 true）
@@ -207,6 +212,9 @@ export interface UpdateSystemSettingsInput {
 
   // 供应商竞速输家计费（可选）
   billHedgeLosers?: boolean;
+
+  // Legacy streaming hedge concurrency cap (includes the primary attempt).
+  legacyHedgeMaxInFlight?: number;
 
   discoveryEnabled?: boolean;
   discoveryConcurrency?: number;
@@ -311,6 +319,8 @@ export interface UpdateSystemSettingsInput {
 
   // F2 Replay 开关（可选；null = 清除覆写跟随环境变量）
   replayEnabled?: boolean | null;
+  // F2 Replay 完成 payload 的可重放窗口(分钟)
+  replayCacheTtlMinutes?: number;
 
   // F3b 缓存模拟开关（可选；null = 清除覆写跟随环境变量）
   cacheEffectivenessEnabled?: boolean | null;

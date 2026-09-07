@@ -142,7 +142,12 @@ export function SummaryTab({
   const showNoSignatureBadge =
     thinkingSignatureDetection?.source === "fallback_no_signature_with_thinking";
   const thinkingEffortInfo = extractThinkingEffortInfo(specialSettings);
-  const effortMessageKey = thinkingEffortInfo?.source === "codex" ? "reasoningEffort" : "effort";
+  const effortMessageKey =
+    thinkingEffortInfo?.source === "codex"
+      ? "reasoningEffort"
+      : thinkingEffortInfo?.source === "openai"
+        ? "reasoningEffortOpenai"
+        : "effort";
   const effortDisplay = thinkingEffortInfo
     ? {
         requestedEffort: thinkingEffortInfo.requestedEffort,
@@ -361,7 +366,7 @@ export function SummaryTab({
                     </div>
                   </div>
                   {identity.value === sessionId && hasMessages && !checkingMessages && (
-                    <Link href={sessionMessagesHref}>
+                    <Link href={sessionMessagesHref} prefetch={false}>
                       <Button variant="outline" size="sm">
                         <ExternalLink className="h-4 w-4 mr-2" />
                         {t("viewDetails")}

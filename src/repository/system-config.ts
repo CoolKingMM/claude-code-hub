@@ -7,6 +7,7 @@ import { systemSettings } from "@/drizzle/schema";
 import { logger } from "@/lib/logger";
 import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
 import { DEFAULT_SITE_TITLE } from "@/lib/site-title";
+import { REPLAY_CACHE_TTL_MINUTES_DEFAULT } from "@/lib/validation/replay-settings";
 import {
   DEFAULT_FAKE_STREAMING_WHITELIST,
   type SystemSettings,
@@ -151,6 +152,7 @@ function createFallbackSettings(): SystemSettings {
     codexPriorityBillingSource: "requested",
     billNonSuccessfulRequests: false,
     billHedgeLosers: true,
+    legacyHedgeMaxInFlight: 2,
     timezone: null,
     enableAutoCleanup: false,
     cleanupRetentionDays: 30,
@@ -207,6 +209,7 @@ function createFallbackSettings(): SystemSettings {
     streamGateMode: "enforce",
     affinityIgnoreClientSessionId: true,
     replayEnabled: null,
+    replayCacheTtlMinutes: REPLAY_CACHE_TTL_MINUTES_DEFAULT,
     cacheEffectivenessEnabled: null,
     createdAt: now,
     updatedAt: now,
@@ -286,6 +289,18 @@ const RECENT_COLUMN_LADDER: ReadonlyArray<{
   // 本层更新失败（仍有列缺失）时记录的告警
   updateWarn: string;
 }> = [
+  {
+    key: "legacyHedgeMaxInFlight",
+    column: systemSettings.legacyHedgeMaxInFlight,
+    selectWarn: "system_settings 缺少 legacyHedgeMaxInFlight,回退到上一代字段集。",
+    updateWarn: "system_settings 缺少 legacyHedgeMaxInFlight,继续降级更新。",
+  },
+  {
+    key: "replayCacheTtlMinutes",
+    column: systemSettings.replayCacheTtlMinutes,
+    selectWarn: "system_settings 缺少 replayCacheTtlMinutes,回退到上一代字段集.",
+    updateWarn: "system_settings 缺少 replayCacheTtlMinutes,继续降级更新.",
+  },
   {
     key: "cacheEffectivenessEnabled",
     column: systemSettings.cacheEffectivenessEnabled,
@@ -432,6 +447,7 @@ const RECENT_COLUMN_LADDER: ReadonlyArray<{
 // 历史世代字段集（冻结）：passThrough 世代之前的 schema 没有以下字段。
 // 注意：世代字段集相对近代阶梯末层会重新选取更晚引入的列（与历史实现一致）。
 const PASS_THROUGH_ERA_OMIT: readonly string[] = [
+  "legacyHedgeMaxInFlight",
   "billHedgeLosers",
   "billNonSuccessfulRequests",
   "passThroughUpstreamErrorMessage",
@@ -583,6 +599,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
           enableHighConcurrencyMode: false,
           publicStatusWindowHours: 24,
           publicStatusAggregationIntervalMinutes: 5,
+          replayCacheTtlMinutes: REPLAY_CACHE_TTL_MINUTES_DEFAULT,
         })
         .onConflictDoNothing();
     } catch (error) {
@@ -733,6 +750,10 @@ export async function updateSystemSettings(
     // 供应商竞速输家计费开关（如果提供）
     if (payload.billHedgeLosers !== undefined) {
       updates.billHedgeLosers = payload.billHedgeLosers;
+    }
+
+    if (payload.legacyHedgeMaxInFlight !== undefined) {
+      updates.legacyHedgeMaxInFlight = payload.legacyHedgeMaxInFlight;
     }
 
     if (payload.discoveryEnabled !== undefined) {
@@ -934,6 +955,11 @@ export async function updateSystemSettings(
     // F2 Replay 开关覆写（如果提供；null = 清除覆写跟随环境变量）
     if (payload.replayEnabled !== undefined) {
       updates.replayEnabled = payload.replayEnabled;
+    }
+
+    // F2 Replay 完成 payload 可重放窗口(分钟)
+    if (payload.replayCacheTtlMinutes !== undefined) {
+      updates.replayCacheTtlMinutes = payload.replayCacheTtlMinutes;
     }
 
     // F3b 缓存模拟开关覆写（如果提供；null = 清除覆写跟随环境变量）

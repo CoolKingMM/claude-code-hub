@@ -5,6 +5,10 @@ import {
   DISCOVERY_FIELD_LIMITS,
   DISCOVERY_SETTINGS_INVALID_ERROR_CODE,
 } from "@/lib/validation/discovery-settings";
+import {
+  REPLAY_CACHE_TTL_MINUTES_MAX,
+  REPLAY_CACHE_TTL_MINUTES_MIN,
+} from "@/lib/validation/replay-settings";
 import { IsoDateTimeStringSchema } from "./_common";
 
 const currencyValues = Object.keys(CURRENCY_CONFIG) as [
@@ -25,7 +29,7 @@ const CodexPriorityBillingSourceSchema = z
 const TimeZoneSchema = z
   .string()
   .refine(
-    (value) => {
+    (value: string) => {
       try {
         new Intl.DateTimeFormat("en-US", { timeZone: value });
         return true;
@@ -108,6 +112,14 @@ export const SystemSettingsSchema = z
       .boolean()
       .describe(
         "Whether streaming-hedge (provider racing) losers are kept alive, drained, and billed (their cost accumulates into the request total)."
+      ),
+    legacyHedgeMaxInFlight: z
+      .number()
+      .int()
+      .min(1)
+      .max(4)
+      .describe(
+        "Maximum simultaneously active provider attempts for one legacy streaming hedge request (including the primary attempt)."
       ),
     discoveryEnabled: z.boolean().describe("Whether bounded streaming Discovery is enabled."),
     discoveryConcurrency: z
@@ -248,6 +260,12 @@ export const SystemSettingsSchema = z
       .describe(
         "Request replay (response caching and upstream connection reuse) override. Null follows the ENABLE_REQUEST_REPLAY environment variable."
       ),
+    replayCacheTtlMinutes: z
+      .number()
+      .int()
+      .min(REPLAY_CACHE_TTL_MINUTES_MIN)
+      .max(REPLAY_CACHE_TTL_MINUTES_MAX)
+      .describe("Replay completed payload reuse window in minutes."),
     cacheEffectivenessEnabled: z
       .boolean()
       .nullable()

@@ -1,4 +1,6 @@
 import type { Context } from "hono";
+import { isCountTokensEndpointPath, V1_ENDPOINT_PATHS } from "@/app/v1/_lib/proxy/endpoint-paths";
+import { isRemoteCompactionV2Request } from "@/app/v1/_lib/proxy/remote-compaction";
 import { logger } from "@/lib/logger";
 import {
   deleteLiveChain,
@@ -7,7 +9,12 @@ import {
   writeLiveRoutingTrace,
 } from "@/lib/redis/live-chain-store";
 import type { SessionBindingSnapshot } from "@/lib/redis/session-binding";
+import {
+  getSessionRequestArtifactByteSize,
+  getSessionRequestArtifactMaxBytes,
+} from "@/lib/session-request-artifact-limit";
 import { clientRequestsContext1m as clientRequestsContext1mHelper } from "@/lib/special-attributes";
+import { ERROR_CODES, getErrorMessageServer } from "@/lib/utils/error-messages";
 import {
   type ResolvedPricing,
   resolvePricingForModelRecords,
@@ -35,7 +42,6 @@ import type { BillingModelSource, CodexPriorityBillingSource } from "@/types/sys
 import type { User } from "@/types/user";
 import type { AffinityLookupResult } from "./affinity/affinity-store";
 import type { FingerprintChain } from "./affinity/fingerprint";
-import { isCountTokensEndpointPath } from "./endpoint-paths";
 import { type EndpointPolicy, resolveEndpointPolicy } from "./endpoint-policy";
 import { ProxyError } from "./errors";
 import type { ClientFormat } from "./format-mapper";
@@ -182,6 +188,9 @@ export class ProxySession {
 
   // Session ID（用于会话粘性和并发限流）
   sessionId: string | null;
+  // 客户端或补全器已建立连续身份时，单条增量请求也应参与供应商复用。
+  // 内容哈希/随机降级身份仍依赖上下文长度，避免相同短提示串到同一供应商会话。
+  private allowSingleTurnProviderReuse = false;
 
   // Discovery lease conflicts must stay on a single upstream and must not
   // mutate a binding owned by the in-flight discovery request.
@@ -205,6 +214,7 @@ export class ProxySession {
   // Replay 角色状态（F2 guard 阶段 claim owner 成功后填充，spool 由 handleStream 建立）
   replayState: SessionReplayState | null = null;
 
+  private readonly managedEndpoint: string;
   private readonly endpointPolicy: EndpointPolicy;
 
   // 模型重定向追踪：保存原始模型名（重定向前）
@@ -330,7 +340,8 @@ export class ProxySession {
     this.messageContext = null;
     this.sessionId = null;
     this.providerChain = [];
-    this.endpointPolicy = resolveSessionEndpointPolicy(init.requestUrl);
+    this.managedEndpoint = resolveSessionManagedEndpoint(init.requestUrl, init.request.message);
+    this.endpointPolicy = resolveEndpointPolicy(this.managedEndpoint);
   }
 
   static async fromContext(c: Context): Promise<ProxySession> {
@@ -657,6 +668,22 @@ export class ProxySession {
     return !this.highConcurrencyModeEnabled;
   }
 
+  shouldPersistSessionRequestArtifacts(): boolean {
+    const byteSize = getSessionRequestArtifactByteSize(
+      this.request.message,
+      this.isOpenAIImageMultipartRequest() ? undefined : this.request.buffer?.byteLength
+    );
+    const maxBytes = getSessionRequestArtifactMaxBytes();
+    if (byteSize <= maxBytes) return true;
+
+    logger.warn("[ProxySession] Skipped oversized session request artifacts", {
+      byteSize,
+      maxBytes,
+      endpoint: this.getEndpoint(),
+    });
+    return false;
+  }
+
   shouldTrackSessionObservability(): boolean {
     return !this.highConcurrencyModeEnabled;
   }
@@ -743,8 +770,9 @@ export class ProxySession {
   /**
    * 设置 session ID
    */
-  setSessionId(sessionId: string): void {
+  setSessionId(sessionId: string, options: { allowSingleTurnProviderReuse?: boolean } = {}): void {
     this.sessionId = sessionId;
+    this.allowSingleTurnProviderReuse = options.allowSingleTurnProviderReuse === true;
   }
 
   setSessionIdentityMetadata(metadata: SessionIdentityMetadata): void {
@@ -844,15 +872,13 @@ export class ProxySession {
     return undefined;
   }
 
-  /**
-   * 是否应该复用 provider（基于 messages 长度）
-   */
+  /** 是否应该复用 provider。稳定 Session ID 支持只发送本轮增量的客户端。 */
   shouldReuseProvider(): boolean {
     if (this.isRawCrossProviderFallbackEnabled()) {
       return true;
     }
 
-    return this.getMessagesLength() > 1;
+    return this.allowSingleTurnProviderReuse || this.getMessagesLength() > 1;
   }
 
   /**
@@ -867,6 +893,7 @@ export class ProxySession {
         | "concurrent_limit_failed"
         | "request_success" // 修复：添加 request_success
         | "retry_success"
+        | "response_incomplete" // 协议完整抵达，但结果明确未完成
         | "retry_failed" // 供应商错误（已计入熔断器）
         | "system_error" // 系统/网络错误（不计入熔断器）
         | "resource_not_found" // 上游 404 错误（不计入熔断器，仅切换供应商）
@@ -885,6 +912,7 @@ export class ProxySession {
         | "hedge_loser_cancelled" // 该供应商输掉 Hedge 竞速，请求被取消（未计费）
         | "hedge_loser_billed" // 该供应商输掉 Hedge 竞速，但其响应被后台拿回并计费
         | "client_abort" // 客户端在响应完成前断开连接
+        | "client_abort_no_first_byte" // 客户端阈值后断开且供应商未返回首字节
         | "affinity_hit"; // 最长前缀亲和命中（软提名，已通过全套硬校验）
       selectionMethod?:
         | "session_reuse"
@@ -1123,7 +1151,9 @@ export class ProxySession {
     const resolvedOutcome =
       outcome ??
       (statusCode === 499
-        ? "client_abort"
+        ? this.providerChain.at(-1)?.reason === "client_abort_no_first_byte"
+          ? "failed"
+          : "client_abort"
         : this.routingTraceSummaryDraft?.outcome === "deadline" ||
             this.routingTrace.summary?.outcome === "deadline"
           ? "deadline"
@@ -1274,6 +1304,33 @@ export class ProxySession {
 
   getEndpointPolicy(): EndpointPolicy {
     return this.endpointPolicy;
+  }
+
+  /**
+   * 在请求 message 被原地规范化后，同步 raw wire body 与审计日志。
+   * 标准数组请求不会调用此方法，因此原始请求字节仍保持不变。
+   */
+  async syncRequestBodyFromMessage(): Promise<void> {
+    const serialized = JSON.stringify(this.request.message);
+    if (serialized === undefined) {
+      const { getLocale } = await import("next-intl/server");
+      const message = await getErrorMessageServer(
+        await getLocale(),
+        ERROR_CODES.INVALID_NORMALIZED_BODY
+      );
+      throw new ProxyError(message, 400);
+    }
+
+    this.request.buffer = new TextEncoder().encode(serialized).buffer;
+    this.request.log = JSON.stringify(optimizeRequestMessage(this.request.message), null, 2);
+  }
+
+  /**
+   * 获取管理语义的 endpoint。
+   * Remote Compaction v2 保留真实 /v1/responses wire path，但复用 v1 compact 的策略、日志和计费分类。
+   */
+  getManagedEndpoint(): string {
+    return this.managedEndpoint ?? this.getEndpoint() ?? "/";
   }
 
   /**
@@ -1637,15 +1694,20 @@ function optimizeRequestMessage(message: Record<string, unknown>): Record<string
   return optimized;
 }
 
-function resolveSessionEndpointPolicy(requestUrl: URL): EndpointPolicy {
+function resolveSessionManagedEndpoint(
+  requestUrl: URL,
+  requestMessage: Record<string, unknown>
+): string {
   try {
     const pathname = requestUrl.pathname;
     if (typeof pathname === "string" && pathname.length > 0) {
-      return resolveEndpointPolicy(pathname);
+      return isRemoteCompactionV2Request(pathname, requestMessage)
+        ? V1_ENDPOINT_PATHS.RESPONSES_COMPACT
+        : pathname;
     }
   } catch {}
 
-  return resolveEndpointPolicy("/");
+  return "/";
 }
 
 export function extractModelFromPath(pathname: string): string | null {

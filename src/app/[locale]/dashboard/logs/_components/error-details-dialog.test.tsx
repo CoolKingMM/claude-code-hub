@@ -36,8 +36,18 @@ beforeEach(() => {
 });
 
 vi.mock("@/i18n/routing", () => ({
-  Link: ({ href, children }: { href: string; children: ReactNode }) => (
-    <a href={href}>{children}</a>
+  Link: ({
+    href,
+    children,
+    prefetch,
+  }: {
+    href: string;
+    children: ReactNode;
+    prefetch?: boolean;
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)}>
+      {children}
+    </a>
   ),
 }));
 
@@ -497,6 +507,11 @@ describe("error-details-dialog layout", () => {
     expect(container.querySelector('a[href*="sessionId=pfx%3Ascope%3Aroot"]')).toBeTruthy();
     expect(container.querySelector('a[href*="sessionId=physical-a"]')).toBeTruthy();
     expect(container.querySelector('a[href*="requestId=203"]')).toBeTruthy();
+    expect(
+      container
+        .querySelector('a[href*="/dashboard/sessions/pfx%3Ascope%3Aroot/messages"]')
+        ?.getAttribute("data-prefetch")
+    ).toBe("false");
     expect(container.textContent).toContain("Canonical Session ID: pfx:scope:root");
     expect(container.textContent).toContain("Client Session ID: physical-a");
     unmount();
@@ -2325,6 +2340,55 @@ describe("error-details-dialog routing trace", () => {
     expect(html).toContain("Non-streaming request");
     expect(html).toContain("legacy-provider");
     expect(html).not.toContain("Discovery rounds");
+  });
+
+  test("surfaces legacy hedge slot saturation and its configured cap", () => {
+    const legacyHedgeTrace: RoutingTraceV1 = {
+      version: 1,
+      mode: "legacy_hedge",
+      startedAt: 1_000,
+      updatedAt: 2_000,
+      discoveryEnabled: false,
+      eligible: false,
+      bypassReason: "disabled",
+      config: {
+        discoveryConcurrency: 2,
+        maxDiscoveryRounds: 1,
+        discoverySlaMs: 10_000,
+        stickySlaMs: 20_000,
+        racingTotalTimeoutMs: 60_000,
+        stickyTimeoutCooldownMs: 300_000,
+        legacyHedgeMaxInFlight: 3,
+      },
+      events: [
+        {
+          type: "hedge_slot_saturated",
+          at: 2_000,
+          elapsedMs: 1_000,
+          attemptId: "legacy-hedge-1-1",
+          provider: { id: 1, name: "slow-provider" },
+          activeAttemptCount: 3,
+          configuredCap: 3,
+          durationMs: 1_000,
+        },
+      ],
+    };
+    const html = renderWithIntl(
+      <ErrorDetailsDialog
+        externalOpen
+        statusCode={499}
+        errorMessage={null}
+        providerChain={[]}
+        routingTrace={legacyHedgeTrace}
+        sessionId="legacy-hedge-session"
+      />
+    );
+
+    expect(html).toContain("Legacy Hedge");
+    expect(html).toContain("Legacy hedge cap");
+    expect(html).toContain("Hedge slots saturated (1)");
+    expect(html).toContain("slow-provider");
+    expect(html).toContain("3/3 active");
   });
 
   test("shows late terminal failure and Sticky binding result after a first-byte winner", () => {
