@@ -559,6 +559,11 @@
         "overridden": "Переопределено провайдером",
         "tooltip": "Интенсивность рассуждений в запросе OpenAI chat/completions (reasoning_effort / reasoning.effort), показанная без изменений."
       },
+      "reasoningEffortGemini": {
+        "label": "Интенсивность рассуждений",
+        "overridden": "Переопределено провайдером",
+        "tooltip": "Интенсивность рассуждений в запросе Gemini (thinkingConfig.thinkingLevel / thinkingBudget), показанная без изменений."
+      },
       "logicTrace": {
         "title": "Цепочка решений",
         "singleRouteSelectionTitle": "Выбор провайдера в режиме защиты одним маршрутом",

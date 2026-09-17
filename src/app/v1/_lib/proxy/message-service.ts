@@ -1,6 +1,7 @@
 import { normalizeEndpointPath, V1_ENDPOINT_PATHS } from "@/app/v1/_lib/proxy/endpoint-paths";
 import { extractAnthropicEffortFromRequestBody } from "@/lib/utils/anthropic-effort";
 import { extractCodexReasoningEffortFromRequestBody } from "@/lib/utils/codex-reasoning-effort";
+import { extractGeminiThinkingFromRequestBody } from "@/lib/utils/gemini-thinking";
 import { extractOpenAIReasoningEffortFromRequestBody } from "@/lib/utils/openai-reasoning-effort";
 import { createMessageRequest } from "@/repository/message";
 import type { ProxySession } from "./session";
@@ -97,6 +98,28 @@ export class ProxyMessageService {
           hit: true,
           effort: extraction.effort,
           source: extraction.source,
+        });
+      }
+    }
+
+    // gemini / gemini-cli 供应商请求：解析并记录思考强度/预算审计。
+    const hasGeminiThinkingAudit = session
+      .getSpecialSettings()
+      ?.some((setting) => setting.type === "gemini_thinking");
+
+    if (
+      (provider.providerType === "gemini" || provider.providerType === "gemini-cli") &&
+      !hasGeminiThinkingAudit
+    ) {
+      const geminiExtraction = extractGeminiThinkingFromRequestBody(session.request.message);
+      if (geminiExtraction) {
+        session.addSpecialSetting({
+          type: "gemini_thinking",
+          scope: "request",
+          hit: true,
+          effort: geminiExtraction.effort,
+          source: geminiExtraction.source,
+          ...(geminiExtraction.budget !== undefined ? { budget: geminiExtraction.budget } : {}),
         });
       }
     }

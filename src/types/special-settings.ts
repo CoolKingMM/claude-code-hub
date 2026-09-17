@@ -18,6 +18,7 @@ export type SpecialSetting =
   | AnthropicEffortSpecialSetting
   | CodexReasoningEffortSpecialSetting
   | OpenAIReasoningEffortSpecialSetting
+  | GeminiThinkingSpecialSetting
   | AnthropicCacheTtlHeaderOverrideSpecialSetting
   | AnthropicContext1mHeaderOverrideSpecialSetting
   | LongContextPricingSpecialSetting
@@ -121,6 +122,28 @@ export type OpenAIReasoningEffortSpecialSetting = {
   effort: string;
   /** 请求体中的载体字段：顶层 reasoning_effort 或嵌套 reasoning.effort。 */
   source: OpenAIReasoningEffortFieldSource;
+};
+
+/** Gemini 思考强度/预算来源字段。 */
+export type GeminiThinkingFieldSource =
+  | "thinkingConfig.thinkingLevel"
+  | "thinkingConfig.thinkingBudget"
+  | "thinking_config.thinking_level"
+  | "thinking_config.thinking_budget";
+
+/**
+ * Gemini thinking 请求参数审计
+ *
+ * 记录发送给 Gemini / Gemini-CLI 供应商的 thinkingConfig（thinkingLevel / thinkingBudget），
+ * 便于在使用记录中以思考强度徽章展示。
+ */
+export type GeminiThinkingSpecialSetting = {
+  type: "gemini_thinking";
+  scope: "request";
+  hit: boolean;
+  effort: string;
+  source: GeminiThinkingFieldSource;
+  budget?: number;
 };
 
 /**

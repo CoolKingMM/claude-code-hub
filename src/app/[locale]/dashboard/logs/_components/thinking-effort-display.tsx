@@ -32,7 +32,9 @@ export function ThinkingEffortDisplay({ specialSettings }: ThinkingEffortDisplay
       ? "effort"
       : effortInfo.source === "openai"
         ? "reasoningEffortOpenai"
-        : "reasoningEffort";
+        : effortInfo.source === "gemini"
+          ? "reasoningEffortGemini"
+          : "reasoningEffort";
   const showEffectiveBadge = effortInfo.isOverridden && effortInfo.effectiveEffort != null;
 
   return (

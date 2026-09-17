@@ -227,4 +227,25 @@ describe("ThinkingEffortDisplay", () => {
     expect(html).toContain("reasoningEffort.tooltip");
     expect(html).not.toContain(">max<");
   });
+
+  test("显示 Gemini 请求中的思考强度", () => {
+    const html = renderToStaticMarkup(
+      <ThinkingEffortDisplay
+        specialSettings={[
+          {
+            type: "gemini_thinking",
+            scope: "request",
+            hit: true,
+            effort: "high",
+            source: "thinkingConfig.thinkingLevel",
+          },
+        ]}
+      />
+    );
+
+    expect(html).toContain('data-slot="thinking-effort"');
+    expect(html).toContain("high");
+    expect(html).toContain("reasoningEffortGemini.tooltip");
+    expect(html).not.toContain("overridden");
+  });
 });

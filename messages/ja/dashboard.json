@@ -559,6 +559,11 @@
         "overridden": "プロバイダーにより上書き",
         "tooltip": "OpenAI chat/completions リクエストの推論強度 (reasoning_effort / reasoning.effort) をそのまま表示します。"
       },
+      "reasoningEffortGemini": {
+        "label": "推論強度",
+        "overridden": "プロバイダーにより上書き",
+        "tooltip": "Gemini リクエストの推論強度 (thinkingConfig.thinkingLevel / thinkingBudget) をそのまま表示します。"
+      },
       "logicTrace": {
         "title": "決定チェーン",
         "singleRouteSelectionTitle": "単一経路保護での Provider 選択",

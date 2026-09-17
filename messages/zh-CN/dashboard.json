@@ -559,6 +559,11 @@
         "overridden": "已被供应商覆写",
         "tooltip": "OpenAI chat/completions 请求中的思考强度（reasoning_effort / reasoning.effort），按原值显示。"
       },
+      "reasoningEffortGemini": {
+        "label": "思考强度",
+        "overridden": "已被供应商覆写",
+        "tooltip": "Gemini 请求中的思考强度（thinkingConfig.thinkingLevel / thinkingBudget），按原值显示。"
+      },
       "logicTrace": {
         "title": "决策链",
         "singleRouteSelectionTitle": "单路保护下的供应商选择",

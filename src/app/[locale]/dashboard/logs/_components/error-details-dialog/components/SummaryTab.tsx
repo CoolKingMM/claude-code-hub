@@ -147,7 +147,9 @@ export function SummaryTab({
       ? "reasoningEffort"
       : thinkingEffortInfo?.source === "openai"
         ? "reasoningEffortOpenai"
-        : "effort";
+        : thinkingEffortInfo?.source === "gemini"
+          ? "reasoningEffortGemini"
+          : "effort";
   const effortDisplay = thinkingEffortInfo
     ? {
         requestedEffort: thinkingEffortInfo.requestedEffort,

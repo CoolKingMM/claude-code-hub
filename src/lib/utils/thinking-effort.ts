@@ -1,10 +1,11 @@
 import { extractAnthropicEffortInfo } from "@/lib/utils/anthropic-effort";
 import { extractCodexReasoningEffortInfo } from "@/lib/utils/codex-reasoning-effort";
+import { extractGeminiThinkingFromSpecialSettings } from "@/lib/utils/gemini-thinking";
 import { extractOpenAIReasoningEffortFromSpecialSettings } from "@/lib/utils/openai-reasoning-effort";
 import type { SpecialSetting } from "@/types/special-settings";
 
-/** 思考强度审计来源：Codex 的 reasoning.effort、OpenAI chat/completions 或 Anthropic 的 output_config.effort。 */
-export type ThinkingEffortSource = "codex" | "openai" | "anthropic";
+/** 思考强度审计来源：Codex 的 reasoning.effort、OpenAI chat/completions、Anthropic 的 output_config.effort 或 Gemini 的 thinkingConfig。 */
+export type ThinkingEffortSource = "codex" | "openai" | "anthropic" | "gemini";
 
 /** 任意模型统一后的思考强度展示信息，供列表列与请求详情共用。 */
 export interface ThinkingEffortInfo {
@@ -55,6 +56,16 @@ export function extractThinkingEffortInfo(
         ? anthropicInfo.overriddenEffort
         : anthropicInfo.originalEffort,
       isOverridden: anthropicInfo.isOverridden,
+    };
+  }
+
+  const geminiInfo = extractGeminiThinkingFromSpecialSettings(specialSettings);
+  if (geminiInfo) {
+    return {
+      source: "gemini",
+      requestedEffort: geminiInfo.effort,
+      effectiveEffort: geminiInfo.effort,
+      isOverridden: false,
     };
   }
 

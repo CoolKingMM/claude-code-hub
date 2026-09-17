@@ -559,6 +559,11 @@
         "overridden": "Overridden by provider",
         "tooltip": "Thinking effort in the OpenAI chat/completions request (reasoning_effort / reasoning.effort), shown verbatim."
       },
+      "reasoningEffortGemini": {
+        "label": "Reasoning effort",
+        "overridden": "Overridden by provider",
+        "tooltip": "Thinking effort in the Gemini request (thinkingConfig.thinkingLevel / thinkingBudget), shown verbatim."
+      },
       "logicTrace": {
         "title": "Decision Chain",
         "singleRouteSelectionTitle": "Provider selection under single-route protection",
