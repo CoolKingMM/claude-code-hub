@@ -860,6 +860,25 @@ describe("traceProxyRequest", () => {
     expect(mockSetTraceIO).not.toHaveBeenCalled();
   });
 
+  test("should not mark a streaming response missing when its final output was reconstructed", async () => {
+    const { traceProxyRequest } = await import("@/lib/langfuse/trace-proxy-request");
+
+    await traceProxyRequest({
+      session: createMockSession(),
+      responseHeaders: new Headers(),
+      durationMs: 500,
+      statusCode: 200,
+      isStreaming: true,
+      sseEventCount: 6,
+      finalResponseOutput: { kind: "final", value: { id: "msg_1", content: [] } },
+      errorMessage: "client disconnected after completion",
+    });
+
+    const rootCall = mockStartObservation.mock.calls[0];
+    expect(rootCall[1].output).toEqual({ id: "msg_1", content: [] });
+    expect(rootCall[1].metadata.responseMissing).toBe(false);
+  });
+
   test("should mark missing non-stream output when request input exists", async () => {
     const { traceProxyRequest } = await import("@/lib/langfuse/trace-proxy-request");
 
@@ -1028,7 +1047,13 @@ describe("traceProxyRequest", () => {
     expect(rootCall[1].output).toEqual(expectedOutput);
     expect(llmCall?.[1]).toMatchObject({
       output: expectedOutput,
-      usageDetails: responseBody.usage,
+      usageDetails: {
+        input: 75,
+        input_cached_tokens: 25,
+        output: 40,
+        output_reasoning_tokens: 10,
+        total: 150,
+      },
       metadata: { response: { id: "resp_123", status: "completed", model: "gpt-5.6" } },
     });
     expect(mockSetTraceIO).not.toHaveBeenCalled();
@@ -1069,7 +1094,7 @@ describe("traceProxyRequest", () => {
 
     expect(llmCall?.[1]).toMatchObject({
       output: [{ type: "function_call", call_id: "call_123" }],
-      usageDetails: { input_tokens: 1, output_tokens: 2, total_tokens: 3 },
+      usageDetails: { input: 1, output: 2, total: 3 },
       metadata: { response: { id: "resp_stream", status: "completed", model: "gpt-5.6" } },
     });
   });
@@ -1571,7 +1596,7 @@ describe("traceProxyRequest", () => {
     );
   });
 
-  test("clamps propagated metadata values to 200 characters", async () => {
+  test("clamps propagated metadata values to 200 JSON-encoded characters", async () => {
     const { traceProxyRequest } = await import("@/lib/langfuse/trace-proxy-request");
     const longUserAgent = `claude-code/${"x".repeat(400)}`;
 
@@ -1583,13 +1608,45 @@ describe("traceProxyRequest", () => {
       isStreaming: false,
     });
 
-    expect(mockPropagateAttributes).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          userAgent: longUserAgent.slice(0, 200),
-        }),
-      })
-    );
+    const metadata = mockPropagateAttributes.mock.calls[0][0].metadata as Record<string, string>;
+    expect(metadata.userAgent).toBe(longUserAgent.slice(0, 198));
+    expect(JSON.stringify(metadata.userAgent)).toHaveLength(200);
+  });
+
+  test("counts JSON escapes when clamping propagated metadata values", async () => {
+    const { traceProxyRequest } = await import("@/lib/langfuse/trace-proxy-request");
+    const quotedUserAgent = `ua/${'"\\'.repeat(100)}${"\u{1F600}".repeat(10)}`;
+
+    await traceProxyRequest({
+      session: createMockSession({ userAgent: quotedUserAgent }),
+      responseHeaders: new Headers(),
+      durationMs: 500,
+      statusCode: 200,
+      isStreaming: false,
+    });
+
+    const metadata = mockPropagateAttributes.mock.calls[0][0].metadata as Record<string, string>;
+    const encodedLength = JSON.stringify(metadata.userAgent).length;
+    expect(encodedLength).toBeLessThanOrEqual(200);
+    expect(encodedLength).toBeGreaterThanOrEqual(199);
+    expect(quotedUserAgent.startsWith(metadata.userAgent)).toBe(true);
+    expect(metadata.userAgent.endsWith("\\")).toBe(false);
+  });
+
+  test("keeps short propagated metadata values with escapes unchanged", async () => {
+    const { traceProxyRequest } = await import("@/lib/langfuse/trace-proxy-request");
+    const userAgent = 'claude-code/1.0 (os="linux"; path=C:\\bin)';
+
+    await traceProxyRequest({
+      session: createMockSession({ userAgent }),
+      responseHeaders: new Headers(),
+      durationMs: 500,
+      statusCode: 200,
+      isStreaming: false,
+    });
+
+    const metadata = mockPropagateAttributes.mock.calls[0][0].metadata as Record<string, string>;
+    expect(metadata.userAgent).toBe(userAgent);
   });
 
   test("omits empty propagated metadata fields", async () => {

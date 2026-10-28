@@ -3,7 +3,7 @@ import { isCountTokensEndpointPath, V1_ENDPOINT_PATHS } from "@/app/v1/_lib/prox
 import { isRemoteCompactionV2Request } from "@/app/v1/_lib/proxy/remote-compaction";
 import { loadRequestBody, retainRequestMemory } from "@/lib/body-store/request-body-store";
 import { logger } from "@/lib/logger";
-import { retainRequestMemoryUntil } from "@/lib/memory/request-lifetime";
+import { onRequestMemoryForcedEnd, retainRequestMemoryUntil } from "@/lib/memory/request-lifetime";
 import {
   deleteLiveChain,
   type LiveProviderSnapshot,
@@ -187,6 +187,14 @@ export class ProxySession {
 
   // Actual serialized request body sent to upstream (after all preprocessing).
   forwardedRequestBody: string | null = null;
+
+  /** 仅在请求内存被强制归还后调用：此时响应早已结束，正文不再属于任何受管额度。 */
+  dropRequestBodyAfterForcedMemoryRelease(): void {
+    this.request.buffer = undefined;
+    this.request.message = {};
+    this.request.log = "";
+    this.forwardedRequestBody = null;
+  }
 
   // Session ID（用于会话粘性和并发限流）
   sessionId: string | null;
@@ -419,7 +427,7 @@ export class ProxySession {
     };
     if (bodyResult.lazyLog) setLazyRequestLog(request);
 
-    return new ProxySession({
+    const session = new ProxySession({
       startTime,
       method,
       requestUrl,
@@ -430,6 +438,9 @@ export class ProxySession {
       context: c,
       clientAbortSignal,
     });
+    // 后台所有者卡住且宽限到期时，租约已被强制归还；同步丢弃正文引用，避免被卡住的闭包继续钉住内存。
+    onRequestMemoryForcedEnd(() => session.dropRequestBodyAfterForcedMemoryRelease());
+    return session;
   }
 
   /**
@@ -936,6 +947,8 @@ export class ProxySession {
         | "prefix_affinity";
       circuitState?: "closed" | "open" | "half-open";
       attemptNumber?: number;
+      routingAttemptId?: string; // 对应路由追踪的 attemptId
+      routingRound?: number; // 对应路由追踪的 round
       errorMessage?: string; // 错误信息（失败时记录）
       endpointId?: number | null;
       endpointUrl?: string;
@@ -971,6 +984,8 @@ export class ProxySession {
       circuitState: metadata?.circuitState,
       timestamp: Date.now(),
       attemptNumber: metadata?.attemptNumber,
+      routingAttemptId: metadata?.routingAttemptId,
+      routingRound: metadata?.routingRound,
       errorMessage: metadata?.errorMessage, // 记录错误信息
       // 修复：记录新字段
       statusCode: metadata?.statusCode,
@@ -988,13 +1003,16 @@ export class ProxySession {
     };
 
     // 避免重复添加同一个供应商
-    // 检查最后一条记录是否与当前记录完全相同（id + reason + attemptNumber）
+    // 检查最后一条记录是否与当前记录完全相同（id + reason + attemptNumber + routingAttemptId）
     const lastItem = this.providerChain[this.providerChain.length - 1];
     const shouldAdd =
       this.providerChain.length === 0 ||
       lastItem.id !== provider.id ||
       lastItem.reason !== metadata?.reason ||
-      (metadata?.attemptNumber !== undefined && lastItem.attemptNumber !== metadata.attemptNumber);
+      (metadata?.attemptNumber !== undefined &&
+        lastItem.attemptNumber !== metadata.attemptNumber) ||
+      (metadata?.routingAttemptId !== undefined &&
+        lastItem.routingAttemptId !== metadata.routingAttemptId);
 
     if (shouldAdd) {
       this.providerChain.push(item);
@@ -1019,7 +1037,8 @@ export class ProxySession {
         if (!this.liveObservabilityClosed && (this.liveChainDirty || this.liveRoutingTraceDirty)) {
           this.scheduleLiveObservabilityFlush();
         }
-      })
+      }),
+      "live-observability-flush"
     );
   }
 
@@ -1250,7 +1269,8 @@ export class ProxySession {
         if (!this.sessionId || this.requestSequence == null) return;
         if (!this.shouldTrackSessionObservability()) return;
         await deleteLiveChain(this.sessionId, this.requestSequence);
-      })()
+      })(),
+      "live-observability-close"
     );
     return this.liveObservabilityClosePromise;
   }
@@ -1835,6 +1855,7 @@ async function parseRequestBody(c: Context): Promise<RequestBodyResult> {
       ? getOpenAIImageMultipartSummary(imageRequestMetadata)
       : "(multipart image request)";
     requestBodyLogNote = "图片 multipart 请求已记录结构化摘要。";
+    loaded.lease.shrinkTo(loaded.retainedBytes);
 
     return {
       requestMessage,
@@ -1861,8 +1882,9 @@ async function parseRequestBody(c: Context): Promise<RequestBodyResult> {
     requestBodyLog = requestBodyText;
     requestBodyLogNote = "请求体不是合法 JSON，已记录原始文本。";
   }
-  // 保留按正文结构估算的工作集，覆盖后续过滤、重试和异步消费者；
-  // 不能只按字节数缩至固定倍数，密集小对象的 V8 开销可能更大。
+  // 解析峰值已结束。请求剩余生命周期（含长时间流式响应、过滤、重试与后台消费者）按正文结构
+  // 估算的实际持有量占用额度；密集小对象的 V8 开销计入 structureBytes，不能只按字节数估算。
+  loaded.lease.shrinkTo(loaded.retainedBytes);
 
   return {
     requestMessage,

@@ -21,12 +21,27 @@ function clampLangfusePropagatedString(value: string | undefined): string | unde
     : value.slice(0, LANGFUSE_PROPAGATED_STRING_MAX_CHARS);
 }
 
+// Langfuse 先对 metadata 值做 JSON 编码，再按编码后的长度校验，超过上限的值会被整个丢弃
+function clampLangfusePropagatedMetadataValue(value: string): string {
+  if (JSON.stringify(value).length <= LANGFUSE_PROPAGATED_STRING_MAX_CHARS) return value;
+
+  // 两侧引号占 2 个字符，其余预算按每个字符编码后的长度累计，避免截断在转义序列或代理对中间
+  let budget = LANGFUSE_PROPAGATED_STRING_MAX_CHARS - 2;
+  let clamped = "";
+  for (const char of value) {
+    const encodedLength = JSON.stringify(char).length - 2;
+    if (encodedLength > budget) break;
+    budget -= encodedLength;
+    clamped += char;
+  }
+  return clamped;
+}
+
 function clampLangfusePropagatedMetadata(metadata: Record<string, string>): Record<string, string> {
   const clamped: Record<string, string> = {};
   for (const [key, value] of Object.entries(metadata)) {
-    const next = clampLangfusePropagatedString(value);
-    if (next !== undefined) {
-      clamped[key] = next;
+    if (value) {
+      clamped[key] = clampLangfusePropagatedMetadataValue(value);
     }
   }
   return clamped;
@@ -167,6 +182,8 @@ function hasRequestInput(ctx: TraceContext): boolean {
 
 function isResponseMissing(ctx: TraceContext): boolean {
   if (ctx.responseText) return false;
+  // 流式请求不再携带 responseText，已还原出最终输出即视为有响应
+  if (ctx.finalResponseOutput?.kind === "final") return false;
   if (ctx.errorMessage) return true;
   if (!hasRequestInput(ctx)) return false;
   if (ctx.isStreaming) return ctx.sseEventCount === 0;
@@ -191,6 +208,28 @@ type ResponseCapture = {
     total_tokens?: number;
   };
 };
+
+/**
+ * Langfuse 把 usageDetails 的每个 key 当作互不重叠的计费桶，扁平 key 原样入库。
+ * Responses API 的 input/output_tokens 已包含缓存与推理明细，这里拆成互斥的桶。
+ */
+function toLangfuseResponseUsageDetails(
+  usage: NonNullable<ResponseCapture["usageDetails"]>
+): Record<string, number> {
+  const cachedTokens = usage.input_tokens_details?.cached_tokens;
+  const reasoningTokens = usage.output_tokens_details?.reasoning_tokens;
+  return {
+    ...(usage.input_tokens !== undefined
+      ? { input: Math.max(usage.input_tokens - (cachedTokens ?? 0), 0) }
+      : {}),
+    ...(cachedTokens !== undefined ? { input_cached_tokens: cachedTokens } : {}),
+    ...(usage.output_tokens !== undefined
+      ? { output: Math.max(usage.output_tokens - (reasoningTokens ?? 0), 0) }
+      : {}),
+    ...(reasoningTokens !== undefined ? { output_reasoning_tokens: reasoningTokens } : {}),
+    ...(usage.total_tokens !== undefined ? { total: usage.total_tokens } : {}),
+  };
+}
 
 const RESPONSE_TOOL_CALL_EXCLUDED_FIELDS: Record<string, true> = {
   id: true,
@@ -422,7 +461,7 @@ export async function traceProxyRequest(ctx: TraceContext): Promise<void> {
       getStatusCategory(statusCode),
     ]);
 
-    // Build trace-level metadata (propagateAttributes requires all values to be strings ≤200)
+    // trace 级 metadata：propagateAttributes 要求每个值 JSON 编码后不超过 200 字符
     const traceMetadata = clampLangfusePropagatedMetadata({
       userName: messageContext?.user?.name ?? session.userName ?? "",
       keyName: messageContext?.key?.name ?? "",
@@ -487,7 +526,7 @@ export async function traceProxyRequest(ctx: TraceContext): Promise<void> {
     // Responses API reports native Langfuse token dimensions from its own output.
     const usageDetails: Record<string, number> | undefined =
       responseUsageDetails !== undefined
-        ? (responseUsageDetails as unknown as Record<string, number>)
+        ? toLangfuseResponseUsageDetails(responseUsageDetails)
         : ctx.usageMetrics
           ? {
               ...(ctx.usageMetrics.input_tokens != null
@@ -516,7 +555,7 @@ export async function traceProxyRequest(ctx: TraceContext): Promise<void> {
     const displayName =
       buildLangfuseDisplayName(username, session.getCurrentModel() ?? undefined) ?? "unknown";
 
-    // Official v5: wrap ALL observations in propagateAttributes so userId/sessionId/tags
+    // Langfuse SDK: wrap ALL observations in propagateAttributes so userId/sessionId/tags
     // land on the root span too. Child startObservation on the wrapper drops startTime;
     // use the module-level API with parentSpanContext instead.
     await propagateAttributes(

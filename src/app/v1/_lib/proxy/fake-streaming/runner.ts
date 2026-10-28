@@ -98,7 +98,7 @@ function buildStreamResponse(input: FakeStreamingRunInput): Response {
       }, input.heartbeatIntervalMs);
       heartbeatTimer.unref?.();
 
-      const releaseRequestMemory = retainCurrentRequestMemory();
+      const releaseRequestMemory = retainCurrentRequestMemory("fake-streaming");
       void orchestrateFakeStreamingAttempts({
         family: input.family,
         performAttempt: input.performAttempt,

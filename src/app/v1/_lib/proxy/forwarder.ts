@@ -22,7 +22,7 @@ import { applyCodexProviderOverridesWithAudit } from "@/lib/codex/provider-overr
 import { getCachedSystemSettings, isHttp2Enabled } from "@/lib/config";
 import { getEnvConfig } from "@/lib/config/env.schema";
 import { PROVIDER_DEFAULTS, PROVIDER_LIMITS } from "@/lib/constants/provider.constants";
-import { PROTECTED_AUTH_HEADER_NAMES } from "@/lib/custom-headers";
+import { mergeResolvedCustomHeaders } from "@/lib/custom-headers";
 import { recordEndpointFailure, recordEndpointSuccess } from "@/lib/endpoint-circuit-breaker";
 import { applyGeminiGoogleSearchOverrideWithAudit } from "@/lib/gemini/provider-overrides";
 import { isLangfuseEnabled } from "@/lib/langfuse";
@@ -276,21 +276,29 @@ const PROVIDER_CUSTOM_HEADER_RESERVED_NAMES: ReadonlySet<string> = new Set(
   ["host", ...OUTBOUND_TRANSPORT_HEADER_BLACKLIST].map((n) => n.toLowerCase())
 );
 
-// 把 provider 上配置的静态自定义请求头合并到 overrides 中。
+// 把 provider 上配置的自定义请求头（静态值或 {{header.*}} / {{session.*}} 模板）合并到 overrides 中。
 // 入参 overrides 直接被原地修改。鉴权头（authorization / x-api-key / x-goog-api-key）会在调用方
 // 之后再写入，从而保证鉴权始终覆盖自定义头；这里额外做一次防御性的剥离，避免历史脏数据通过 DB 旁路注入。
 function applyProviderCustomHeaders(
   overrides: Record<string, string>,
-  customHeaders: Record<string, string> | null | undefined
+  customHeaders: Record<string, string> | null | undefined,
+  session: ProxySession
 ): void {
   if (!customHeaders) return;
-  for (const [name, value] of Object.entries(customHeaders)) {
-    if (typeof value !== "string") continue;
-    const lower = name.toLowerCase();
-    if (PROTECTED_AUTH_HEADER_NAMES.has(lower)) continue;
-    if (PROVIDER_CUSTOM_HEADER_RESERVED_NAMES.has(lower)) continue;
-    overrides[name] = value;
-  }
+  mergeResolvedCustomHeaders(
+    overrides,
+    customHeaders,
+    {
+      getHeader: (name) => session.headers.get(name),
+      sessionId: session.sessionId ?? session.upstreamSessionSeed,
+      clientSessionId: SessionManager.extractClientSessionId(
+        session.request.message,
+        session.headers,
+        session.userAgent
+      ),
+    },
+    PROVIDER_CUSTOM_HEADER_RESERVED_NAMES
+  );
 }
 
 const RETRY_LIMITS = PROVIDER_LIMITS.MAX_RETRY_ATTEMPTS;
@@ -1063,7 +1071,8 @@ async function persistRequestAfterSnapshot(
       session.requestSequence
     ).catch((err) => {
       logger.error("Failed to store request after snapshot:", err);
-    })
+    }),
+    "request-phase-snapshot"
   );
 }
 
@@ -1087,7 +1096,8 @@ async function persistResponseBeforeSnapshot(
       session.authState?.key?.id ?? session.messageContext?.key?.id ?? undefined
     ).catch((err) => {
       logger.error("Failed to store response before snapshot meta:", err);
-    })
+    }),
+    "response-phase-snapshot"
   );
 }
 
@@ -2156,6 +2166,7 @@ export class ProxyForwarder {
                     family: gateFamily,
                     providerId: currentProvider.id,
                     providerName: currentProvider.name,
+                    upstreamStatusCode: response.status,
                     ...resolveStreamGateCaps(),
                     // 首字节到达即清除首字节计时器，保持「首字节超时」的原始语义——
                     // 思考型模型可在首个内容帧前长时间输出中性帧，不应触发该计时器
@@ -2454,8 +2465,9 @@ export class ProxyForwarder {
               try {
                 const responseJson = JSON.parse(responseText) as Record<string, unknown>;
 
-                // 检测 Claude 格式的空响应
-                if (responseJson.type === "message") {
+                // 检测 Claude 格式的空响应。stop_reason=refusal 是请求级拒绝结果，
+                // 可以合法地不带任何内容块，不能按空响应重试/切换/计入熔断。
+                if (responseJson.type === "message" && responseJson.stop_reason !== "refusal") {
                   const content = responseJson.content as unknown[];
                   if (!content || content.length === 0) {
                     throw new EmptyResponseError(
@@ -2579,7 +2591,10 @@ export class ProxyForwarder {
           });
 
           // F3a 亲和写回（非流式成功；流式由 finalizeStream 的终态副作用负责）
-          void retainRequestMemoryUntil(recordAffinityWinner(session, currentProvider.id));
+          void retainRequestMemoryUntil(
+            recordAffinityWinner(session, currentProvider.id),
+            "affinity-winner"
+          );
 
           logger.info("ProxyForwarder: Request successful", {
             providerId: currentProvider.id,
@@ -2609,7 +2624,10 @@ export class ProxyForwarder {
               errorCategory === ErrorCategory.RESOURCE_NOT_FOUND) &&
             !isRequestScopedGateFailure(lastError)
           ) {
-            void retainRequestMemoryUntil(tombstoneAffinityOnFailure(session, currentProvider.id));
+            void retainRequestMemoryUntil(
+              tombstoneAffinityOnFailure(session, currentProvider.id),
+              "affinity-tombstone"
+            );
           }
           const errorMessage =
             databaseError?.message ??
@@ -3181,15 +3199,32 @@ export class ProxyForwarder {
               throw lastError;
             }
 
+            // 本次 attempt 是否实际计入熔断：日志与下方记账共用同一判定，避免口径漂移。
+            // 仅在重试耗尽时记账；探测请求、不允许熔断记账的端点与请求作用域门控失败一律不计。
+            const recordsCircuitFailure =
+              !willRetry &&
+              !session.isProbeRequest() &&
+              shouldAccountCircuitBreaker &&
+              !isRequestScopedGateFailure(proxyError);
+
             logger.warn("ProxyForwarder: Provider error occurred", {
               providerId: currentProvider.id,
               providerName: currentProvider.name,
               statusCode: statusCode,
               statusCodeInferred: proxyError.upstreamError?.statusCodeInferred ?? false,
+              // 门控错误的 statusCode 是 CCH 本地合成的；单独标出上游真实状态
+              ...(proxyError instanceof StreamPrecommitError
+                ? {
+                    errorSource: "stream_gate_local",
+                    upstreamStatusCode: proxyError.upstreamStatusCode,
+                    gateReason: proxyError.gateReason,
+                  }
+                : {}),
               error: errorMessage,
               attemptNumber: attemptCount,
               totalProvidersAttempted,
               willRetry,
+              circuitBreakerAccounted: recordsCircuitFailure,
             });
 
             // 获取熔断器健康信息（用于决策链显示）
@@ -3250,11 +3285,9 @@ export class ProxyForwarder {
                 providerName: currentProvider.name,
                 messagesCount: session.getMessagesLength(),
               });
-            } else {
+            } else if (recordsCircuitFailure) {
               // 门控的 empty_stream 由请求内容决定，不计入供应商健康度（仍 failover）
-              if (shouldAccountCircuitBreaker && !isRequestScopedGateFailure(lastError)) {
-                await recordFailure(currentProvider.id, lastError);
-              }
+              await recordFailure(currentProvider.id, lastError);
             }
 
             // 加入失败列表并切换供应商
@@ -4026,13 +4059,11 @@ export class ProxyForwarder {
 
     if (isStreaming) {
       // 流式请求：使用首字节超时（快速失败）
-      responseTimeoutMs =
-        provider.firstByteTimeoutStreamingMs > 0 ? provider.firstByteTimeoutStreamingMs : 0;
+      responseTimeoutMs = Math.max(provider.firstByteTimeoutStreamingMs, 0);
       responseTimeoutType = "streaming_first_byte";
     } else {
       // 非流式请求：使用总超时（防止无限挂起）
-      responseTimeoutMs =
-        provider.requestTimeoutNonStreamingMs > 0 ? provider.requestTimeoutNonStreamingMs : 0;
+      responseTimeoutMs = Math.max(provider.requestTimeoutNonStreamingMs, 0);
       responseTimeoutType = "non_streaming_total";
     }
 
@@ -5179,7 +5210,7 @@ export class ProxyForwarder {
           ).getReader()
         : reader;
 
-      const releaseRequestMemory = retainCurrentRequestMemory();
+      const releaseRequestMemory = retainCurrentRequestMemory("hedge-loser-billing");
       void (async () => {
         // 若落败前已读走前缀，补入有界计量器，避免丢失 message_start usage。
         const drain = await drainLoserBillingEvidence({
@@ -5232,6 +5263,12 @@ export class ProxyForwarder {
       id: attempt.provider.id,
       name: attempt.provider.name,
       priority: attempt.provider.priority || 0,
+    });
+
+    // 决策链条目携带当前尝试的 attemptId，请求详情据此把同一供应商的多次重试分别对应到各自条目
+    const attemptRoutingRef = (attempt: StreamingHedgeAttempt) => ({
+      routingAttemptId: attempt.attemptId,
+      routingRound: HEDGE_TRACE_ROUND,
     });
 
     const traceAttemptStarted = (attempt: StreamingHedgeAttempt) => {
@@ -5298,6 +5335,7 @@ export class ProxyForwarder {
       if (reason === "hedge_loser" && attempt.billAsLoser && !admissionWaiters.has(attempt)) {
         session.addProviderToChain(attempt.provider, {
           ...attempt.endpointAudit,
+          ...attemptRoutingRef(attempt),
           reason: "hedge_loser_billed",
           attemptNumber: attempt.sequence,
           statusCode: attempt.response?.status,
@@ -5316,6 +5354,7 @@ export class ProxyForwarder {
       if (reason === "hedge_loser") {
         session.addProviderToChain(attempt.provider, {
           ...attempt.endpointAudit,
+          ...attemptRoutingRef(attempt),
           reason: "hedge_loser_cancelled",
           attemptNumber: attempt.sequence,
           modelRedirect: getAttemptModelRedirect(attempt),
@@ -5386,6 +5425,7 @@ export class ProxyForwarder {
       }
       session.addProviderToChain(attempt.provider, {
         ...attempt.endpointAudit,
+        ...attemptRoutingRef(attempt),
         reason: "hedge_triggered",
         attemptNumber: attempt.sequence,
         circuitState: getCircuitState(attempt.provider.id),
@@ -5545,7 +5585,7 @@ export class ProxyForwarder {
       // remains gated by `attempt.dispatched` and is reset by the transport callback below, so
       // setup time can trigger a hedge without being eligible for provider-failure attribution.
       armAttemptThreshold(attempt);
-      const releaseRequestMemory = retainCurrentRequestMemory();
+      const releaseRequestMemory = retainCurrentRequestMemory("hedge-attempt");
       void ProxyForwarder.doForward(
         attempt.session,
         providerForRequest,
@@ -5649,6 +5689,7 @@ export class ProxyForwarder {
                   family: hedgeGateFamily,
                   providerId: attempt.provider.id,
                   providerName: attempt.provider.name,
+                  upstreamStatusCode: response.status,
                   ...resolveStreamGateCaps(),
                   // 首字节时刻先挂在 attempt 上，由 commitWinner 决定是否记为 session TTFB
                   onFirstByte: () => {
@@ -5786,7 +5827,10 @@ export class ProxyForwarder {
           errorCategory === ErrorCategory.RESOURCE_NOT_FOUND) &&
         !isRequestScopedGateFailure(error)
       ) {
-        void retainRequestMemoryUntil(tombstoneAffinityOnFailure(session, attempt.provider.id));
+        void retainRequestMemoryUntil(
+          tombstoneAffinityOnFailure(session, attempt.provider.id),
+          "affinity-tombstone"
+        );
       }
       const statusCode = error instanceof ProxyError ? error.statusCode : undefined;
       const databaseError = findSafeDatabaseError(error);
@@ -5817,6 +5861,7 @@ export class ProxyForwarder {
 
         session.addProviderToChain(attempt.provider, {
           ...attempt.endpointAudit,
+          ...attemptRoutingRef(attempt),
           reason: "client_abort",
           attemptNumber: attempt.sequence,
           errorMessage: "Client aborted request",
@@ -5852,6 +5897,7 @@ export class ProxyForwarder {
 
         session.addProviderToChain(attempt.provider, {
           ...attempt.endpointAudit,
+          ...attemptRoutingRef(attempt),
           reason: "system_error",
           attemptNumber: attempt.sequence,
           errorMessage: safeAdmissionMessage,
@@ -5927,6 +5973,7 @@ export class ProxyForwarder {
               reactiveRectifierResult.requestDetailsBeforeRectify,
               rawCrossProviderFallbackEnabled
             ),
+            ...attemptRoutingRef(attempt),
             modelRedirect: getAttemptModelRedirect(attempt),
           });
 
@@ -5983,44 +6030,54 @@ export class ProxyForwarder {
       });
       ProxyForwarder.markProviderFailed(session, failedProviderIds, attempt.provider.id);
 
-      if (
-        errorCategory === ErrorCategory.PROVIDER_ERROR &&
-        statusCode !== 404 &&
-        !isRequestScopedGateFailure(error)
-      ) {
-        attempt.healthOutcome = "provider_failure";
-        await recordFailure(attempt.provider.id, error);
+      try {
+        if (
+          errorCategory === ErrorCategory.PROVIDER_ERROR &&
+          statusCode !== 404 &&
+          !isRequestScopedGateFailure(error)
+        ) {
+          attempt.healthOutcome = "provider_failure";
+          await recordFailure(attempt.provider.id, error);
+        }
+      } finally {
+        session.addProviderToChain(
+          attempt.provider,
+          errorCategory === ErrorCategory.NON_RETRYABLE_CLIENT_ERROR
+            ? {
+                ...buildClientErrorChainEntry(
+                  attempt.provider,
+                  attempt.endpointAudit,
+                  attempt.sequence,
+                  error,
+                  errorMessage,
+                  buildRequestDetails(session),
+                  matchedRule,
+                  rawCrossProviderFallbackEnabled
+                ),
+                ...attemptRoutingRef(attempt),
+                modelRedirect: getAttemptModelRedirect(attempt),
+              }
+            : {
+                ...buildRetryFailedChainEntry(
+                  attempt.provider,
+                  attempt.endpointAudit,
+                  attempt.sequence,
+                  error,
+                  errorMessage,
+                  buildRequestDetails(session),
+                  rawCrossProviderFallbackEnabled
+                ),
+                reason:
+                  errorCategory === ErrorCategory.RESOURCE_NOT_FOUND
+                    ? "resource_not_found"
+                    : errorCategory === ErrorCategory.SYSTEM_ERROR
+                      ? "system_error"
+                      : "retry_failed",
+                ...attemptRoutingRef(attempt),
+                modelRedirect: getAttemptModelRedirect(attempt),
+              }
+        );
       }
-
-      session.addProviderToChain(
-        attempt.provider,
-        errorCategory === ErrorCategory.NON_RETRYABLE_CLIENT_ERROR
-          ? {
-              ...buildClientErrorChainEntry(
-                attempt.provider,
-                attempt.endpointAudit,
-                attempt.sequence,
-                error,
-                errorMessage,
-                buildRequestDetails(session),
-                matchedRule,
-                rawCrossProviderFallbackEnabled
-              ),
-              modelRedirect: getAttemptModelRedirect(attempt),
-            }
-          : {
-              ...attempt.endpointAudit,
-              reason:
-                errorCategory === ErrorCategory.RESOURCE_NOT_FOUND
-                  ? "resource_not_found"
-                  : "retry_failed",
-              attemptNumber: attempt.sequence,
-              statusCode,
-              errorMessage,
-              circuitState: getCircuitState(attempt.provider.id),
-              modelRedirect: getAttemptModelRedirect(attempt),
-            }
-      );
 
       if (errorCategory === ErrorCategory.NON_RETRYABLE_CLIENT_ERROR) {
         abortAllAttempts(undefined, "client_error_non_retryable");
@@ -6117,6 +6174,7 @@ export class ProxyForwarder {
 
       session.addProviderToChain(attempt.provider, {
         ...attempt.endpointAudit,
+        ...attemptRoutingRef(attempt),
         reason: isActualHedgeWin ? "hedge_winner" : "request_success",
         attemptNumber: attempt.sequence,
         statusCode: attempt.response.status,
@@ -6277,8 +6335,38 @@ export class ProxyForwarder {
           provider
         );
       } catch (endpointError) {
-        lastError = endpointError as Error;
+        lastError =
+          endpointError instanceof Error ? endpointError : new Error(String(endpointError));
         lastErrorCategory = null;
+        const setupAttemptId = `legacy-hedge-${launchedProviderCount + 1}-setup-${provider.id}`;
+        const previous = session.getProviderChain().at(-1);
+        if (previous?.id !== provider.id || previous.reason !== "endpoint_pool_exhausted") {
+          session.addProviderToChain(provider, {
+            reason: "system_error",
+            routingAttemptId: setupAttemptId,
+            routingRound: HEDGE_TRACE_ROUND,
+            attemptNumber: launchedProviderCount + 1,
+            errorMessage: lastError.message,
+            errorDetails: {
+              system: {
+                errorType: lastError.constructor.name,
+                errorName: lastError.name,
+                errorMessage: lastError.message,
+              },
+              request: buildRequestDetails(session),
+            },
+          });
+        }
+        session.appendRoutingTraceEvent({
+          type: "attempt_finished",
+          attemptId: setupAttemptId,
+          attemptKind: "normal",
+          round: HEDGE_TRACE_ROUND,
+          provider: { id: provider.id, name: provider.name, priority: provider.priority || 0 },
+          outcome: "failed",
+          reason: "setup_failed",
+          ...(lastError instanceof ProxyError ? { statusCode: lastError.statusCode } : {}),
+        });
         ProxyForwarder.markProviderFailed(session, failedProviderIds, provider.id);
         await finishIfExhausted();
         return false;
@@ -6296,8 +6384,7 @@ export class ProxyForwarder {
         },
         responseController: null,
         clearResponseTimeout: null,
-        firstByteTimeoutMs:
-          provider.firstByteTimeoutStreamingMs > 0 ? provider.firstByteTimeoutStreamingMs : 0,
+        firstByteTimeoutMs: Math.max(provider.firstByteTimeoutStreamingMs, 0),
         attemptId: `legacy-hedge-${launchedProviderCount}-1`,
         startedAtMonotonic: 0,
         thresholdStartedAtMonotonic: 0,
@@ -6323,8 +6410,7 @@ export class ProxyForwarder {
         thresholdTriggered: false,
         thresholdTimer: null,
         thresholdDeadlineAt: null,
-        thresholdRemainingMs:
-          provider.firstByteTimeoutStreamingMs > 0 ? provider.firstByteTimeoutStreamingMs : 0,
+        thresholdRemainingMs: Math.max(provider.firstByteTimeoutStreamingMs, 0),
         thresholdPaused: false,
         reader: null,
         response: null,
@@ -6348,6 +6434,7 @@ export class ProxyForwarder {
       if (launchedProviderCount > 1) {
         session.addProviderToChain(provider, {
           ...attempt.endpointAudit,
+          ...attemptRoutingRef(attempt),
           reason: "hedge_launched",
           attemptNumber: attempt.sequence,
           circuitState: getCircuitState(provider.id),
@@ -6431,6 +6518,7 @@ export class ProxyForwarder {
           if (!attributed) {
             session.addProviderToChain(attempt.provider, {
               ...attempt.endpointAudit,
+              ...attemptRoutingRef(attempt),
               reason: "client_abort",
               attemptNumber: attempt.sequence,
               errorMessage: "Client aborted request",
@@ -6444,6 +6532,7 @@ export class ProxyForwarder {
       for (const attempt of attributedAttempts) {
         session.addProviderToChain(attempt.provider, {
           ...attempt.endpointAudit,
+          ...attemptRoutingRef(attempt),
           reason: "client_abort_no_first_byte",
           attemptNumber: attempt.sequence,
           errorMessage: "Client aborted before provider first byte threshold",
@@ -6794,7 +6883,7 @@ export class ProxyForwarder {
       const controller = attempt.responseController;
       const drainTimeoutMs = getEnvConfig().HEDGE_LOSER_DRAIN_TIMEOUT_MS;
 
-      const releaseRequestMemory = retainCurrentRequestMemory();
+      const releaseRequestMemory = retainCurrentRequestMemory("discovery-loser-billing");
       void (async () => {
         // The validity parser may have consumed one or more chunks before the
         // loser was held. Replay those bytes so usage markers in the prefix
@@ -7298,6 +7387,41 @@ export class ProxyForwarder {
       );
     };
 
+    const recordSetupFailure = (provider: Provider, kind: "normal" | "fallback", error: Error) => {
+      if (settled || committed) return;
+      const attemptNumber = sequence + 1;
+      const sticky = stickyProbeActive && provider.id === initialProvider.id;
+      const setupAttemptId = `${provider.id}:${attemptNumber}`;
+      const setupRound = sticky ? 0 : currentRound;
+      const previous = session.getProviderChain().at(-1);
+      if (previous?.id !== provider.id || previous.reason !== "endpoint_pool_exhausted") {
+        session.addProviderToChain(provider, {
+          ...buildRetryFailedChainEntry(
+            provider,
+            { endpointId: null, endpointUrl: sanitizeUrl(provider.url) },
+            attemptNumber,
+            error,
+            error instanceof ProxyError ? error.getDetailedErrorMessage() : error.message,
+            buildRequestDetails(session),
+            rawCrossProviderFallbackEnabled
+          ),
+          reason: "system_error",
+          routingAttemptId: setupAttemptId,
+          routingRound: setupRound,
+        });
+      }
+      session.appendRoutingTraceEvent({
+        type: "attempt_finished",
+        attemptId: setupAttemptId,
+        attemptKind: sticky ? "sticky" : kind,
+        round: setupRound,
+        provider: { id: provider.id, name: provider.name, priority: provider.priority || 0 },
+        outcome: "failed",
+        reason: "setup_failed",
+        ...(error instanceof ProxyError ? { statusCode: error.statusCode } : {}),
+      });
+    };
+
     const launch = async (
       provider: Provider,
       kind: "normal" | "fallback",
@@ -7627,7 +7751,7 @@ export class ProxyForwarder {
           onLocalAdmissionWait(false);
         }
       };
-      const releaseRequestMemory = retainCurrentRequestMemory();
+      const releaseRequestMemory = retainCurrentRequestMemory("discovery-attempt");
       void ProxyForwarder.doForward(
         attempt.session,
         { ...provider, firstByteTimeoutStreamingMs: 0 },
@@ -7802,6 +7926,8 @@ export class ProxyForwarder {
             coordinator.cancelRequest();
             session.addProviderToChain(provider, {
               ...attempt.endpointAudit,
+              routingAttemptId: attempt.id,
+              routingRound: attempt.traceRound,
               reason: "client_abort",
               attemptNumber: attempt.sequence,
               errorMessage: "Client aborted request",
@@ -7826,6 +7952,8 @@ export class ProxyForwarder {
             const safeAdmissionMessage = admission?.message ?? "Database pool admission exceeded";
             session.addProviderToChain(provider, {
               ...attempt.endpointAudit,
+              routingAttemptId: attempt.id,
+              routingRound: attempt.traceRound,
               reason: "system_error",
               attemptNumber: attempt.sequence,
               errorMessage: safeAdmissionMessage,
@@ -7905,6 +8033,8 @@ export class ProxyForwarder {
                 rectifier.requestDetailsBeforeRectify,
                 rawCrossProviderFallbackEnabled
               ),
+              routingAttemptId: attempt.id,
+              routingRound: attempt.traceRound,
               modelRedirect: getAttemptModelRedirect(attempt),
             });
             try {
@@ -7920,6 +8050,7 @@ export class ProxyForwarder {
                 retryLaunchError instanceof Error
                   ? retryLaunchError
                   : new Error(String(retryLaunchError));
+              recordSetupFailure(provider, attempt.kind, lastError);
               lastErrorCategory = await categorizeErrorAsync(lastError);
               if (lastErrorCategory === ErrorCategory.CLIENT_ABORT) {
                 coordinator.cancelRequest();
@@ -7997,12 +8128,40 @@ export class ProxyForwarder {
               ? ({ type: "none" } as const)
               : coordinator.markFailed(id);
           if (failedStickyProbe || failedReservedStickyFallback) coordinator.removeAttempt(id);
+          const failedChainEntry =
+            lastErrorCategory === ErrorCategory.NON_RETRYABLE_CLIENT_ERROR
+              ? buildClientErrorChainEntry(
+                  provider,
+                  attempt.endpointAudit,
+                  attempt.sequence,
+                  lastError,
+                  errorMessage,
+                  buildRequestDetails(session),
+                  buildMatchedRuleDetails(await getErrorDetectionResultAsync(lastError)),
+                  rawCrossProviderFallbackEnabled
+                )
+              : buildRetryFailedChainEntry(
+                  provider,
+                  attempt.endpointAudit,
+                  attempt.sequence,
+                  lastError,
+                  errorMessage,
+                  buildRequestDetails(session),
+                  rawCrossProviderFallbackEnabled
+                );
           session.addProviderToChain(provider, {
-            ...attempt.endpointAudit,
-            reason: "retry_failed",
-            attemptNumber: attempt.sequence,
-            statusCode: lastError instanceof ProxyError ? lastError.statusCode : undefined,
-            errorMessage,
+            ...failedChainEntry,
+            reason:
+              lastErrorCategory === ErrorCategory.NON_RETRYABLE_CLIENT_ERROR
+                ? "client_error_non_retryable"
+                : lastErrorCategory === ErrorCategory.RESOURCE_NOT_FOUND
+                  ? "resource_not_found"
+                  : lastErrorCategory === ErrorCategory.SYSTEM_ERROR
+                    ? "system_error"
+                    : "retry_failed",
+            routingAttemptId: attempt.id,
+            routingRound: attempt.traceRound,
+            modelRedirect: getAttemptModelRedirect(attempt),
           });
           // 注意：discovery 路径不经过 stream content gate（validity 判定在
           // DiscoveryValidityParser，见 6644 附近抛的通用 ProxyError），所以这里没有
@@ -8199,6 +8358,7 @@ export class ProxyForwarder {
             } catch (error) {
               if (isCandidateSetupReservationActive(reservation)) {
                 lastError = error instanceof Error ? error : new Error(String(error));
+                recordSetupFailure(candidate, "normal", lastError);
                 // The setup placeholder remains in the current round so another
                 // candidate can consume the same reserved slot.
                 noMoreCandidates = false;
@@ -8588,7 +8748,8 @@ export class ProxyForwarder {
               lease.ttlSeconds + DISCOVERY_LEASE_HANDOFF_GRACE_SECONDS
             );
             return result.status === "renewed";
-          })()
+          })(),
+          "discovery-lease-renew"
         ),
       onLost: () => {
         if (settled || committed) return;
@@ -8617,8 +8778,9 @@ export class ProxyForwarder {
         await launch(initialProvider, "normal");
       } catch (error) {
         initialLaunchFailed = true;
-        stickyProbeActive = false;
         lastError = error instanceof Error ? error : new Error(String(error));
+        recordSetupFailure(initialProvider, "normal", lastError);
+        stickyProbeActive = false;
       }
       if (settled || committed) return;
 
@@ -8714,7 +8876,8 @@ export class ProxyForwarder {
       orchestrate().catch(async (error) => {
         const normalized = error instanceof Error ? error : new Error(String(error));
         await settleFailure(ProxyForwarder.resolveHedgeTerminalError(normalized, null));
-      })
+      }),
+      "hedge-orchestrate"
     );
 
     try {
@@ -9237,8 +9400,8 @@ export class ProxyForwarder {
       "accept-encoding": "identity", // 禁用压缩：避免 undici ZlibError（代理应透传原始数据）
     };
 
-    // 静态自定义请求头：在默认覆盖之后、鉴权头之前合并；剥离任何受保护的鉴权名（防御历史脏数据）
-    applyProviderCustomHeaders(overrides, provider.customHeaders);
+    // 自定义请求头：在默认覆盖之后、鉴权头之前合并；剥离任何受保护的鉴权名（防御历史脏数据）
+    applyProviderCustomHeaders(overrides, provider.customHeaders, session);
 
     if (provider.providerType === "claude-auth" || provider.providerType === "claude") {
       Object.assign(
@@ -9331,8 +9494,8 @@ export class ProxyForwarder {
       "user-agent": session.headers.get("user-agent") ?? session.userAgent ?? "claude-code-hub",
     };
 
-    // 静态自定义请求头：在默认覆盖之后、鉴权头之前合并；剥离任何受保护的鉴权名
-    applyProviderCustomHeaders(overrides, provider.customHeaders);
+    // 自定义请求头：在默认覆盖之后、鉴权头之前合并；剥离任何受保护的鉴权名
+    applyProviderCustomHeaders(overrides, provider.customHeaders, session);
 
     if (isApiKey) {
       overrides[GEMINI_PROTOCOL.HEADERS.API_KEY] = accessToken;

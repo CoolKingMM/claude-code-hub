@@ -11,6 +11,7 @@
 - Langfuse 流式请求还原完整最终输出（Claude / OpenAI Chat Completions / Responses / Gemini），避免把原始 SSE 文本当作 generation output
 - Langfuse 将客户端原始请求头写入 generation `client_metadata`（凭据中间打码）
 - 支持 `LANGFUSE_TRACING_ENVIRONMENT` / `LANGFUSE_RELEASE` 传入 LangfuseSpanProcessor
+- 供应商自定义请求头支持动态模板：可用 `{{header.Name}}` 复制入站请求头，`{{session.id}}` 写入 Session ID，`{{session.client_id}}` 写入客户端 Session ID；来源缺失时跳过该头
 
 ### 优化
 
@@ -30,6 +31,17 @@
   write-behind backlog，Replay 失效后按断线起点恢复 60 秒 drain，并为 Redis session response body
   增加默认 5 MiB 的可配置存储上限，避免大 SSE 正文及 before/after 快照放大内存和持久化压力；
   三份 response body 的物理存储去重由 #1415 跟踪 (#1408)
+- 修复 Anthropic 请求级拒绝（`stop_reason=refusal` 且无内容块）被流式内容门控判为 `empty_stream` 并伪造 502、
+  重试切商并计入供应商熔断的问题：门控、Discovery 竞速、非流式空响应检测与 fake-streaming 校验统一把 refusal
+  视为可交付结果原样透传；门控本地错误体与日志新增上游真实状态 `upstream_status_code` 与熔断计入标记 (#1491)
+
+### 安全
+
+- 修复 Node.js Brotli 解码越界写入漏洞 CVE-2026-111497（高危，可远程执行代码）：入站 `content-encoding: br`
+  请求体在鉴权前解压，生产镜像运行时固定为包含修复的 `node:26.12.1-trixie-slim`，`package.json` engines 收紧为
+  `^22.23.4 || ^24.22.1 || >=26.12.1`，CI 统一从 `.node-version` 读取 Node 版本；Bun 升级到 1.4.3
+- 前后端依赖全部升级到最新版本，包括 Next.js 16.4.2、React 19.3.1、undici 8.12.3、Hono 4.13.13、
+  Langfuse SDK 6、OpenTelemetry SDK 0.223、Vitest 5、Biome 2.6、happy-dom 21、@lobehub/ui 6 与 @lobehub/icons 6
 
 ---
 

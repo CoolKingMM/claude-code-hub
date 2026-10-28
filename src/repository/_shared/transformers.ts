@@ -103,6 +103,8 @@ export function toKey(dbKey: any): Key {
 export function toProvider(dbProvider: any): Provider {
   return {
     ...dbProvider,
+    newApiAccessToken: dbProvider?.newApiAccessToken ?? null,
+    newApiUserId: dbProvider?.newApiUserId ?? null,
     providerVendorId: dbProvider?.providerVendorId ?? null,
     isEnabled: dbProvider?.isEnabled ?? true,
     weight: dbProvider?.weight ?? 1,
@@ -364,6 +366,7 @@ export function toSystemSettings(dbSettings: any): SystemSettings {
     replayEnabled: dbSettings?.replayEnabled ?? null,
     replayCacheTtlMinutes: normalizedReplayCacheTtlMinutes,
     cacheEffectivenessEnabled: dbSettings?.cacheEffectivenessEnabled ?? null,
+    enableMemoryAdmission: dbSettings?.enableMemoryAdmission ?? false,
     createdAt: dbSettings?.createdAt ? new Date(dbSettings.createdAt) : new Date(),
     updatedAt: dbSettings?.updatedAt ? new Date(dbSettings.updatedAt) : new Date(),
   };
