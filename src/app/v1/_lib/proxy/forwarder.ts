@@ -6339,6 +6339,23 @@ export class ProxyForwarder {
           endpointError instanceof Error ? endpointError : new Error(String(endpointError));
         lastErrorCategory = null;
         const setupAttemptId = `legacy-hedge-${launchedProviderCount + 1}-setup-${provider.id}`;
+        // 端点解析在每轮尝试的 shadow session 上执行，端点池耗尽的审计条目会写进 shadow 的
+        // 决策链；这里把它补记到主 session，避免 setup 失败只留下笼统的
+        // "No available provider endpoints" 而丢失真实的上游错误信息。
+        const setupShadowEntry =
+          attemptSession === session ? undefined : attemptSession.getProviderChain().at(-1);
+        if (
+          setupShadowEntry?.id === provider.id &&
+          setupShadowEntry.reason === "endpoint_pool_exhausted"
+        ) {
+          session.addProviderToChain(provider, {
+            reason: "endpoint_pool_exhausted",
+            attemptNumber: setupShadowEntry.attemptNumber,
+            strictBlockCause: setupShadowEntry.strictBlockCause,
+            endpointFilterStats: setupShadowEntry.endpointFilterStats,
+            errorMessage: setupShadowEntry.errorMessage,
+          });
+        }
         const previous = session.getProviderChain().at(-1);
         if (previous?.id !== provider.id || previous.reason !== "endpoint_pool_exhausted") {
           session.addProviderToChain(provider, {
