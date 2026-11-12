@@ -180,6 +180,8 @@ function createFallbackSettings(): SystemSettings {
     enableProviderOutputSafetyFilter: true,
     providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     enableCodexSessionIdCompletion: true,
+    enableCodexHistoryFilter: false,
+    codexHistoryFilterProviderIds: null,
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
     responseFixerConfig: {
@@ -290,6 +292,18 @@ const RECENT_COLUMN_LADDER: ReadonlyArray<{
   // 本层更新失败（仍有列缺失）时记录的告警
   updateWarn: string;
 }> = [
+  {
+    key: "codexHistoryFilterProviderIds",
+    column: systemSettings.codexHistoryFilterProviderIds,
+    selectWarn: "system_settings 缺少 codexHistoryFilterProviderIds，回退到上一代字段集。",
+    updateWarn: "system_settings 缺少 codexHistoryFilterProviderIds，继续降级更新。",
+  },
+  {
+    key: "enableCodexHistoryFilter",
+    column: systemSettings.enableCodexHistoryFilter,
+    selectWarn: "system_settings 缺少 enableCodexHistoryFilter，回退到上一代字段集。",
+    updateWarn: "system_settings 缺少 enableCodexHistoryFilter，继续降级更新。",
+  },
   {
     key: "enableMemoryAdmission",
     column: systemSettings.enableMemoryAdmission,
@@ -878,6 +892,14 @@ export async function updateSystemSettings(
     // Codex Session ID 补全开关（如果提供）
     if (payload.enableCodexSessionIdCompletion !== undefined) {
       updates.enableCodexSessionIdCompletion = payload.enableCodexSessionIdCompletion;
+    }
+
+    // Codex 历史过滤开关与供应商名单（如果提供）
+    if (payload.enableCodexHistoryFilter !== undefined) {
+      updates.enableCodexHistoryFilter = payload.enableCodexHistoryFilter;
+    }
+    if (payload.codexHistoryFilterProviderIds !== undefined) {
+      updates.codexHistoryFilterProviderIds = payload.codexHistoryFilterProviderIds;
     }
 
     // Claude metadata.user_id 注入开关（如果提供）

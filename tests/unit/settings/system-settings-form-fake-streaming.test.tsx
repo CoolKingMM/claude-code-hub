@@ -51,6 +51,8 @@ type FormSettings = Pick<
   | "enableBillingHeaderRectifier"
   | "enableResponseInputRectifier"
   | "enableCodexSessionIdCompletion"
+  | "enableCodexHistoryFilter"
+  | "codexHistoryFilterProviderIds"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
   | "allowNonConversationEndpointProviderFallback"
@@ -155,11 +157,12 @@ function loadMessages(locale: string) {
 
 function getSpecialHandlingLabels(): SpecialHandlingFormLabels {
   const messages = loadMessages("zh-CN").settings;
-  const { fakeStreaming, providerOutputSafety } = messages.config.form;
+  const { fakeStreaming, providerOutputSafety, codexHistoryFilter } = messages.config.form;
 
   return {
     fakeStreaming,
     providerOutputSafety,
+    codexHistoryFilter,
     saveSettings: messages.config.form.saveSettings,
     saving: messages.common.saving,
     saveFailed: messages.config.form.saveFailed,
@@ -230,6 +233,8 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
           fakeStreamingProviderIds: baseSettings.fakeStreamingProviderIds,
           enableProviderOutputSafetyFilter: baseSettings.enableProviderOutputSafetyFilter,
           providerOutputSafetyFilterRules: baseSettings.providerOutputSafetyFilterRules,
+          enableCodexHistoryFilter: false,
+          codexHistoryFilterProviderIds: null,
         }}
         providers={providers}
         labels={getSpecialHandlingLabels()}
@@ -242,6 +247,8 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
       fakeStreamingProviderIds: [101],
       enableProviderOutputSafetyFilter: true,
       providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
+      enableCodexHistoryFilter: false,
+      codexHistoryFilterProviderIds: [],
     });
     expect(systemConfigActionMocks.saveSystemSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty(
       "fakeStreamingWhitelist"
@@ -303,6 +310,8 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
           fakeStreamingProviderIds: baseSettings.fakeStreamingProviderIds,
           enableProviderOutputSafetyFilter: baseSettings.enableProviderOutputSafetyFilter,
           providerOutputSafetyFilterRules: baseSettings.providerOutputSafetyFilterRules,
+          enableCodexHistoryFilter: false,
+          codexHistoryFilterProviderIds: null,
         }}
         providers={providers}
         labels={getSpecialHandlingLabels()}

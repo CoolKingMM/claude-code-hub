@@ -1235,6 +1235,13 @@ export const UpdateSystemSettingsSchema = z
     cacheEffectivenessEnabled: z.boolean().nullable().optional(),
     // Codex Session ID 补全（可选）
     enableCodexSessionIdCompletion: z.boolean().optional(),
+    // Codex 历史过滤（可选）：开启且供应商命中名单时才生效
+    enableCodexHistoryFilter: z.boolean().optional(),
+    codexHistoryFilterProviderIds: z
+      .array(z.number().int().positive())
+      .max(1000, "codexHistoryFilterProviderIds 不能超过 1000 个供应商")
+      .transform((providerIds) => Array.from(new Set(providerIds)))
+      .optional(),
     // Claude metadata.user_id 注入（可选）
     enableClaudeMetadataUserIdInjection: z.boolean().optional(),
     // 响应整流（可选）

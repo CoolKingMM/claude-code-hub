@@ -137,6 +137,10 @@ export interface SystemSettings {
   // 目标：当 Codex 请求缺少 session_id / prompt_cache_key 时，自动补全或生成稳定的会话标识
   enableCodexSessionIdCompletion: boolean;
 
+  // Codex 历史过滤（默认关闭）：命中的 codex 供应商剥离跨上游资源绑定的 Responses 历史
+  enableCodexHistoryFilter: boolean;
+  codexHistoryFilterProviderIds: number[] | null;
+
   // Claude metadata.user_id 注入（默认开启）
   // 目标：为 Claude 请求补全 metadata.user_id，提升中转缓存命中稳定性
   enableClaudeMetadataUserIdInjection: boolean;
@@ -291,6 +295,10 @@ export interface UpdateSystemSettingsInput {
 
   // Codex Session ID 补全（可选）
   enableCodexSessionIdCompletion?: boolean;
+
+  // Codex 历史过滤（可选）
+  enableCodexHistoryFilter?: boolean;
+  codexHistoryFilterProviderIds?: number[];
 
   // Claude metadata.user_id 注入（可选）
   enableClaudeMetadataUserIdInjection?: boolean;

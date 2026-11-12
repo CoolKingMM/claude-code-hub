@@ -48,6 +48,9 @@ const baseSettings = {
   enableBillingHeaderRectifier: true,
   enableResponseInputRectifier: true,
   enableCodexSessionIdCompletion: true,
+  enableCodexHistoryFilter: false,
+  codexHistoryFilterProviderIds: null,
+
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
   allowNonConversationEndpointProviderFallback: true,
@@ -87,6 +90,8 @@ const baseSettings = {
   | "enableBillingHeaderRectifier"
   | "enableResponseInputRectifier"
   | "enableCodexSessionIdCompletion"
+  | "enableCodexHistoryFilter"
+  | "codexHistoryFilterProviderIds"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
   | "allowNonConversationEndpointProviderFallback"

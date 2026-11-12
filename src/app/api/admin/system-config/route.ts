@@ -115,6 +115,8 @@ export async function POST(req: Request) {
       affinityIgnoreClientSessionId: validated.affinityIgnoreClientSessionId,
       enableMemoryAdmission: validated.enableMemoryAdmission,
       enableCodexSessionIdCompletion: validated.enableCodexSessionIdCompletion,
+      enableCodexHistoryFilter: validated.enableCodexHistoryFilter,
+      codexHistoryFilterProviderIds: validated.codexHistoryFilterProviderIds,
       enableClaudeMetadataUserIdInjection: validated.enableClaudeMetadataUserIdInjection,
       enableResponseFixer: validated.enableResponseFixer,
       responseFixerConfig: validated.responseFixerConfig,

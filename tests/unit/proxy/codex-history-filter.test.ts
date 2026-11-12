@@ -3,7 +3,6 @@ import { describe, expect, test } from "vitest";
 import {
   filterCodexHistoryForUpstream,
   isCodexHistoryFilterEnabledFor,
-  resolveCodexHistoryFilterProviders,
 } from "@/app/v1/_lib/proxy/codex-history-filter";
 
 type LooseBody = {
@@ -58,50 +57,74 @@ function buildCodexBody(): LooseBody {
   };
 }
 
-describe("resolveCodexHistoryFilterProviders", () => {
-  test("未设置时返回空列表（默认关闭）", () => {
-    const previous = process.env.CCH_CODEX_HISTORY_FILTER_PROVIDERS;
-    delete process.env.CCH_CODEX_HISTORY_FILTER_PROVIDERS;
-    try {
-      expect(resolveCodexHistoryFilterProviders()).toEqual([]);
-    } finally {
-      if (previous === undefined) {
-        delete process.env.CCH_CODEX_HISTORY_FILTER_PROVIDERS;
-      } else {
-        process.env.CCH_CODEX_HISTORY_FILTER_PROVIDERS = previous;
-      }
-    }
-    expect(resolveCodexHistoryFilterProviders("")).toEqual([]);
-    expect(resolveCodexHistoryFilterProviders("  ,  ")).toEqual([]);
-  });
-
-  test("按逗号拆分并归一化大小写与空白", () => {
-    expect(resolveCodexHistoryFilterProviders(" AgentRouter , 163 ,agentrouter")).toEqual([
-      "agentrouter",
-      "163",
-    ]);
-  });
-});
-
 describe("isCodexHistoryFilterEnabledFor", () => {
-  test("默认关闭", () => {
-    expect(isCodexHistoryFilterEnabledFor({ id: 163, name: "agentrouter" }, "")).toBe(false);
+  test("开关关闭时不生效（默认关闭）", () => {
+    expect(
+      isCodexHistoryFilterEnabledFor(
+        { id: 163, name: "agentrouter" },
+        {
+          enabled: false,
+          providerIds: [163],
+        }
+      )
+    ).toBe(false);
   });
 
-  test("按 provider 名称命中（大小写不敏感）", () => {
-    expect(isCodexHistoryFilterEnabledFor({ id: 7, name: "AgentRouter" }, "agentrouter")).toBe(
-      true
-    );
+  test("开关开启且命中供应商 id 时生效", () => {
+    expect(
+      isCodexHistoryFilterEnabledFor(
+        { id: 163, name: "agentrouter" },
+        {
+          enabled: true,
+          providerIds: [163],
+        }
+      )
+    ).toBe(true);
   });
 
-  test("按 provider id 命中", () => {
-    expect(isCodexHistoryFilterEnabledFor({ id: 163, name: "agentrouter" }, "163")).toBe(true);
+  test("供应商名单为空表示不生效", () => {
+    expect(
+      isCodexHistoryFilterEnabledFor(
+        { id: 163, name: "agentrouter" },
+        {
+          enabled: true,
+          providerIds: [],
+        }
+      )
+    ).toBe(false);
+    expect(
+      isCodexHistoryFilterEnabledFor(
+        { id: 163, name: "agentrouter" },
+        {
+          enabled: true,
+          providerIds: null,
+        }
+      )
+    ).toBe(false);
   });
 
-  test("未列入白名单的 provider 不命中", () => {
-    expect(isCodexHistoryFilterEnabledFor({ id: 12, name: "openai-official" }, "agentrouter")).toBe(
-      false
-    );
+  test("未列入名单的供应商不生效", () => {
+    expect(
+      isCodexHistoryFilterEnabledFor(
+        { id: 12, name: "openai-official" },
+        {
+          enabled: true,
+          providerIds: [163],
+        }
+      )
+    ).toBe(false);
+  });
+
+  test("缺少供应商 id 时不生效", () => {
+    expect(
+      isCodexHistoryFilterEnabledFor(
+        { name: "agentrouter" },
+        {
+          enabled: true,
+          providerIds: [163],
+        }
+      )
+    ).toBe(false);
   });
 });
 

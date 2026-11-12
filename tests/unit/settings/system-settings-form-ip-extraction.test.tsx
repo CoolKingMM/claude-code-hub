@@ -55,6 +55,9 @@ const baseSettings = {
   enableResponseInputRectifier: true,
   enableThinkingBudgetRectifier: true,
   enableCodexSessionIdCompletion: true,
+  enableCodexHistoryFilter: false,
+  codexHistoryFilterProviderIds: null,
+
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
   fakeStreamingWhitelist: [],
@@ -91,6 +94,8 @@ const baseSettings = {
   | "enableResponseInputRectifier"
   | "enableThinkingBudgetRectifier"
   | "enableCodexSessionIdCompletion"
+  | "enableCodexHistoryFilter"
+  | "codexHistoryFilterProviderIds"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
   | "fakeStreamingWhitelist"

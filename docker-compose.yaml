@@ -66,6 +66,9 @@ services:
       DB_POOL_CONNECT_TIMEOUT: ${DB_POOL_CONNECT_TIMEOUT:-10}
       MAX_RETRY_ATTEMPTS_DEFAULT: ${MAX_RETRY_ATTEMPTS_DEFAULT:-2}
       LANGFUSE_SAMPLE_RATE: ${LANGFUSE_SAMPLE_RATE:-1.0}
+      # 限制 V8 老生代堆为 3GB（容器上限 4GB 内），堆外缓冲泄漏时尽早触发
+      # 容器内 OOM 并由 restart 策略拉起，避免 Node 无界增长拖垮宿主机
+      NODE_OPTIONS: --max-old-space-size=3072
       # 设置时区为上海
       TZ: Asia/Shanghai
     ports:
@@ -75,6 +78,10 @@ services:
       # native 崩溃。配合 Dockerfile 中 --report-* 启动参数生效（issue #1147）
       - ./data/reports:/app/reports
     restart: unless-stopped
+    # 内存上限 4GB：泄漏时 OOM 只影响 app 容器（restart 自动拉起），
+    # 保护宿主机上的 postgres/redis 及其他服务不被全局 OOM killer 波及
+    mem_limit: 4g
+    memswap_limit: 4g
     healthcheck:
       test:
         [

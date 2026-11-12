@@ -1047,6 +1047,12 @@ export const systemSettings = pgTable('system_settings', {
     .notNull()
     .default(true),
 
+  // Codex 历史过滤（默认关闭）
+  // 开启后：对命中的 codex 供应商剥离跨上游资源绑定的 Responses 历史（reasoning/
+  // item_reference/服务端 item id），避免多资源池 400。
+  enableCodexHistoryFilter: boolean('enable_codex_history_filter').notNull().default(false),
+  codexHistoryFilterProviderIds: jsonb('codex_history_filter_provider_ids').$type<number[]>(),
+
   // 响应整流（默认开启）
   enableResponseFixer: boolean('enable_response_fixer').notNull().default(true),
   responseFixerConfig: jsonb('response_fixer_config')

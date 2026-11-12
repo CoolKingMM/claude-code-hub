@@ -84,6 +84,9 @@ function createSettings(overrides: Record<string, unknown> = {}) {
     enableBillingHeaderRectifier: true,
     enableResponseInputRectifier: true,
     enableCodexSessionIdCompletion: true,
+    enableCodexHistoryFilter: false,
+    codexHistoryFilterProviderIds: null,
+
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
     allowNonConversationEndpointProviderFallback: true,

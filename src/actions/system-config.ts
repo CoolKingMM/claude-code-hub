@@ -122,6 +122,8 @@ export async function saveSystemSettings(formData: {
   cacheEffectivenessEnabled?: boolean | null;
   enableMemoryAdmission?: boolean;
   enableCodexSessionIdCompletion?: boolean;
+  enableCodexHistoryFilter?: boolean;
+  codexHistoryFilterProviderIds?: number[];
   enableClaudeMetadataUserIdInjection?: boolean;
   enableResponseFixer?: boolean;
   responseFixerConfig?: Partial<ResponseFixerConfig>;
@@ -218,6 +220,8 @@ export async function saveSystemSettings(formData: {
       cacheEffectivenessEnabled: validated.cacheEffectivenessEnabled,
       enableMemoryAdmission: validated.enableMemoryAdmission,
       enableCodexSessionIdCompletion: validated.enableCodexSessionIdCompletion,
+      enableCodexHistoryFilter: validated.enableCodexHistoryFilter,
+      codexHistoryFilterProviderIds: validated.codexHistoryFilterProviderIds,
       enableClaudeMetadataUserIdInjection: validated.enableClaudeMetadataUserIdInjection,
       enableResponseFixer: validated.enableResponseFixer,
       responseFixerConfig: validated.responseFixerConfig,

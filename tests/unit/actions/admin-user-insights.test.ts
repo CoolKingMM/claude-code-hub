@@ -91,6 +91,9 @@ function createMockSettings() {
     enableThinkingBudgetRectifier: true,
     enableBillingHeaderRectifier: true,
     enableCodexSessionIdCompletion: true,
+    enableCodexHistoryFilter: false,
+    codexHistoryFilterProviderIds: null,
+
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
     responseFixerConfig: {

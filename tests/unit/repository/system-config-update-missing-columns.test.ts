@@ -67,6 +67,9 @@ describe("SystemSettings：数据库缺列时的保存兜底", () => {
         enableResponseInputRectifier: true,
         allowNonConversationEndpointProviderFallback: true,
         enableCodexSessionIdCompletion: true,
+        enableCodexHistoryFilter: false,
+        codexHistoryFilterProviderIds: null,
+
         enableClaudeMetadataUserIdInjection: true,
         enableResponseFixer: true,
         responseFixerConfig: {
@@ -247,6 +250,9 @@ describe("SystemSettings：数据库缺列时的保存兜底", () => {
             enableBillingHeaderRectifier: false,
             enableResponseInputRectifier: false,
             enableCodexSessionIdCompletion: false,
+            enableCodexHistoryFilter: false,
+            codexHistoryFilterProviderIds: null,
+
             enableClaudeMetadataUserIdInjection: false,
             enableResponseFixer: false,
             responseFixerConfig: {
@@ -299,9 +305,12 @@ describe("SystemSettings：数据库缺列时的保存兜底", () => {
     vi.setSystemTime(now);
 
     // 第一次 select(fullSelection) 因新列缺失而抛 42703；
-    // The memory admission and legacy hedge columns are the newest rungs, so they are stripped before replay columns.
+    // The codex history filter, memory admission and legacy hedge columns are the newest
+    // rungs, so they are stripped before replay columns.
     const selectMock = vi
       .fn()
+      .mockReturnValueOnce(createRejectedThenableQuery({ code: "42703" }))
+      .mockReturnValueOnce(createRejectedThenableQuery({ code: "42703" }))
       .mockReturnValueOnce(createRejectedThenableQuery({ code: "42703" }))
       .mockReturnValueOnce(createRejectedThenableQuery({ code: "42703" }))
       .mockReturnValueOnce(createRejectedThenableQuery({ code: "42703" }))
@@ -338,14 +347,16 @@ describe("SystemSettings：数据库缺列时的保存兜底", () => {
     const result = await getSystemSettings();
 
     // 降级读取成功（未抛错），缺失列由 transformer 落默认值。
-    expect(selectMock).toHaveBeenCalledTimes(5);
+    expect(selectMock).toHaveBeenCalledTimes(7);
     expect(result.siteTitle).toBe("CC Hub");
     expect(result.enableHttp2).toBe(true);
     expect(result.affinityIgnoreClientSessionId).toBe(true);
     expect(result.streamGateMode).toBe("enforce");
     expect(result.enableMemoryAdmission).toBe(false);
 
-    const successfulSelection = selectMock.mock.calls[4]?.[0] as Record<string, unknown>;
+    const successfulSelection = selectMock.mock.calls[6]?.[0] as Record<string, unknown>;
+    expect(successfulSelection).not.toHaveProperty("codexHistoryFilterProviderIds");
+    expect(successfulSelection).not.toHaveProperty("enableCodexHistoryFilter");
     expect(successfulSelection).not.toHaveProperty("enableMemoryAdmission");
     expect(successfulSelection).not.toHaveProperty("legacyHedgeMaxInFlight");
     expect(successfulSelection).not.toHaveProperty("replayCacheTtlMinutes");

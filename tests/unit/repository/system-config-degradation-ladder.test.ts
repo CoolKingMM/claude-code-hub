@@ -7,6 +7,8 @@ import type { UpdateSystemSettingsInput } from "@/types/system-config";
 
 // 近代新增列（最新在前），降级链按引入顺序逐层累计剥离。
 const RECENT_COLUMNS = [
+  "codexHistoryFilterProviderIds",
+  "enableCodexHistoryFilter",
   "enableMemoryAdmission",
   "legacyHedgeMaxInFlight",
   "replayCacheTtlMinutes",
@@ -33,8 +35,10 @@ const RECENT_COLUMNS = [
   "allowNonConversationEndpointProviderFallback",
 ] as const;
 
-// 全量字段集（47 列）。
+// 全量字段集（49 列）。
 const FULL_COLUMNS = [
+  "codexHistoryFilterProviderIds",
+  "enableCodexHistoryFilter",
   "enableMemoryAdmission",
   "replayCacheTtlMinutes",
   "cacheEffectivenessEnabled",

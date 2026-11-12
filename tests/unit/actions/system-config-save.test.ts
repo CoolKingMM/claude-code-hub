@@ -82,6 +82,9 @@ describe("saveSystemSettings", () => {
       enableThinkingBudgetRectifier: false,
       enableBillingHeaderRectifier: true,
       enableCodexSessionIdCompletion: false,
+      enableCodexHistoryFilter: false,
+      codexHistoryFilterProviderIds: null,
+
       enableClaudeMetadataUserIdInjection: false,
       enableResponseFixer: false,
       enableProviderOutputSafetyFilter: true,
@@ -363,6 +366,9 @@ describe("saveSystemSettings", () => {
       enableThinkingBudgetRectifier: false,
       enableBillingHeaderRectifier: true,
       enableCodexSessionIdCompletion: false,
+      enableCodexHistoryFilter: false,
+      codexHistoryFilterProviderIds: null,
+
       enableClaudeMetadataUserIdInjection: false,
       enableResponseFixer: false,
       responseFixerConfig: {

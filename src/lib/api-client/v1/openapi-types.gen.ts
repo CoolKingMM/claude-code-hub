@@ -12696,6 +12696,10 @@ export interface operations {
                         providerOutputSafetyFilterRules: string[];
                         /** @description Whether Codex session id completion is enabled. */
                         enableCodexSessionIdCompletion: boolean;
+                        /** @description Whether the Codex history filter is enabled. */
+                        enableCodexHistoryFilter: boolean;
+                        /** @description Provider ids enabled for the Codex history filter. */
+                        codexHistoryFilterProviderIds: number[] | null;
                         /** @description Whether Claude metadata.user_id injection is enabled. */
                         enableClaudeMetadataUserIdInjection: boolean;
                         /** @description Whether response fixer is enabled. */
@@ -12995,6 +12999,10 @@ export interface operations {
                     providerOutputSafetyFilterRules?: string[];
                     /** @description Whether Codex session id completion is enabled. */
                     enableCodexSessionIdCompletion?: boolean;
+                    /** @description Whether the Codex history filter is enabled. */
+                    enableCodexHistoryFilter?: boolean;
+                    /** @description Provider ids enabled for the Codex history filter. Empty disables provider-based handling. */
+                    codexHistoryFilterProviderIds?: number[];
                     /** @description Whether Claude metadata.user_id injection is enabled. */
                     enableClaudeMetadataUserIdInjection?: boolean;
                     /** @description Whether response fixer is enabled. */
@@ -13167,6 +13175,10 @@ export interface operations {
                         providerOutputSafetyFilterRules: string[];
                         /** @description Whether Codex session id completion is enabled. */
                         enableCodexSessionIdCompletion: boolean;
+                        /** @description Whether the Codex history filter is enabled. */
+                        enableCodexHistoryFilter: boolean;
+                        /** @description Provider ids enabled for the Codex history filter. */
+                        codexHistoryFilterProviderIds: number[] | null;
                         /** @description Whether Claude metadata.user_id injection is enabled. */
                         enableClaudeMetadataUserIdInjection: boolean;
                         /** @description Whether response fixer is enabled. */

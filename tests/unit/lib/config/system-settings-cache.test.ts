@@ -70,6 +70,9 @@ function createSettings(overrides: Partial<SystemSettings> = {}): SystemSettings
     enableProviderOutputSafetyFilter: true,
     providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
     enableCodexSessionIdCompletion: true,
+    enableCodexHistoryFilter: false,
+    codexHistoryFilterProviderIds: null,
+
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
     responseFixerConfig: {

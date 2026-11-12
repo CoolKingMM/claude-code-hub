@@ -46,6 +46,8 @@ type FormSettings = Pick<
   | "enableResponseInputRectifier"
   | "enableThinkingBudgetRectifier"
   | "enableCodexSessionIdCompletion"
+  | "enableCodexHistoryFilter"
+  | "codexHistoryFilterProviderIds"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
   | "fakeStreamingWhitelist"
@@ -91,6 +93,9 @@ const baseSettings: FormSettings = {
   enableResponseInputRectifier: true,
   enableThinkingBudgetRectifier: true,
   enableCodexSessionIdCompletion: true,
+  enableCodexHistoryFilter: false,
+  codexHistoryFilterProviderIds: null,
+
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
   fakeStreamingWhitelist: [],

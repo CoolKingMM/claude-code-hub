@@ -192,7 +192,16 @@
     "replayCacheTtlInvalid": "Replay 快取時間必須是 5-120 分鐘內的整數。",
     "replayCacheTtlMinutesUnit": "分鐘",
     "cacheEffectivenessEnabled": "前綴快取模擬",
-    "cacheEffectivenessEnabledDesc": "模擬最長前綴匹配的快取命中率(理論 vs 實際),僅用於觀測,不影響路由。儲存前跟隨環境變數 ENABLE_CACHE_EFFECTIVENESS,預設開啟。"
+    "cacheEffectivenessEnabledDesc": "模擬最長前綴匹配的快取命中率(理論 vs 實際),僅用於觀測,不影響路由。儲存前跟隨環境變數 ENABLE_CACHE_EFFECTIVENESS,預設開啟。",
+    "codexHistoryFilter": {
+      "title": "Codex 歷史過濾（多資源渠道 400 修復）",
+      "description": "按供應商 / 渠道啟用：命中的 codex 渠道在轉發前剝離跨上游資源綁定的 Responses 歷史（reasoning、item_reference、服務端 item id），避免多帳號中轉返回 400 \"The requested item was created under a different OpenAI resource\"。未選擇供應商表示關閉。",
+      "providerLabel": "供應商 / 渠道（僅 codex 類型）",
+      "selectedCount": "已啟用 {count} 個渠道",
+      "emptyState": "尚未選擇任何供應商，Codex 歷史過濾處於關閉狀態。",
+      "noProviders": "目前沒有 codex 類型的供應商。請先在供應商管理中加入渠道。",
+      "providerToggleLabel": "為 {name} 啟用 Codex 歷史過濾"
+    }
   },
   "ipLogging": {
     "title": "IP 記錄與提取",

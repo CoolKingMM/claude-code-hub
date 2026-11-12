@@ -73,6 +73,9 @@ const settings: SystemSettings = {
   enableProviderOutputSafetyFilter: true,
   providerOutputSafetyFilterRules: [String.raw`rm\s+-rf\s+\/`],
   enableCodexSessionIdCompletion: true,
+  enableCodexHistoryFilter: false,
+  codexHistoryFilterProviderIds: null,
+
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
   responseFixerConfig: {

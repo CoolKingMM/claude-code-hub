@@ -325,6 +325,10 @@ export function toSystemSettings(dbSettings: any): SystemSettings {
       dbSettings?.providerOutputSafetyFilterRules
     ),
     enableCodexSessionIdCompletion: dbSettings?.enableCodexSessionIdCompletion ?? true,
+    enableCodexHistoryFilter: dbSettings?.enableCodexHistoryFilter ?? false,
+    codexHistoryFilterProviderIds: normalizeFakeStreamingProviderIds(
+      dbSettings?.codexHistoryFilterProviderIds
+    ),
     enableClaudeMetadataUserIdInjection: dbSettings?.enableClaudeMetadataUserIdInjection ?? true,
     enableResponseFixer: dbSettings?.enableResponseFixer ?? true,
     responseFixerConfig: {

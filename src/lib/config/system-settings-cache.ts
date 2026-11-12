@@ -115,6 +115,8 @@ export const DEFAULT_SETTINGS: Pick<
   | "enableProviderOutputSafetyFilter"
   | "providerOutputSafetyFilterRules"
   | "enableCodexSessionIdCompletion"
+  | "enableCodexHistoryFilter"
+  | "codexHistoryFilterProviderIds"
   | "enableClaudeMetadataUserIdInjection"
   | "enableResponseFixer"
   | "responseFixerConfig"
@@ -154,6 +156,8 @@ export const DEFAULT_SETTINGS: Pick<
   enableProviderOutputSafetyFilter: true,
   providerOutputSafetyFilterRules: [...DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES],
   enableCodexSessionIdCompletion: true,
+  enableCodexHistoryFilter: false,
+  codexHistoryFilterProviderIds: null,
   enableClaudeMetadataUserIdInjection: true,
   enableResponseFixer: true,
   passThroughUpstreamErrorMessage: true,
@@ -264,6 +268,8 @@ export async function getCachedSystemSettings(): Promise<SystemSettings> {
       enableProviderOutputSafetyFilter: DEFAULT_SETTINGS.enableProviderOutputSafetyFilter,
       providerOutputSafetyFilterRules: DEFAULT_SETTINGS.providerOutputSafetyFilterRules,
       enableCodexSessionIdCompletion: DEFAULT_SETTINGS.enableCodexSessionIdCompletion,
+      enableCodexHistoryFilter: DEFAULT_SETTINGS.enableCodexHistoryFilter,
+      codexHistoryFilterProviderIds: DEFAULT_SETTINGS.codexHistoryFilterProviderIds,
       enableClaudeMetadataUserIdInjection: DEFAULT_SETTINGS.enableClaudeMetadataUserIdInjection,
       enableResponseFixer: DEFAULT_SETTINGS.enableResponseFixer,
       responseFixerConfig: DEFAULT_SETTINGS.responseFixerConfig,

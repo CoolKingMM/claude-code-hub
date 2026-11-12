@@ -220,6 +220,11 @@ export const SystemSettingsSchema = z
     enableCodexSessionIdCompletion: z
       .boolean()
       .describe("Whether Codex session id completion is enabled."),
+    enableCodexHistoryFilter: z.boolean().describe("Whether the Codex history filter is enabled."),
+    codexHistoryFilterProviderIds: z
+      .array(z.number().int().positive())
+      .nullable()
+      .describe("Provider ids enabled for the Codex history filter."),
     enableClaudeMetadataUserIdInjection: z
       .boolean()
       .describe("Whether Claude metadata.user_id injection is enabled."),
@@ -295,6 +300,12 @@ export const SystemSettingsUpdateSchema = SystemSettingsSchema.omit({
       .array(z.number().int().positive())
       .optional()
       .describe("Provider ids enabled for fake streaming. Empty disables provider-based handling."),
+    codexHistoryFilterProviderIds: z
+      .array(z.number().int().positive())
+      .optional()
+      .describe(
+        "Provider ids enabled for the Codex history filter. Empty disables provider-based handling."
+      ),
     responseFixerConfig: ResponseFixerConfigSchema.partial().optional(),
   })
   .partial()

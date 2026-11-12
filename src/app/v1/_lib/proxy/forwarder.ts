@@ -3654,8 +3654,17 @@ export class ProxyForwarder {
 
         // Codex 历史过滤：多上游资源池会因回放旧 item id 返回 400
         // "The requested item was created under a different ... resource"。
-        // 按 CCH_CODEX_HISTORY_FILTER_PROVIDERS 白名单开启，未命中则完全透传。
-        if (provider.providerType === "codex" && isCodexHistoryFilterEnabledFor(provider)) {
+        // 开关与供应商名单在 系统设置 → 特殊处理 中热切换，未命中则完全透传。
+        let codexHistoryFilterEnabled = false;
+        if (provider.providerType === "codex") {
+          const historyFilterSettings = await getCachedSystemSettings();
+          codexHistoryFilterEnabled = isCodexHistoryFilterEnabledFor(provider, {
+            enabled: historyFilterSettings.enableCodexHistoryFilter,
+            providerIds: historyFilterSettings.codexHistoryFilterProviderIds,
+          });
+        }
+
+        if (codexHistoryFilterEnabled) {
           const historyFilter = filterCodexHistoryForUpstream(
             session.request.message as Record<string, unknown>
           );

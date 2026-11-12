@@ -192,7 +192,16 @@
     "replayCacheTtlInvalid": "Срок кэша Replay должен быть целым числом от 5 до 120 минут.",
     "replayCacheTtlMinutesUnit": "мин",
     "cacheEffectivenessEnabled": "Симуляция префиксного кэша",
-    "cacheEffectivenessEnabledDesc": "Симулирует хит-рейт кэша по наибольшему префиксу (теория и факт) только для наблюдаемости; не влияет на маршрутизацию. До сохранения следует переменной окружения ENABLE_CACHE_EFFECTIVENESS. По умолчанию включено."
+    "cacheEffectivenessEnabledDesc": "Симулирует хит-рейт кэша по наибольшему префиксу (теория и факт) только для наблюдаемости; не влияет на маршрутизацию. До сохранения следует переменной окружения ENABLE_CACHE_EFFECTIVENESS. По умолчанию включено.",
+    "codexHistoryFilter": {
+      "title": "Фильтр истории Codex (исправление 400 на мультиресурсных каналах)",
+      "description": "Включается по провайдерам: для выбранных codex-провайдеров перед проксированием удаляется история Responses, привязанная к создавшему её upstream-ресурсу (reasoning, item_reference, серверные item id), чтобы избежать 400 \"The requested item was created under a different OpenAI resource\" на мультиаккаунтных релеях. Без выбранных провайдеров функция выключена.",
+      "providerLabel": "Провайдеры (только тип codex)",
+      "selectedCount": "Включено провайдеров: {count}",
+      "emptyState": "Провайдеры не выбраны, фильтр истории Codex выключен.",
+      "noProviders": "Нет провайдеров типа codex. Сначала добавьте провайдера.",
+      "providerToggleLabel": "Включить фильтр истории Codex для {name}"
+    }
   },
   "ipLogging": {
     "title": "Журналирование и извлечение IP",

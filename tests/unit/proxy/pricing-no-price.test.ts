@@ -103,6 +103,9 @@ function makeSystemSettings(
     enableBillingHeaderRectifier: true,
     enableResponseInputRectifier: true,
     enableCodexSessionIdCompletion: true,
+    enableCodexHistoryFilter: false,
+    codexHistoryFilterProviderIds: null,
+
     enableClaudeMetadataUserIdInjection: true,
     enableResponseFixer: true,
     responseFixerConfig: {

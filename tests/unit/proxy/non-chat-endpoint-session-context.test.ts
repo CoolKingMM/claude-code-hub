@@ -284,6 +284,9 @@ beforeEach(() => {
     enableHighConcurrencyMode: false,
     interceptAnthropicWarmupRequests: false,
     enableCodexSessionIdCompletion: true,
+    enableCodexHistoryFilter: false,
+    codexHistoryFilterProviderIds: null,
+
     enableClaudeMetadataUserIdInjection: true,
   });
   extractClientSessionIdMock.mockReturnValue(null);

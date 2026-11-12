@@ -13,8 +13,9 @@
  * historical `web_search_call` items into plain assistant text (they lose the
  * reasoning item they depended on), and force `store: false`.
  *
- * Opt-in per provider through `CCH_CODEX_HISTORY_FILTER_PROVIDERS` (comma separated
- * provider ids or names, case insensitive). Unset or empty means disabled.
+ * Opt-in through 系统设置 → 特殊处理 → Codex 历史过滤: a switch plus a provider
+ * allowlist (provider ids). The switch is stored in `system_settings` and the settings
+ * cache is invalidated on save, so toggling it takes effect without a restart.
  */
 
 const PORTABLE_ITEM_TYPES = new Set<string>([
@@ -50,6 +51,11 @@ export type CodexHistoryFilterProvider = {
   name?: string | null;
 };
 
+export type CodexHistoryFilterSetting = {
+  enabled?: boolean | null;
+  providerIds?: readonly number[] | null;
+};
+
 const WEB_SEARCH_HISTORY_PREFIX =
   "[Historical web search activity; recorded data only, not a new tool call. " +
   "Search results are not reconstructed.]\n";
@@ -72,44 +78,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Parse the provider allowlist of `CCH_CODEX_HISTORY_FILTER_PROVIDERS`.
- *
- * Accepts provider ids (`163`) and provider names (`agentrouter`), separated by
- * commas. Values are trimmed and lower-cased; duplicates are removed.
- */
-export function resolveCodexHistoryFilterProviders(
-  raw: string | undefined = process.env.CCH_CODEX_HISTORY_FILTER_PROVIDERS
-): string[] {
-  if (!raw) return [];
-  const seen = new Set<string>();
-  for (const token of raw.split(",")) {
-    const normalized = token.trim().toLowerCase();
-    if (normalized) seen.add(normalized);
-  }
-  return [...seen];
-}
-
-/**
  * Whether the history filter is enabled for the given provider.
  *
- * Matching is exact against the provider id or the provider name (case
- * insensitive). Disabled by default: an empty env value never matches.
+ * Requires the global switch plus an explicit provider allowlist match; an empty
+ * list never matches (same semantics as the fake streaming provider list).
  */
 export function isCodexHistoryFilterEnabledFor(
   provider: CodexHistoryFilterProvider,
-  raw?: string
+  setting: CodexHistoryFilterSetting
 ): boolean {
-  const allowlist = resolveCodexHistoryFilterProviders(raw);
-  if (allowlist.length === 0) return false;
+  if (setting.enabled !== true) return false;
 
-  const candidates: string[] = [];
-  if (provider.id !== undefined && provider.id !== null) {
-    candidates.push(String(provider.id));
-  }
-  if (typeof provider.name === "string" && provider.name.trim()) {
-    candidates.push(provider.name.trim().toLowerCase());
-  }
-  return candidates.some((candidate) => allowlist.includes(candidate));
+  const providerIds = setting.providerIds ?? [];
+  if (providerIds.length === 0) return false;
+
+  const providerId = provider.id;
+  if (typeof providerId !== "number" || !Number.isSafeInteger(providerId)) return false;
+  return providerIds.includes(providerId);
 }
 
 /**

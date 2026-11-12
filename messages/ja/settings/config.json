@@ -192,7 +192,16 @@
     "replayCacheTtlInvalid": "Replay キャッシュ時間には 5-120 分の整数を指定してください。",
     "replayCacheTtlMinutesUnit": "分",
     "cacheEffectivenessEnabled": "プレフィックスキャッシュシミュレーション",
-    "cacheEffectivenessEnabledDesc": "最長プレフィックス一致のキャッシュヒット率(理論値 vs 実測値)を観測目的でシミュレートします。ルーティングには影響しません。保存するまでは環境変数 ENABLE_CACHE_EFFECTIVENESS に従います。デフォルトはオン。"
+    "cacheEffectivenessEnabledDesc": "最長プレフィックス一致のキャッシュヒット率(理論値 vs 実測値)を観測目的でシミュレートします。ルーティングには影響しません。保存するまでは環境変数 ENABLE_CACHE_EFFECTIVENESS に従います。デフォルトはオン。",
+    "codexHistoryFilter": {
+      "title": "Codex 履歴フィルター（マルチリソース 400 の修正）",
+      "description": "プロバイダー / チャネル単位で有効化：対象の codex プロバイダーでは、転送前に上流リソースに紐づく Responses 履歴（reasoning、item_reference、サーバー発行 item id）を除去し、マルチアカウント中継での 400 \"The requested item was created under a different OpenAI resource\" を回避します。プロバイダー未選択の場合は無効です。",
+      "providerLabel": "プロバイダー / チャネル（codex タイプのみ）",
+      "selectedCount": "{count} 件のプロバイダーで有効",
+      "emptyState": "プロバイダーが未選択のため、Codex 履歴フィルターは無効です。",
+      "noProviders": "codex タイプのプロバイダーがありません。先にプロバイダーを追加してください。",
+      "providerToggleLabel": "{name} で Codex 履歴フィルターを有効化"
+    }
   },
   "ipLogging": {
     "title": "IP ログと抽出",

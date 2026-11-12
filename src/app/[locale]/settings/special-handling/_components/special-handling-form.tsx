@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ShieldAlert, Zap } from "lucide-react";
+import { ChevronDown, History, ShieldAlert, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import type { SystemSettings } from "@/types/system-config";
 
 type SpecialHandlingProvider = Pick<
   ProviderDisplay,
-  "id" | "name" | "groupTag" | "priority" | "groupPriorities"
+  "id" | "name" | "providerType" | "groupTag" | "priority" | "groupPriorities"
 >;
 
 type SpecialHandlingFormProps = {
@@ -37,6 +37,8 @@ type SpecialHandlingFormProps = {
     | "fakeStreamingProviderIds"
     | "enableProviderOutputSafetyFilter"
     | "providerOutputSafetyFilterRules"
+    | "enableCodexHistoryFilter"
+    | "codexHistoryFilterProviderIds"
   >;
   providers: SpecialHandlingProvider[];
   labels: SpecialHandlingFormLabels;
@@ -66,6 +68,15 @@ export type SpecialHandlingFormLabels = {
     rulesHint: string;
     invalidRule: string;
     resetToDefault: string;
+  };
+  codexHistoryFilter: {
+    title: string;
+    description: string;
+    providerLabel: string;
+    selectedCount: string;
+    emptyState: string;
+    noProviders: string;
+    providerToggleLabel: string;
   };
   saveSettings: string;
   saving: string;
@@ -142,6 +153,12 @@ export function SpecialHandlingForm({
   const [enableProviderOutputSafetyFilter, setEnableProviderOutputSafetyFilter] = useState(
     initialSettings.enableProviderOutputSafetyFilter
   );
+  const [enableCodexHistoryFilter, setEnableCodexHistoryFilter] = useState(
+    initialSettings.enableCodexHistoryFilter
+  );
+  const [codexHistoryFilterProviderIds, setCodexHistoryFilterProviderIds] = useState<number[]>(() =>
+    sanitizeProviderIds(initialSettings.codexHistoryFilterProviderIds ?? [])
+  );
   const [providerOutputSafetyFilterRulesText, setProviderOutputSafetyFilterRulesText] =
     useState<string>(
       formatProviderOutputSafetyFilterRules(initialSettings.providerOutputSafetyFilterRules)
@@ -149,6 +166,17 @@ export function SpecialHandlingForm({
   const [providerOutputSafetyFilterOpen, setProviderOutputSafetyFilterOpen] = useState(false);
 
   const selectedProviderIdSet = new Set(selectedProviderIds);
+  const codexHistoryProviderIdSet = new Set(codexHistoryFilterProviderIds);
+  const codexHistoryProviders = useMemo(
+    () =>
+      providers
+        .filter((provider) => provider.providerType === "codex")
+        .toSorted((left, right) => {
+          const nameDelta = left.name.localeCompare(right.name);
+          return nameDelta !== 0 ? nameDelta : left.id - right.id;
+        }),
+    [providers]
+  );
   const providerGroups = useMemo(() => uniqueGroupsForProviders(providers), [providers]);
   const initialGroup = providerGroups.includes("codex") ? "codex" : (providerGroups[0] ?? "");
   const [selectedGroup, setSelectedGroup] = useState(initialGroup);
@@ -175,6 +203,15 @@ export function SpecialHandlingForm({
 
   const toggleProvider = (providerId: number) => {
     setSelectedProviderIds((current) => {
+      if (current.includes(providerId)) {
+        return current.filter((id) => id !== providerId);
+      }
+      return sanitizeProviderIds([...current, providerId]);
+    });
+  };
+
+  const toggleCodexHistoryProvider = (providerId: number) => {
+    setCodexHistoryFilterProviderIds((current) => {
       if (current.includes(providerId)) {
         return current.filter((id) => id !== providerId);
       }
@@ -209,6 +246,8 @@ export function SpecialHandlingForm({
         fakeStreamingProviderIds,
         enableProviderOutputSafetyFilter,
         providerOutputSafetyFilterRules: providerOutputSafetyFilterRulesToSave,
+        enableCodexHistoryFilter,
+        codexHistoryFilterProviderIds: sanitizeProviderIds(codexHistoryFilterProviderIds),
       });
 
       if (!result.ok) {
@@ -221,6 +260,10 @@ export function SpecialHandlingForm({
         setEnableProviderOutputSafetyFilter(result.data.enableProviderOutputSafetyFilter);
         setProviderOutputSafetyFilterRulesText(
           formatProviderOutputSafetyFilterRules(result.data.providerOutputSafetyFilterRules)
+        );
+        setEnableCodexHistoryFilter(result.data.enableCodexHistoryFilter);
+        setCodexHistoryFilterProviderIds(
+          sanitizeProviderIds(result.data.codexHistoryFilterProviderIds ?? [])
         );
       }
 
@@ -318,6 +361,86 @@ export function SpecialHandlingForm({
                       onCheckedChange={() => toggleProvider(provider.id)}
                       disabled={isPending}
                       aria-label={labels.fakeStreaming.providerToggleLabel.replace(
+                        "{name}",
+                        provider.name
+                      )}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-3 hover:bg-white/[0.04] transition-colors">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-sky-500/10 text-sky-400 shrink-0">
+              <History className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                {labels.codexHistoryFilter.title}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {labels.codexHistoryFilter.description}
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="enable-codex-history-filter"
+            checked={enableCodexHistoryFilter}
+            onCheckedChange={(checked) => setEnableCodexHistoryFilter(checked)}
+            disabled={isPending}
+          />
+        </div>
+
+        <div className="space-y-2 pl-0 md:pl-11">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">
+              {labels.codexHistoryFilter.providerLabel}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {codexHistoryProviders.length === 0
+                ? labels.codexHistoryFilter.emptyState
+                : selectedCountLabel(
+                    labels.codexHistoryFilter.selectedCount,
+                    codexHistoryProviders.filter((provider) =>
+                      codexHistoryProviderIdSet.has(provider.id)
+                    ).length
+                  )}
+            </p>
+          </div>
+
+          {codexHistoryProviders.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              {labels.codexHistoryFilter.noProviders}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {codexHistoryProviders.map((provider) => {
+                const selected = codexHistoryProviderIdSet.has(provider.id);
+                return (
+                  <div
+                    key={provider.id}
+                    data-testid={`codex-history-filter-provider-${provider.id}`}
+                    className={cn(
+                      "flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                      isPending ? "opacity-70" : "bg-muted/20 hover:bg-muted/35",
+                      selected
+                        ? "border-primary/60 bg-primary/10"
+                        : "border-white/5 hover:border-white/10"
+                    )}
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                      {provider.name}
+                    </span>
+                    <Switch
+                      checked={selected}
+                      onCheckedChange={() => toggleCodexHistoryProvider(provider.id)}
+                      disabled={isPending}
+                      aria-label={labels.codexHistoryFilter.providerToggleLabel.replace(
                         "{name}",
                         provider.name
                       )}
