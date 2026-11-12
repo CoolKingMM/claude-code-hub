@@ -4726,6 +4726,12 @@ export interface operations {
                     url: string;
                     /** @description Provider API key. Write-only. */
                     key: string;
+                    /** @description Additional API keys created atomically with the primary key. Each key has its own enabled state and inherits the provider settings. The response represents the primary key. */
+                    additional_keys?: {
+                        key: string;
+                        /** @default true */
+                        is_enabled: boolean;
+                    }[];
                     /** @description New API system access token. When set, balance queries read the account balance instead of the key quota. Empty string or null clears it. Write-only. */
                     new_api_access_token?: string | null;
                     /** @description New API user id sent with the system access token. Required by New API releases before 2026-07. */

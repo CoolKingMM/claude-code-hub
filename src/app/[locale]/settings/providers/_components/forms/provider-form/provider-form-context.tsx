@@ -547,6 +547,10 @@ export function providerFormReducer(
       return { ...state, basic: { ...state.basic, url: action.payload } };
     case "SET_KEY":
       return { ...state, basic: { ...state.basic, key: action.payload } };
+    case "SET_KEY_IS_ENABLED":
+      return { ...state, basic: { ...state.basic, keyIsEnabled: action.payload } };
+    case "SET_ADDITIONAL_KEYS":
+      return { ...state, basic: { ...state.basic, additionalKeys: action.payload } };
     case "SET_WEBSITE_URL":
       return { ...state, basic: { ...state.basic, websiteUrl: action.payload } };
     case "SET_NEW_API_ACCESS_TOKEN":

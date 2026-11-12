@@ -97,6 +97,20 @@ jobs:
           GHCR_IMAGE="$(echo "ghcr.io/${{ github.repository_owner }}/claude-code-hub" | tr '[:upper:]' '[:lower:]')"
           echo "ghcr_image=$GHCR_IMAGE" >> "$GITHUB_OUTPUT"
 
+      - name: Setup Bun for provider key checks
+        if: steps.build_flag.outputs.should_build == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Validate provider key creation
+        if: steps.build_flag.outputs.should_build == 'true'
+        run: |
+          bun install
+          bun x biome check --changed --since=HEAD^
+          bun run openapi:check || { bun run openapi:generate; git diff -- src/lib/api-client/v1/openapi-types.gen.ts; exit 1; }
+          bun x vitest run --config tests/configs/provider-key-batch.config.mts --coverage --configLoader bundle
+
       - name: Set up QEMU
         if: steps.build_flag.outputs.should_build == 'true'
         uses: docker/setup-qemu-action@v3

@@ -1,4 +1,5 @@
 import type { Dispatch } from "react";
+import type { ProviderKeyEntry } from "@/lib/provider-key-batch";
 import type {
   AllowedModelRule,
   AnthropicAdaptiveThinkingConfig,
@@ -44,6 +45,8 @@ export interface BasicInfoState {
   name: string;
   url: string;
   key: string;
+  keyIsEnabled?: boolean;
+  additionalKeys?: ProviderKeyEntry[];
   websiteUrl: string;
   // 新填写的 New API 系统访问令牌；编辑时留空表示保持不变
   newApiAccessToken: string;
@@ -148,6 +151,8 @@ export type ProviderFormAction =
   | { type: "SET_NAME"; payload: string }
   | { type: "SET_URL"; payload: string }
   | { type: "SET_KEY"; payload: string }
+  | { type: "SET_KEY_IS_ENABLED"; payload: boolean }
+  | { type: "SET_ADDITIONAL_KEYS"; payload: ProviderKeyEntry[] }
   | { type: "SET_WEBSITE_URL"; payload: string }
   | { type: "SET_NEW_API_ACCESS_TOKEN"; payload: string }
   | { type: "SET_CLEAR_NEW_API_ACCESS_TOKEN"; payload: boolean }

@@ -11,5 +11,19 @@
     "contains_non_ascii": "Contains non-ASCII characters. This is uncommon for API keys.",
     "contains_whitespace": "Contains whitespace (spaces/newlines). This is uncommon for API keys.",
     "contains_uncommon_ascii": "Contains uncommon symbols. This is uncommon for API keys."
-  }
+  },
+  "multipleDesc": "Add multiple keys with independent enabled states. All keys share these provider settings.",
+  "entryLabel": "API Key {number}",
+  "enabledLabel": "Enable key {number}",
+  "enabled": "Enabled",
+  "disabled": "Disabled",
+  "add": "Add key",
+  "remove": "Remove key {number}",
+  "show": "Show all keys",
+  "hide": "Hide all keys",
+  "limit": "Add up to {max} keys at a time.",
+  "keyRequired": "Fill in every key or remove empty rows.",
+  "keyTooLong": "The key exceeds the length limit.",
+  "duplicateKey": "Keys must be unique.",
+  "tooManyKeys": "Add up to {max} keys at a time."
 }

@@ -198,7 +198,22 @@ async function restoreProviderInTransaction(
   return true;
 }
 
-export async function createProvider(providerData: CreateProviderData): Promise<Provider> {
+type ProviderCreateTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function createProviders(providerData: CreateProviderData[]): Promise<Provider[]> {
+  return db.transaction(async (tx) => {
+    const created: Provider[] = [];
+    for (const data of providerData) {
+      created.push(await createProvider(data, { tx }));
+    }
+    return created;
+  });
+}
+
+export async function createProvider(
+  providerData: CreateProviderData,
+  options?: { tx?: ProviderCreateTransaction }
+): Promise<Provider> {
   const dbData = {
     name: providerData.name,
     url: providerData.url,
@@ -273,7 +288,7 @@ export async function createProvider(providerData: CreateProviderData): Promise<
     cc: providerData.cc,
   };
 
-  return db.transaction(async (tx) => {
+  const createInTransaction = async (tx: ProviderCreateTransaction): Promise<Provider> => {
     const providerVendorId = await getOrCreateProviderVendorIdFromUrls(
       {
         providerUrl: providerData.url,
@@ -372,7 +387,8 @@ export async function createProvider(providerData: CreateProviderData): Promise<
     }
 
     return created;
-  });
+  };
+  return options?.tx ? createInTransaction(options.tx) : db.transaction(createInTransaction);
 }
 
 export async function findProviderList(

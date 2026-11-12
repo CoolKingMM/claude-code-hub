@@ -11,5 +11,19 @@
     "contains_non_ascii": "包含非 ASCII 字元（例如中文），通常不是常見 API Key。",
     "contains_whitespace": "包含空白字元（空格/換行），通常不是常見 API Key。",
     "contains_uncommon_ascii": "包含不常見符號，通常不是常見 API Key。"
-  }
+  },
+  "multipleDesc": "一次新增多個金鑰，每個金鑰可獨立開啟或關閉，並共用此處的供應商設定。",
+  "entryLabel": "API 金鑰 {number}",
+  "enabledLabel": "啟用金鑰 {number}",
+  "enabled": "已開啟",
+  "disabled": "已關閉",
+  "add": "新增金鑰",
+  "remove": "移除金鑰 {number}",
+  "show": "顯示所有金鑰",
+  "hide": "隱藏所有金鑰",
+  "limit": "每次最多新增 {max} 個金鑰。",
+  "keyRequired": "請填寫每個金鑰，或移除空白列。",
+  "keyTooLong": "金鑰長度超出限制。",
+  "duplicateKey": "金鑰不可重複。",
+  "tooManyKeys": "每次最多新增 {max} 個金鑰。"
 }

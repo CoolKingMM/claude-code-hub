@@ -6,6 +6,7 @@ import {
   NEW_API_USER_ID_MAX,
   PROVIDER_KEY_MAX_LENGTH,
 } from "@/lib/constants/provider.constants";
+import { ADDITIONAL_PROVIDER_KEYS_SCHEMA } from "@/lib/validation/provider-keys";
 import {
   PROVIDER_BALANCE_BATCH_LIMIT,
   PROVIDER_BALANCE_SOURCES,
@@ -422,6 +423,9 @@ export const ProviderCreateSchema = z
     name: z.string().trim().min(1).max(64).describe("Provider display name."),
     url: z.string().trim().url().max(255).describe("Provider upstream base URL."),
     key: z.string().min(1).max(PROVIDER_KEY_MAX_LENGTH).describe("Provider API key. Write-only."),
+    additional_keys: ADDITIONAL_PROVIDER_KEYS_SCHEMA.describe(
+      "Additional API keys created atomically with the primary key. Each key has its own enabled state and inherits the provider settings. The response represents the primary key."
+    ),
     new_api_access_token: z
       .string()
       .max(NEW_API_ACCESS_TOKEN_MAX_LENGTH)
@@ -595,7 +599,7 @@ export const ProviderCreateSchema = z
   .strict()
   .describe("Provider create request. Hidden provider types and deprecated fields are rejected.");
 
-export const ProviderUpdateSchema = ProviderCreateSchema.omit({ key: true })
+export const ProviderUpdateSchema = ProviderCreateSchema.omit({ key: true, additional_keys: true })
   .extend({
     key: z
       .string()

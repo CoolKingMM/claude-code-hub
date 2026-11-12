@@ -72,6 +72,7 @@ import {
   applyProviderBatchOperationIfUnchanged,
   type BatchProviderUpdates,
   createProvider,
+  createProviders,
   deleteProvider,
   findAllProviders,
   findAllProvidersFresh,
@@ -542,6 +543,7 @@ export async function addProvider(data: {
   name: string;
   url: string;
   key: string;
+  additional_keys?: Array<{ key: string; is_enabled?: boolean }>;
   new_api_access_token?: string | null;
   new_api_user_id?: number | null;
   is_enabled?: boolean;
@@ -637,8 +639,10 @@ export async function addProvider(data: {
       }
     }
 
+    const { additional_keys: additionalKeys, ...providerData } = validated;
     const payload = {
-      ...validated,
+      ...providerData,
+      key: additionalKeys?.length ? validated.key.trim() : validated.key,
       group_tag: normalizeProviderGroupTag(validated.group_tag),
       limit_5h_usd: validated.limit_5h_usd ?? null,
       limit_5h_reset_mode: validated.limit_5h_reset_mode ?? "rolling",
@@ -681,58 +685,74 @@ export async function addProvider(data: {
       cc: validated.cc ?? null,
     };
 
-    const provider = await createProvider(payload);
-    logger.trace("addProvider:created_success", {
-      name: validated.name,
-      providerId: provider.id,
-    });
+    const createdProviders = additionalKeys?.length
+      ? await createProviders([
+          payload,
+          ...additionalKeys.map((entry, index) => {
+            const suffix = `-${index + 2}`;
+            return {
+              ...payload,
+              key: entry.key,
+              is_enabled: entry.is_enabled,
+              name: `${validated.name.slice(0, 64 - suffix.length)}${suffix}`,
+            };
+          }),
+        ])
+      : [await createProvider(payload)];
 
-    // 同步 provider_groups 表（系统级，失败不影响主流程）
-    try {
-      await ensureProviderGroupsExist(parseProviderGroups(payload.group_tag));
-    } catch (error) {
-      logger.warn("addProvider:provider_groups_sync_failed", {
+    for (const provider of createdProviders) {
+      logger.trace("addProvider:created_success", {
+        name: validated.name,
         providerId: provider.id,
-        error: error instanceof Error ? error.message : String(error),
+      });
+
+      // 同步 provider_groups 表（系统级，失败不影响主流程）
+      try {
+        await ensureProviderGroupsExist(parseProviderGroups(payload.group_tag));
+      } catch (error) {
+        logger.warn("addProvider:provider_groups_sync_failed", {
+          providerId: provider.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // 同步熔断器配置到 Redis
+      try {
+        await saveProviderCircuitConfig(provider.id, {
+          failureThreshold: provider.circuitBreakerFailureThreshold,
+          openDuration: provider.circuitBreakerOpenDuration,
+          halfOpenSuccessThreshold: provider.circuitBreakerHalfOpenSuccessThreshold,
+        });
+        logger.debug("addProvider:config_synced_to_redis", {
+          providerId: provider.id,
+        });
+      } catch (error) {
+        logger.warn("addProvider:redis_sync_failed", {
+          providerId: provider.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // 不影响主流程，仅记录警告
+      }
+
+      // 广播缓存更新（跨实例即时生效）
+      await broadcastProviderCacheInvalidation({ operation: "add", providerId: provider.id });
+
+      emitActionAudit({
+        category: "provider",
+        action: "provider.create",
+        targetType: "provider",
+        targetId: String(provider.id),
+        targetName: provider.name,
+        after: {
+          id: provider.id,
+          name: provider.name,
+          url: redactUrlCredentials(provider.url),
+          isEnabled: provider.isEnabled,
+        },
+        success: true,
       });
     }
-
-    // 同步熔断器配置到 Redis
-    try {
-      await saveProviderCircuitConfig(provider.id, {
-        failureThreshold: provider.circuitBreakerFailureThreshold,
-        openDuration: provider.circuitBreakerOpenDuration,
-        halfOpenSuccessThreshold: provider.circuitBreakerHalfOpenSuccessThreshold,
-      });
-      logger.debug("addProvider:config_synced_to_redis", {
-        providerId: provider.id,
-      });
-    } catch (error) {
-      logger.warn("addProvider:redis_sync_failed", {
-        providerId: provider.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // 不影响主流程，仅记录警告
-    }
-
-    // 广播缓存更新（跨实例即时生效）
-    await broadcastProviderCacheInvalidation({ operation: "add", providerId: provider.id });
-
-    emitActionAudit({
-      category: "provider",
-      action: "provider.create",
-      targetType: "provider",
-      targetId: String(provider.id),
-      targetName: provider.name,
-      after: {
-        id: provider.id,
-        name: provider.name,
-        url: redactUrlCredentials(provider.url),
-        isEnabled: provider.isEnabled,
-      },
-      success: true,
-    });
-    return { ok: true, data: { id: provider.id } };
+    return { ok: true, data: { id: createdProviders[0].id } };
   } catch (error) {
     logger.trace("addProvider:error", {
       message: error instanceof Error ? error.message : String(error),

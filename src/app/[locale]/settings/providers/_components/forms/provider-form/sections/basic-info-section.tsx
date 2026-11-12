@@ -19,6 +19,7 @@ import {
 import { detectApiKeyWarnings } from "@/lib/utils/validation/api-key-warnings";
 import type { ProviderType } from "@/types/provider";
 import { UrlPreview } from "../../url-preview";
+import { ProviderKeysInput } from "../components/provider-keys-input";
 import { QuickPasteDialog } from "../components/quick-paste-dialog";
 import { SectionCard, SmartInputWrapper } from "../components/section-card";
 import { useProviderForm } from "../provider-form-context";
@@ -281,27 +282,42 @@ export function BasicInfoSection({ autoUrlPending, endpointPool }: BasicInfoSect
             }
             required={!isEdit}
           >
-            <div className="relative">
-              <Input
-                id={isEdit ? "edit-key" : "key"}
-                type={showKey ? "text" : "password"}
-                value={state.basic.key}
-                onChange={(e) => dispatch({ type: "SET_KEY", payload: e.target.value })}
-                placeholder={isEdit ? t("key.leaveEmptyDesc") : t("key.placeholder")}
+            {!isEdit ? (
+              <ProviderKeysInput
+                entries={[
+                  { key: state.basic.key, is_enabled: state.basic.keyIsEnabled ?? true },
+                  ...(state.basic.additionalKeys ?? []),
+                ]}
+                onChange={([primary, ...additionalKeys]) => {
+                  dispatch({ type: "SET_KEY", payload: primary.key });
+                  dispatch({ type: "SET_KEY_IS_ENABLED", payload: primary.is_enabled });
+                  dispatch({ type: "SET_ADDITIONAL_KEYS", payload: additionalKeys });
+                }}
                 disabled={state.ui.isPending}
-                className="pr-10 font-mono text-sm"
-                autoComplete="new-password"
               />
-              <button
-                type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+            ) : (
+              <div className="relative">
+                <Input
+                  id={isEdit ? "edit-key" : "key"}
+                  type={showKey ? "text" : "password"}
+                  value={state.basic.key}
+                  onChange={(e) => dispatch({ type: "SET_KEY", payload: e.target.value })}
+                  placeholder={isEdit ? t("key.leaveEmptyDesc") : t("key.placeholder")}
+                  disabled={state.ui.isPending}
+                  className="pr-10 font-mono text-sm"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            )}
 
-            {apiKeyWarnings.length > 0 && (
+            {isEdit && apiKeyWarnings.length > 0 && (
               <div className="mt-2 space-y-1">
                 {apiKeyWarnings.map((warningId) => (
                   <InlineWarning key={warningId}>{t(`key.warnings.${warningId}`)}</InlineWarning>

@@ -6,6 +6,7 @@ const findProviderByIdMock = vi.fn();
 const findAllProvidersFreshMock = vi.fn();
 const getProviderStatisticsMock = vi.fn();
 const createProviderMock = vi.fn();
+const createProvidersMock = vi.fn();
 const updateProviderMock = vi.fn();
 const deleteProviderMock = vi.fn();
 const updateProviderPrioritiesBatchMock = vi.fn();
@@ -29,6 +30,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/repository/provider", () => ({
   createProvider: createProviderMock,
+  createProviders: createProvidersMock,
   deleteProvider: deleteProviderMock,
   findAllProviders: vi.fn(async () => []),
   findAllProvidersFresh: findAllProvidersFreshMock,
@@ -473,6 +475,64 @@ describe("Provider Actions - Async Optimization", () => {
   });
 
   describe("addProvider", () => {
+    it("一次创建多个密钥，继承配置并分别同步开关和熔断器", async () => {
+      const { addProvider } = await import("@/actions/providers");
+      createProvidersMock.mockResolvedValue([
+        { id: 201, name: "relay", isEnabled: false },
+        { id: 202, name: "relay-2", isEnabled: true },
+      ]);
+      const result = await addProvider({
+        name: "relay",
+        url: "https://relay.example.com",
+        key: " primary ",
+        is_enabled: false,
+        priority: 7,
+        additional_keys: [{ key: " secondary ", is_enabled: true }],
+      });
+      expect(result).toEqual({ ok: true, data: { id: 201 } });
+      expect(createProviderMock).not.toHaveBeenCalled();
+      expect(createProvidersMock).toHaveBeenCalledWith([
+        expect.objectContaining({ name: "relay", key: "primary", is_enabled: false, priority: 7 }),
+        expect.objectContaining({
+          name: "relay-2",
+          key: "secondary",
+          is_enabled: true,
+          priority: 7,
+        }),
+      ]);
+      expect(saveProviderCircuitConfigMock).toHaveBeenCalledTimes(2);
+      expect(emitActionAuditMock.mock.calls.filter(([event]) => event.success)).toHaveLength(2);
+      expect(JSON.stringify(loggerTraceMock.mock.calls)).not.toContain("secondary");
+    });
+
+    it("批量事务失败后返回失败且不发布成功事件", async () => {
+      const { addProvider } = await import("@/actions/providers");
+      createProvidersMock.mockRejectedValue(new Error("transaction failed"));
+      const result = await addProvider({
+        name: "relay",
+        url: "https://relay.example.com",
+        key: "one",
+        additional_keys: [{ key: "two" }],
+      });
+      expect(result).toEqual({ ok: false, error: "transaction failed" });
+      expect(saveProviderCircuitConfigMock).not.toHaveBeenCalled();
+      expect(publishProviderCacheInvalidationMock).not.toHaveBeenCalled();
+      expect(emitActionAuditMock.mock.calls.some(([event]) => event.success)).toBe(false);
+    });
+
+    it("重复密钥在数据库写入前拒绝", async () => {
+      const { addProvider } = await import("@/actions/providers");
+      const result = await addProvider({
+        name: "relay",
+        url: "https://relay.example.com",
+        key: "one",
+        additional_keys: [{ key: " one " }],
+      });
+      expect(result.ok).toBe(false);
+      expect(createProvidersMock).not.toHaveBeenCalled();
+      expect(createProviderMock).not.toHaveBeenCalled();
+    });
+
     it("redacts URL credentials from provider action logs and audit metadata", async () => {
       const { addProvider } = await import("@/actions/providers");
 

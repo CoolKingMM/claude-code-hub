@@ -30,6 +30,11 @@ import {
   parseCustomHeadersJsonText,
 } from "@/lib/custom-headers";
 import { PROVIDER_BATCH_PATCH_ERROR_CODES } from "@/lib/provider-batch-patch-error-codes";
+import {
+  buildProviderKeyEntries,
+  PROVIDER_KEY_BATCH_MAX,
+  validateProviderKeys,
+} from "@/lib/provider-key-batch";
 import { isValidUrl } from "@/lib/utils/validation";
 import type { ProviderDisplay, ProviderEndpoint, ProviderType } from "@/types/provider";
 import { invalidateProviderQueries } from "../../invalidate-provider-queries";
@@ -270,8 +275,9 @@ function ProviderFormContent({
       return t("errors.invalidUrl");
     }
 
-    if (!isEdit && !state.basic.key.trim()) {
-      return t("errors.keyRequired");
+    if (!isEdit) {
+      const keyError = validateProviderKeys(buildProviderKeyEntries(state.basic));
+      if (keyError) return t(`key.${keyError}`, { max: PROVIDER_KEY_BATCH_MAX });
     }
 
     if (mode !== "batch" && parseNewApiUserIdInput(state.basic.newApiUserId) === undefined) {
@@ -448,6 +454,8 @@ function ProviderFormContent({
           const createFormData = {
             ...baseFormData,
             key: trimmedKey,
+            is_enabled: state.basic.keyIsEnabled ?? true,
+            additional_keys: buildProviderKeyEntries(state.basic).slice(1),
             new_api_access_token: trimmedNewApiAccessToken || null,
           };
           const res = await addProvider(createFormData);

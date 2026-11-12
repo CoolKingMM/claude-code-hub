@@ -11,5 +11,19 @@
     "contains_non_ascii": "非 ASCII 文字を含んでいます。API キーとしては一般的ではありません。",
     "contains_whitespace": "空白文字（スペース/改行）を含んでいます。API キーとしては一般的ではありません。",
     "contains_uncommon_ascii": "一般的でない記号を含んでいます。API キーとしては一般的ではありません。"
-  }
+  },
+  "multipleDesc": "複数のキーを一度に追加し、個別に有効・無効を設定できます。すべてのキーでこのプロバイダー設定を共有します。",
+  "entryLabel": "API キー {number}",
+  "enabledLabel": "キー {number} を有効にする",
+  "enabled": "有効",
+  "disabled": "無効",
+  "add": "キーを追加",
+  "remove": "キー {number} を削除",
+  "show": "すべてのキーを表示",
+  "hide": "すべてのキーを隠す",
+  "limit": "一度に最大 {max} 個のキーを追加できます。",
+  "keyRequired": "すべてのキーを入力するか、空の行を削除してください。",
+  "keyTooLong": "キーが長さの上限を超えています。",
+  "duplicateKey": "同じキーは追加できません。",
+  "tooManyKeys": "一度に最大 {max} 個のキーを追加できます。"
 }

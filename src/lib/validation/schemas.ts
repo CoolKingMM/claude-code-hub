@@ -11,6 +11,7 @@ import {
 import { USER_LIMITS } from "@/lib/constants/user.constants";
 import { normalizeCustomHeadersRecord } from "@/lib/custom-headers";
 import { PROVIDER_ALLOWED_MODEL_RULES_SCHEMA } from "@/lib/provider-allowed-model-schema";
+import { validateProviderKeys } from "@/lib/provider-key-batch";
 import { PROVIDER_MODEL_REDIRECT_RULES_SCHEMA } from "@/lib/provider-model-redirect-schema";
 import {
   PROVIDER_OUTPUT_SAFETY_FILTER_RULE_LIMITS,
@@ -27,6 +28,7 @@ import {
   DISCOVERY_SETTINGS_INVALID_ERROR_CODE,
   DISCOVERY_WINDOW_INVALID_ERROR_CODE,
 } from "@/lib/validation/discovery-settings";
+import { ADDITIONAL_PROVIDER_KEYS_SCHEMA } from "@/lib/validation/provider-keys";
 import {
   REPLAY_CACHE_TTL_INVALID_ERROR_CODE,
   REPLAY_CACHE_TTL_MINUTES_MAX,
@@ -515,6 +517,7 @@ export const CreateProviderSchema = z
     name: z.string().min(1, "服务商名称不能为空").max(64, "服务商名称不能超过64个字符"),
     url: z.string().url("请输入有效的URL地址").max(255, "URL长度不能超过255个字符"),
     key: z.string().min(1, "API密钥不能为空").max(PROVIDER_KEY_MAX_LENGTH, "API密钥长度超出限制"),
+    additional_keys: ADDITIONAL_PROVIDER_KEYS_SCHEMA,
     new_api_access_token: PROVIDER_NEW_API_ACCESS_TOKEN_SCHEMA,
     new_api_user_id: PROVIDER_NEW_API_USER_ID_SCHEMA,
     // 数据库字段命名：下划线
@@ -726,6 +729,20 @@ export const CreateProviderSchema = z
     cc: z.number().int().nullable().optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.additional_keys?.length) {
+      const keyError = validateProviderKeys([
+        { key: data.key, is_enabled: data.is_enabled },
+        ...data.additional_keys,
+      ]);
+      if (keyError) {
+        ctx.addIssue({
+          code: "custom",
+          message: `provider.keys.${keyError}`,
+          path: ["additional_keys"],
+        });
+      }
+    }
+
     const maxTokens = data.anthropic_max_tokens_preference;
     const budget = data.anthropic_thinking_budget_preference;
     if (maxTokens && maxTokens !== "inherit" && budget && budget !== "inherit") {

@@ -11,5 +11,19 @@
     "contains_non_ascii": "包含非 ASCII 字符（如中文），通常不是常见 API Key。",
     "contains_whitespace": "包含空白字符（空格/换行），通常不是常见 API Key。",
     "contains_uncommon_ascii": "包含不常见符号，通常不是常见 API Key。"
-  }
+  },
+  "multipleDesc": "一次添加多个密钥，每个密钥可独立开启或关闭，并共用此处的服务商配置。",
+  "entryLabel": "API 密钥 {number}",
+  "enabledLabel": "启用密钥 {number}",
+  "enabled": "已开启",
+  "disabled": "已关闭",
+  "add": "添加密钥",
+  "remove": "移除密钥 {number}",
+  "show": "显示所有密钥",
+  "hide": "隐藏所有密钥",
+  "limit": "每次最多添加 {max} 个密钥。",
+  "keyRequired": "请填写每个密钥，或移除空白行。",
+  "keyTooLong": "密钥长度超出限制。",
+  "duplicateKey": "密钥不能重复。",
+  "tooManyKeys": "每次最多添加 {max} 个密钥。"
 }

@@ -94,6 +94,21 @@ describe("BasicInfoSection base URL guidance", () => {
     document.body.innerHTML = "";
   });
 
+  test("新增表单追加密钥时保存第一行及逐条开关状态", () => {
+    const { container, unmount } = renderWithIntl(<BasicInfoSection />);
+    const add = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Add key"
+    );
+    expect(add).toBeDefined();
+    act(() => add?.click());
+    expect(providerFormContextMock.dispatch.mock.calls).toEqual([
+      [{ type: "SET_KEY", payload: "" }],
+      [{ type: "SET_KEY_IS_ENABLED", payload: true }],
+      [{ type: "SET_ADDITIONAL_KEYS", payload: [{ key: "", is_enabled: true }] }],
+    ]);
+    unmount();
+  });
+
   test("renders inline guidance text and tooltip help for the API address field", () => {
     const urlMessages = enMessages.settings.providers.form.url as {
       description: string;
