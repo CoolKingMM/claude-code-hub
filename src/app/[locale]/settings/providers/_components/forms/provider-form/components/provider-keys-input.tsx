@@ -15,10 +15,12 @@ export function ProviderKeysInput({
   entries,
   onChange,
   disabled = false,
+  primaryInputId,
 }: {
   entries: ProviderKeyEntry[];
   onChange: (entries: ProviderKeyEntry[]) => void;
   disabled?: boolean;
+  primaryInputId?: string;
 }) {
   const t = useTranslations("settings.providers.form.key");
   const id = useId();
@@ -45,7 +47,7 @@ export function ProviderKeysInput({
         </Button>
       </div>
       {entries.map((entry, index) => {
-        const inputId = `${id}-key-${index}`;
+        const inputId = index === 0 && primaryInputId ? primaryInputId : `${id}-key-${index}`;
         const enabledId = `${id}-enabled-${index}`;
         const warnings = detectApiKeyWarnings(entry.key);
         return (

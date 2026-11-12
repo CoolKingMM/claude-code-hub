@@ -8,6 +8,8 @@ export default createCoverageConfig({
     "tests/unit/settings/providers/provider-keys-input.test.tsx",
     "tests/unit/settings/providers/provider-form-base-url-guidance.test.tsx",
     "tests/unit/settings/providers/provider-form-new-api-access.test.ts",
+    "tests/unit/settings/providers/provider-form-endpoint-pool.test.tsx",
+    "tests/unit/settings/providers/provider-form-total-limit-ui.test.tsx",
     "tests/unit/api/v1/provider-schemas-key-length.test.ts",
     "tests/unit/actions/providers.test.ts",
     "tests/unit/repository/provider-create-transaction.test.ts",

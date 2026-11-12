@@ -284,6 +284,7 @@ export function BasicInfoSection({ autoUrlPending, endpointPool }: BasicInfoSect
           >
             {!isEdit ? (
               <ProviderKeysInput
+                primaryInputId="key"
                 entries={[
                   { key: state.basic.key, is_enabled: state.basic.keyIsEnabled ?? true },
                   ...(state.basic.additionalKeys ?? []),
