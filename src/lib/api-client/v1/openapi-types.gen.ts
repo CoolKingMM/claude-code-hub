@@ -4730,7 +4730,7 @@ export interface operations {
                     additional_keys?: {
                         key: string;
                         /** @default true */
-                        is_enabled: boolean;
+                        is_enabled?: boolean;
                     }[];
                     /** @description New API system access token. When set, balance queries read the account balance instead of the key quota. Empty string or null clears it. Write-only. */
                     new_api_access_token?: string | null;

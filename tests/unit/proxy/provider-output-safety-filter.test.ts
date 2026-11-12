@@ -63,9 +63,7 @@ describe("provider output safety filter", () => {
   });
 
   test("supports custom regex rules", () => {
-    const filtered = filterProviderOutputSafetyText("Run custom-danger now.", [
-      String.raw`custom-danger`,
-    ]);
+    const filtered = filterProviderOutputSafetyText("Run custom-danger now.", ["custom-danger"]);
 
     expect(filtered).toBe(`Run ${FILTER_REPLACEMENT} now.`);
   });
