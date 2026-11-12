@@ -13,6 +13,7 @@ export type SpecialSetting =
   | ThinkingBudgetRectifierSpecialSetting
   | ThinkingEffortConflictRectifierSpecialSetting
   | BillingHeaderRectifierSpecialSetting
+  | CodexHistoryFilterSpecialSetting
   | CodexSessionIdCompletionSpecialSetting
   | ClaudeMetadataUserIdInjectionSpecialSetting
   | AnthropicEffortSpecialSetting
@@ -272,6 +273,27 @@ export type BillingHeaderRectifierSpecialSetting = {
   hit: boolean;
   removedCount: number;
   extractedValues: string[];
+};
+
+/**
+ * Codex 历史过滤器审计
+ *
+ * 用于记录：向多上游资源的中转渠道转发 /v1/responses 前，剥离跨资源 item id、
+ * 密文 reasoning/compaction 条目与 web_search_call 历史条目的命中情况。
+ */
+export type CodexHistoryFilterSpecialSetting = {
+  type: "codex_history_filter";
+  scope: "request";
+  hit: boolean;
+  providerId: number | null;
+  providerName: string | null;
+  droppedReasoningItems: number;
+  droppedReferenceItems: number;
+  droppedEncryptedItems: number;
+  strippedItemIds: number;
+  strippedEncryptedContentParts: number;
+  convertedWebSearchItems: number;
+  forcedStoreFalse: boolean;
 };
 
 export type ThinkingBudgetRectifierSpecialSetting = {

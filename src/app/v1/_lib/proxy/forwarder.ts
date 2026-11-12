@@ -96,6 +96,10 @@ import {
   createClientAbortMeteringObserver,
 } from "./client-abort-metering";
 import { deriveClientSafeUpstreamErrorMessage } from "./client-error-message";
+import {
+  filterCodexHistoryForUpstream,
+  isCodexHistoryFilterEnabledFor,
+} from "./codex-history-filter";
 import { combineAbortSignals } from "./combine-abort-signals";
 import { acquireDetachedStreamLease } from "./detached-stream-budget";
 import { type DiscoveryAction, DiscoveryCoordinator } from "./discovery-coordinator";
@@ -3645,6 +3649,43 @@ export class ProxyForwarder {
                 });
               });
             }
+          }
+        }
+
+        // Codex 历史过滤：多上游资源池会因回放旧 item id 返回 400
+        // "The requested item was created under a different ... resource"。
+        // 按 CCH_CODEX_HISTORY_FILTER_PROVIDERS 白名单开启，未命中则完全透传。
+        if (provider.providerType === "codex" && isCodexHistoryFilterEnabledFor(provider)) {
+          const historyFilter = filterCodexHistoryForUpstream(
+            session.request.message as Record<string, unknown>
+          );
+          if (historyFilter.applied) {
+            session.addSpecialSetting({
+              type: "codex_history_filter",
+              scope: "request",
+              hit: true,
+              providerId: provider.id,
+              providerName: provider.name,
+              droppedReasoningItems: historyFilter.droppedReasoningItems,
+              droppedReferenceItems: historyFilter.droppedReferenceItems,
+              droppedEncryptedItems: historyFilter.droppedEncryptedItems,
+              strippedItemIds: historyFilter.strippedItemIds,
+              strippedEncryptedContentParts: historyFilter.strippedEncryptedContentParts,
+              convertedWebSearchItems: historyFilter.convertedWebSearchItems,
+              forcedStoreFalse: historyFilter.forcedStoreFalse,
+            });
+            await persistSpecialSettings(session);
+            logger.info("[ProxyForwarder] Codex history filter applied", {
+              providerId: provider.id,
+              providerName: provider.name,
+              droppedReasoningItems: historyFilter.droppedReasoningItems,
+              droppedReferenceItems: historyFilter.droppedReferenceItems,
+              droppedEncryptedItems: historyFilter.droppedEncryptedItems,
+              strippedItemIds: historyFilter.strippedItemIds,
+              strippedEncryptedContentParts: historyFilter.strippedEncryptedContentParts,
+              convertedWebSearchItems: historyFilter.convertedWebSearchItems,
+              forcedStoreFalse: historyFilter.forcedStoreFalse,
+            });
           }
         }
 
