@@ -1,0 +1,80 @@
+import type { CreateProviderData, Provider } from "@/types/provider";
+import type { ProviderKeyEntry } from "./provider-key-batch";
+
+// 只继承配置，不复制累计用量、重置时间、创建时间等运行状态。
+export function buildAdditionalProviderData(
+  provider: Provider,
+  entries: readonly ProviderKeyEntry[]
+): CreateProviderData[] {
+  const settings: CreateProviderData = {
+    name: provider.name,
+    url: provider.url,
+    key: provider.key,
+    new_api_access_token: provider.newApiAccessToken,
+    new_api_user_id: provider.newApiUserId,
+    is_enabled: provider.isEnabled,
+    weight: provider.weight,
+    priority: provider.priority,
+    group_priorities: provider.groupPriorities,
+    cost_multiplier: provider.costMultiplier,
+    group_tag: provider.groupTag,
+    provider_type: provider.providerType,
+    preserve_client_ip: provider.preserveClientIp,
+    disable_session_reuse: provider.disableSessionReuse,
+    model_redirects: provider.modelRedirects,
+    allowed_models: provider.allowedModels,
+    allowed_clients: provider.allowedClients,
+    blocked_clients: provider.blockedClients,
+    active_time_start: provider.activeTimeStart,
+    active_time_end: provider.activeTimeEnd,
+    mcp_passthrough_type: provider.mcpPassthroughType,
+    mcp_passthrough_url: provider.mcpPassthroughUrl,
+    limit_5h_usd: provider.limit5hUsd,
+    limit_5h_reset_mode: provider.limit5hResetMode,
+    limit_daily_usd: provider.limitDailyUsd,
+    daily_reset_mode: provider.dailyResetMode,
+    daily_reset_time: provider.dailyResetTime,
+    limit_weekly_usd: provider.limitWeeklyUsd,
+    limit_monthly_usd: provider.limitMonthlyUsd,
+    limit_total_usd: provider.limitTotalUsd,
+    limit_concurrent_sessions: provider.limitConcurrentSessions,
+    max_retry_attempts: provider.maxRetryAttempts,
+    circuit_breaker_failure_threshold: provider.circuitBreakerFailureThreshold,
+    circuit_breaker_open_duration: provider.circuitBreakerOpenDuration,
+    circuit_breaker_half_open_success_threshold: provider.circuitBreakerHalfOpenSuccessThreshold,
+    proxy_url: provider.proxyUrl,
+    proxy_fallback_to_direct: provider.proxyFallbackToDirect,
+    custom_headers: provider.customHeaders,
+    first_byte_timeout_streaming_ms: provider.firstByteTimeoutStreamingMs,
+    streaming_idle_timeout_ms: provider.streamingIdleTimeoutMs,
+    request_timeout_non_streaming_ms: provider.requestTimeoutNonStreamingMs,
+    website_url: provider.websiteUrl,
+    favicon_url: provider.faviconUrl,
+    cache_ttl_preference: provider.cacheTtlPreference,
+    swap_cache_ttl_billing: provider.swapCacheTtlBilling,
+    context_1m_preference: provider.context1mPreference,
+    codex_reasoning_effort_preference: provider.codexReasoningEffortPreference,
+    codex_reasoning_summary_preference: provider.codexReasoningSummaryPreference,
+    codex_text_verbosity_preference: provider.codexTextVerbosityPreference,
+    codex_parallel_tool_calls_preference: provider.codexParallelToolCallsPreference,
+    codex_image_generation_preference: provider.codexImageGenerationPreference,
+    codex_service_tier_preference: provider.codexServiceTierPreference,
+    anthropic_max_tokens_preference: provider.anthropicMaxTokensPreference,
+    anthropic_thinking_budget_preference: provider.anthropicThinkingBudgetPreference,
+    anthropic_adaptive_thinking: provider.anthropicAdaptiveThinking,
+    gemini_google_search_preference: provider.geminiGoogleSearchPreference,
+    tpm: provider.tpm,
+    rpm: provider.rpm,
+    rpd: provider.rpd,
+    cc: provider.cc,
+  };
+  return entries.map((entry, index) => {
+    const suffix = `-${index + 2}`;
+    return {
+      ...settings,
+      name: `${provider.name.slice(0, 64 - suffix.length)}${suffix}`,
+      key: entry.key.trim(),
+      is_enabled: entry.is_enabled,
+    };
+  });
+}

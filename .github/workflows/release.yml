@@ -27,6 +27,10 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: release-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-pipeline:
     runs-on: ubuntu-latest
@@ -102,7 +106,9 @@ jobs:
         id: get_version
         run: |
           # 获取最新的tag版本
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          # 从所有已发布 tag 取最大版本，包含不在 main 历史上的发布提交。
+          LATEST_TAG=$(git tag --list 'v[0-9]*' --sort=-version:refname | awk 'NR == 1 { print }')
+          LATEST_TAG=${LATEST_TAG:-v0.0.0}
           echo "Latest tag: $LATEST_TAG"
           TAG_VERSION=${LATEST_TAG#v}
 
@@ -246,7 +252,7 @@ jobs:
         run: |
           NEW_TAG="${{ steps.next_version.outputs.new_tag }}"
           git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
-          git push origin HEAD:main "$NEW_TAG"
+          git push --atomic origin HEAD:main "$NEW_TAG"
 
       - name: Prepare image names
         id: image_names

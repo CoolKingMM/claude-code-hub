@@ -25,5 +25,8 @@
   "keyRequired": "請填寫每個金鑰，或移除空白列。",
   "keyTooLong": "金鑰長度超出限制。",
   "duplicateKey": "金鑰不可重複。",
-  "tooManyKeys": "每次最多新增 {max} 個金鑰。"
+  "tooManyKeys": "每次最多新增 {max} 個金鑰。",
+  "additionalTitle": "新增其他金鑰",
+  "additionalDesc": "原金鑰留空即可保留。新金鑰會使用儲存後的供應商設定，各自可獨立開啟或關閉。",
+  "editSaved": "已儲存設定並新增 {count} 個金鑰"
 }

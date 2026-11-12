@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PROVIDER_KEY_BATCH_MAX } from "@/lib/provider-key-batch";
 import { detectApiKeyWarnings } from "@/lib/utils/validation/api-key-warnings";
 import type { ProviderType } from "@/types/provider";
 import { UrlPreview } from "../../url-preview";
@@ -326,6 +327,19 @@ export function BasicInfoSection({ autoUrlPending, endpointPool }: BasicInfoSect
               </div>
             )}
           </SmartInputWrapper>
+          {isEdit && (
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-sm font-medium">{t("key.additionalTitle")}</p>
+              <p className="text-xs text-muted-foreground">{t("key.additionalDesc")}</p>
+              <ProviderKeysInput
+                entries={state.basic.additionalKeys ?? []}
+                allowEmpty
+                maxEntries={PROVIDER_KEY_BATCH_MAX - 1}
+                onChange={(entries) => dispatch({ type: "SET_ADDITIONAL_KEYS", payload: entries })}
+                disabled={state.ui.isPending}
+              />
+            </div>
+          )}
         </div>
       </SectionCard>
 

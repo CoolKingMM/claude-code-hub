@@ -787,6 +787,7 @@ export const UpdateProviderSchema = z
       .min(1, "API密钥不能为空")
       .max(PROVIDER_KEY_MAX_LENGTH, "API密钥长度超出限制")
       .optional(),
+    additional_keys: ADDITIONAL_PROVIDER_KEYS_SCHEMA,
     new_api_access_token: PROVIDER_NEW_API_ACCESS_TOKEN_SCHEMA,
     new_api_user_id: PROVIDER_NEW_API_USER_ID_SCHEMA,
     is_enabled: z.boolean().optional(),

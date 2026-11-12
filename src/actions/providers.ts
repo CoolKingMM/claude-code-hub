@@ -87,6 +87,7 @@ import {
   updateProvider,
   updateProviderPrioritiesBatch,
   updateProvidersBatch,
+  updateProviderWithKeys,
 } from "@/repository/provider";
 import {
   backfillProviderEndpointsFromProviders,
@@ -779,6 +780,7 @@ export async function editProvider(
     name?: string;
     url?: string;
     key?: string;
+    additional_keys?: Array<{ key: string; is_enabled?: boolean }>;
     new_api_access_token?: string | null;
     new_api_user_id?: number | null;
     is_enabled?: boolean;
@@ -850,7 +852,7 @@ export async function editProvider(
       };
     }
 
-    const validated = UpdateProviderSchema.parse(data);
+    const { additional_keys: additionalKeys, ...validated } = UpdateProviderSchema.parse(data);
 
     // 如果 website_url 被更新，重新生成 favicon URL
     let faviconUrl: string | null | undefined; // undefined 表示不更新
@@ -908,10 +910,39 @@ export async function editProvider(
       preimageFields[providerKey] = currentValue;
     }
 
-    const provider = await updateProvider(providerId, payload);
+    const appended = additionalKeys?.length
+      ? await updateProviderWithKeys(providerId, payload, additionalKeys)
+      : null;
+    const provider = additionalKeys?.length
+      ? appended?.provider
+      : await updateProvider(providerId, payload);
 
     if (!provider) {
       return { ok: false, error: "供应商不存在" };
+    }
+
+    for (const added of appended?.addedProviders ?? []) {
+      try {
+        await saveProviderCircuitConfig(added.id, {
+          failureThreshold: added.circuitBreakerFailureThreshold,
+          openDuration: added.circuitBreakerOpenDuration,
+          halfOpenSuccessThreshold: added.circuitBreakerHalfOpenSuccessThreshold,
+        });
+      } catch (error) {
+        logger.warn("editProvider:added_key_redis_sync_failed", {
+          providerId: added.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      emitActionAudit({
+        category: "provider",
+        action: "provider.create",
+        targetType: "provider",
+        targetId: String(added.id),
+        targetName: added.name,
+        after: { id: added.id, name: added.name, isEnabled: added.isEnabled },
+        success: true,
+      });
     }
 
     // 同步 provider_groups 表（系统级，失败不影响主流程）
@@ -1008,6 +1039,7 @@ export async function editProvider(
       success: true,
       redactExtraKeys: [
         "key",
+        "additional_keys",
         "new_api_access_token",
         "newApiAccessToken",
         "custom_headers",
@@ -1032,7 +1064,13 @@ export async function editProvider(
       success: false,
       errorMessage: "UPDATE_FAILED",
     });
-    return { ok: false, error: message };
+    return {
+      ok: false,
+      error: message,
+      ...(error instanceof Error && error.name === "ProviderKeyAppendError"
+        ? { errorCode: `provider.keys.${message}` }
+        : {}),
+    };
   }
 }
 

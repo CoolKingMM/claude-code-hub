@@ -271,6 +271,49 @@ describe("ProviderForm: endpoint pool integration", () => {
     unmount();
   });
 
+  test("Edit mode appends independently disabled keys without requiring an existing key replacement", async () => {
+    providersActionMocks.editProvider.mockResolvedValueOnce({
+      ok: true,
+      data: { undoToken: "undo", operationId: "edit" },
+    } as never);
+    const { unmount } = renderWithProviders(
+      <ProviderForm mode="edit" provider={makeCloneProvider()} enableMultiProviderTypes />
+    );
+    await flushTicks(3);
+    expect(document.getElementById("edit-key")).not.toBeNull();
+    const add = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent === "Add key"
+    );
+    expect(add).toBeDefined();
+    await act(async () => add?.click());
+    const input = Array.from(document.querySelectorAll('input[type="password"]')).find(
+      (element) => element.id !== "edit-key" && element.id !== "edit-new-api-access-token"
+    ) as HTMLInputElement;
+    expect(input).toBeDefined();
+    await act(async () => {
+      setNativeValue(input, "new-disabled-key");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const toggle = document.querySelector('[aria-label="Enable key 1"]') as HTMLElement;
+    await act(async () => toggle.click());
+    const form = document.querySelector("form");
+    await act(async () =>
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    );
+    await flushTicks(4);
+    expect(providersActionMocks.editProvider).toHaveBeenCalledWith(
+      88,
+      expect.objectContaining({ additional_keys: [{ key: "new-disabled-key", is_enabled: false }] })
+    );
+    const payload = (providersActionMocks.editProvider.mock.calls[0] as unknown[])[1] as Record<
+      string,
+      unknown
+    >;
+    expect(payload).not.toHaveProperty("key");
+    expect(providersActionMocks.addProvider).not.toHaveBeenCalled();
+    unmount();
+  });
+
   test("Clone mode should submit the explicit URL instead of inheriting an existing vendor endpoint pool", async () => {
     providerEndpointsActionMocks.getProviderVendors.mockResolvedValueOnce([
       {

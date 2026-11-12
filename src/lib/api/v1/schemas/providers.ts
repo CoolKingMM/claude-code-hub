@@ -601,6 +601,9 @@ export const ProviderCreateSchema = z
 
 export const ProviderUpdateSchema = ProviderCreateSchema.omit({ key: true, additional_keys: true })
   .extend({
+    additional_keys: ADDITIONAL_PROVIDER_KEYS_SCHEMA.describe(
+      "Additional API keys appended atomically while updating the provider. Each key inherits the saved provider settings and has an independent enabled state. Existing keys are preserved."
+    ),
     key: z
       .string()
       .min(1)

@@ -25,5 +25,8 @@
   "keyRequired": "请填写每个密钥，或移除空白行。",
   "keyTooLong": "密钥长度超出限制。",
   "duplicateKey": "密钥不能重复。",
-  "tooManyKeys": "每次最多添加 {max} 个密钥。"
+  "tooManyKeys": "每次最多添加 {max} 个密钥。",
+  "additionalTitle": "添加其他密钥",
+  "additionalDesc": "原密钥留空即可保留。新密钥将使用保存后的服务商配置，各自可独立开启或关闭。",
+  "editSaved": "已保存设置并添加 {count} 个密钥"
 }

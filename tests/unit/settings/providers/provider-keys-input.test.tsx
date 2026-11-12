@@ -16,9 +16,11 @@ function KeysHarness({
   entries,
   disabled,
   onChange,
+  allowEmpty,
 }: {
   entries: ProviderKeyEntry[];
   disabled?: boolean;
+  allowEmpty?: boolean;
   onChange: (entries: ProviderKeyEntry[]) => void;
 }) {
   const [values, setValues] = useState(entries);
@@ -26,6 +28,7 @@ function KeysHarness({
     <ProviderKeysInput
       entries={values}
       disabled={disabled}
+      allowEmpty={allowEmpty}
       onChange={(next) => {
         onChange(next);
         setValues(next);
@@ -34,7 +37,7 @@ function KeysHarness({
   );
 }
 
-function renderKeys(entries: ProviderKeyEntry[], disabled?: boolean) {
+function renderKeys(entries: ProviderKeyEntry[], disabled?: boolean, allowEmpty?: boolean) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -48,6 +51,7 @@ function renderKeys(entries: ProviderKeyEntry[], disabled?: boolean) {
         <KeysHarness
           entries={entries}
           disabled={disabled}
+          allowEmpty={allowEmpty}
           onChange={(next) => {
             current = next;
           }}
@@ -91,6 +95,17 @@ describe("多密钥输入列表", () => {
       { key: "two", is_enabled: true },
       { key: "", is_enabled: true },
     ]);
+  });
+
+  test("编辑可从空列表追加，也可移除最后一个待添加密钥", () => {
+    const ui = renderKeys([], false, true);
+    const add = Array.from(ui.container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Add key"
+    );
+    click(add ?? null);
+    expect(ui.values()).toEqual([{ key: "", is_enabled: true }]);
+    click(ui.container.querySelector('[aria-label="Remove key 1"]'));
+    expect(ui.values()).toEqual([]);
   });
 
   test("默认隐藏密钥，可统一显示和隐藏，最后一行不可移除", () => {

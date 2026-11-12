@@ -25,5 +25,8 @@
   "keyRequired": "Fill in every key or remove empty rows.",
   "keyTooLong": "The key exceeds the length limit.",
   "duplicateKey": "Keys must be unique.",
-  "tooManyKeys": "Add up to {max} keys at a time."
+  "tooManyKeys": "Add up to {max} keys at a time.",
+  "additionalTitle": "Add more keys",
+  "additionalDesc": "Leave the existing key empty to keep it. New keys inherit the saved provider settings and can be enabled independently.",
+  "editSaved": "Settings saved and {count} keys added"
 }

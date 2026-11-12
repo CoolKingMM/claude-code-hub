@@ -12,11 +12,13 @@ import { BasicInfoSection } from "../../../../src/app/[locale]/settings/provider
 
 const providerFormContextMock = vi.hoisted(() => ({
   dispatch: vi.fn(),
+  mode: "create" as "create" | "edit",
   state: {
     basic: {
       name: "",
       url: "",
       key: "",
+      additionalKeys: [] as Array<{ key: string; is_enabled: boolean }>,
       websiteUrl: "",
     },
     routing: {
@@ -57,7 +59,7 @@ vi.mock(
     useProviderForm: () => ({
       state: providerFormContextMock.state,
       dispatch: providerFormContextMock.dispatch,
-      mode: "create",
+      mode: providerFormContextMock.mode,
       provider: null,
       hideUrl: false,
       hideWebsiteUrl: false,
@@ -91,6 +93,8 @@ function renderWithIntl(node: ReactNode) {
 describe("BasicInfoSection base URL guidance", () => {
   beforeEach(() => {
     providerFormContextMock.dispatch.mockClear();
+    providerFormContextMock.mode = "create";
+    providerFormContextMock.state.basic.additionalKeys = [];
     document.body.innerHTML = "";
   });
 
@@ -107,6 +111,33 @@ describe("BasicInfoSection base URL guidance", () => {
       [{ type: "SET_ADDITIONAL_KEYS", payload: [{ key: "", is_enabled: true }] }],
     ]);
     unmount();
+  });
+
+  test("编辑时保留原密钥输入，并可追加及关闭新密钥", () => {
+    providerFormContextMock.mode = "edit";
+    const ui = renderWithIntl(<BasicInfoSection />);
+    expect(document.getElementById("edit-key")).not.toBeNull();
+    const add = Array.from(ui.container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Add key"
+    );
+    act(() => add?.click());
+    expect(providerFormContextMock.dispatch).toHaveBeenLastCalledWith({
+      type: "SET_ADDITIONAL_KEYS",
+      payload: [{ key: "", is_enabled: true }],
+    });
+    expect(
+      providerFormContextMock.dispatch.mock.calls.some(([event]) => event.type === "SET_KEY")
+    ).toBe(false);
+    ui.unmount();
+    providerFormContextMock.state.basic.additionalKeys = [{ key: "new", is_enabled: true }];
+    const updated = renderWithIntl(<BasicInfoSection />);
+    const toggle = updated.container.querySelector('[aria-label="Enable key 1"]') as HTMLElement;
+    act(() => toggle.click());
+    expect(providerFormContextMock.dispatch).toHaveBeenLastCalledWith({
+      type: "SET_ADDITIONAL_KEYS",
+      payload: [{ key: "new", is_enabled: false }],
+    });
+    updated.unmount();
   });
 
   test("renders inline guidance text and tooltip help for the API address field", () => {

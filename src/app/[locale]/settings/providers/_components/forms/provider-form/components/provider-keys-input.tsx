@@ -16,11 +16,15 @@ export function ProviderKeysInput({
   onChange,
   disabled = false,
   primaryInputId,
+  allowEmpty = false,
+  maxEntries = PROVIDER_KEY_BATCH_MAX,
 }: {
   entries: ProviderKeyEntry[];
   onChange: (entries: ProviderKeyEntry[]) => void;
   disabled?: boolean;
   primaryInputId?: string;
+  allowEmpty?: boolean;
+  maxEntries?: number;
 }) {
   const t = useTranslations("settings.providers.form.key");
   const id = useId();
@@ -69,7 +73,7 @@ export function ProviderKeysInput({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  disabled={disabled || entries.length === 1}
+                  disabled={disabled || (!allowEmpty && entries.length === 1)}
                   aria-label={t("remove", { number: index + 1 })}
                   onClick={() => onChange(entries.filter((_, i) => i !== index))}
                 >
@@ -98,13 +102,13 @@ export function ProviderKeysInput({
         type="button"
         variant="outline"
         size="sm"
-        disabled={disabled || entries.length >= PROVIDER_KEY_BATCH_MAX}
+        disabled={disabled || entries.length >= maxEntries}
         onClick={() => onChange([...entries, { key: "", is_enabled: true }])}
       >
         <Plus className="mr-2 h-4 w-4" />
         {t("add")}
       </Button>
-      <p className="text-xs text-muted-foreground">{t("limit", { max: PROVIDER_KEY_BATCH_MAX })}</p>
+      <p className="text-xs text-muted-foreground">{t("limit", { max: maxEntries })}</p>
     </div>
   );
 }

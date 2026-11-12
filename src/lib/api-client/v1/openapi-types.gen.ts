@@ -5838,6 +5838,12 @@ export interface operations {
                     anthropic_adaptive_thinking?: unknown;
                     /** @description Gemini Google Search preference. */
                     gemini_google_search_preference?: string;
+                    /** @description Additional API keys appended atomically while updating the provider. Each key inherits the saved provider settings and has an independent enabled state. Existing keys are preserved. */
+                    additional_keys?: {
+                        key: string;
+                        /** @default true */
+                        is_enabled?: boolean;
+                    }[];
                     /** @description Provider API key. Write-only. */
                     key?: string;
                 };

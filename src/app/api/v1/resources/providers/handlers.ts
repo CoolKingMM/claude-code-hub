@@ -156,7 +156,10 @@ export async function updateProvider(c: Context): Promise<Response> {
   const existing = await findVisibleProvider(c, id);
   if (existing instanceof Response) return existing;
   if (!existing) return providerNotFound(c);
-  if (body.data.key !== undefined && hasLegacyRedactedWritePlaceholders(body.data.key)) {
+  if (
+    (body.data.key !== undefined && hasLegacyRedactedWritePlaceholders(body.data.key)) ||
+    hasLegacyRedactedWritePlaceholders(body.data.additional_keys)
+  ) {
     return createProblemResponse({
       status: 422,
       instance: new URL(c.req.url).pathname,

@@ -84,8 +84,13 @@ function createDbMock(insertedRow: ProviderRow) {
   const insertValuesMock = vi.fn(() => ({ returning: insertReturningMock }));
   const insertMock = vi.fn(() => ({ values: insertValuesMock }));
 
+  const updateReturningMock = vi.fn(async () => [insertedRow]);
+  const updateMock = vi.fn(() => ({
+    set: vi.fn(() => ({ where: vi.fn(() => ({ returning: updateReturningMock })) })),
+  }));
   const tx = {
     insert: insertMock,
+    update: updateMock,
   };
 
   const transactionMock = vi.fn(async (runInTx: (trx: typeof tx) => Promise<unknown>) => {
@@ -101,11 +106,66 @@ function createDbMock(insertedRow: ProviderRow) {
       insertMock,
       insertValuesMock,
       insertReturningMock,
+      updateReturningMock,
     },
   };
 }
 
 describe("provider repository - createProvider transactional endpoint seeding", () => {
+  test("编辑与追加共享事务，新密钥沿用现有 vendor，保留原密钥", async () => {
+    vi.resetModules();
+    const dbState = createDbMock(
+      createProviderRow({ key: "original", providerVendorId: 11, name: "saved-name" })
+    );
+    vi.doMock("@/drizzle/db", () => ({ db: dbState.db }));
+    const resolveVendor = vi.fn(async () => 22);
+    vi.doMock("@/repository/provider-endpoints", () => ({
+      getOrCreateProviderVendorIdFromUrls: resolveVendor,
+      ensureProviderEndpointExistsForUrl: vi.fn(async () => true),
+      syncProviderEndpointOnProviderEdit: vi.fn(),
+      tryDeleteProviderVendorIfEmpty: vi.fn(),
+    }));
+    const { updateProviderWithKeys } = await import("@/repository/provider");
+    const result = await updateProviderWithKeys(101, { name: "saved-name" }, [
+      { key: "new-key", is_enabled: false },
+    ]);
+    expect(result?.provider.key).toBe("original");
+    expect(dbState.mocks.transactionMock).toHaveBeenCalledTimes(1);
+    expect(dbState.mocks.insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "new-key",
+        isEnabled: false,
+        providerVendorId: 11,
+        name: "saved-name-2",
+      })
+    );
+    expect(resolveVendor).not.toHaveBeenCalled();
+  });
+
+  test("追加重复原密钥或写入失败时拒绝整个更新事务", async () => {
+    vi.resetModules();
+    const dbState = createDbMock(createProviderRow({ key: "original" }));
+    vi.doMock("@/drizzle/db", () => ({ db: dbState.db }));
+    vi.doMock("@/repository/provider-endpoints", () => ({
+      getOrCreateProviderVendorIdFromUrls: vi.fn(async () => 11),
+      ensureProviderEndpointExistsForUrl: vi.fn(async () => true),
+      syncProviderEndpointOnProviderEdit: vi.fn(),
+      tryDeleteProviderVendorIfEmpty: vi.fn(),
+    }));
+    const { updateProviderWithKeys } = await import("@/repository/provider");
+    await expect(
+      updateProviderWithKeys(101, { name: "changed" }, [{ key: "original", is_enabled: true }])
+    ).rejects.toThrow("duplicateKey");
+    expect(dbState.mocks.insertMock).not.toHaveBeenCalled();
+    dbState.mocks.insertReturningMock.mockRejectedValueOnce(new Error("append failed"));
+    await expect(
+      updateProviderWithKeys(101, { name: "changed" }, [{ key: "new", is_enabled: true }])
+    ).rejects.toThrow("append failed");
+    await expect(dbState.mocks.transactionMock.mock.results[1].value).rejects.toThrow(
+      "append failed"
+    );
+  });
+
   test("多个密钥共享单一事务，分别保存启用状态", async () => {
     vi.resetModules();
     const dbState = createDbMock(createProviderRow());

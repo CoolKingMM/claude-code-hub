@@ -280,6 +280,14 @@ function ProviderFormContent({
       if (keyError) return t(`key.${keyError}`, { max: PROVIDER_KEY_BATCH_MAX });
     }
 
+    if (isEdit && state.basic.additionalKeys?.length) {
+      const keys = state.basic.additionalKeys;
+      const keyError = validateProviderKeys(
+        state.basic.key.trim() ? [{ key: state.basic.key, is_enabled: true }, ...keys] : keys
+      );
+      if (keyError) return t(`key.${keyError}`, { max: PROVIDER_KEY_BATCH_MAX - 1 });
+    }
+
     if (mode !== "batch" && parseNewApiUserIdInput(state.basic.newApiUserId) === undefined) {
       return t("errors.invalidNewApiUserId");
     }
@@ -410,6 +418,14 @@ function ProviderFormContent({
           const editFormData = {
             ...baseFormData,
             ...(trimmedKey ? { key: trimmedKey } : {}),
+            ...(state.basic.additionalKeys?.length
+              ? {
+                  additional_keys: state.basic.additionalKeys.map((entry) => ({
+                    ...entry,
+                    key: entry.key.trim(),
+                  })),
+                }
+              : {}),
             ...buildNewApiAccessTokenEditPayload(
               trimmedNewApiAccessToken,
               state.basic.clearNewApiAccessToken
@@ -417,37 +433,48 @@ function ProviderFormContent({
           };
           const res = await editProvider(provider.id, editFormData);
           if (!res.ok) {
-            toast.error(res.error || t("errors.updateFailed"));
+            const keyError = res.errorCode?.startsWith("provider.keys.")
+              ? res.errorCode.slice("provider.keys.".length)
+              : null;
+            toast.error(
+              keyError
+                ? t(`key.${keyError}`, { max: PROVIDER_KEY_BATCH_MAX - 1 })
+                : res.error || t("errors.updateFailed")
+            );
             return;
           }
 
           const undoToken = res.data.undoToken;
           const operationId = res.data.operationId;
 
-          toast.success(tBatchEdit("undo.singleEditSuccess"), {
-            duration: 10000,
-            action: {
-              label: tBatchEdit("undo.button"),
-              onClick: async () => {
-                try {
-                  const undoResult = await undoProviderPatch({ undoToken, operationId });
-                  if (undoResult.ok) {
-                    toast.success(tBatchEdit("undo.singleEditUndone"));
-                    await doInvalidate();
-                  } else if (
-                    undoResult.errorCode === PROVIDER_BATCH_PATCH_ERROR_CODES.UNDO_EXPIRED
-                  ) {
-                    toast.error(tBatchEdit("undo.expired"));
-                  } else {
+          if (state.basic.additionalKeys?.length) {
+            toast.success(t("key.editSaved", { count: state.basic.additionalKeys.length }));
+            dispatch({ type: "SET_ADDITIONAL_KEYS", payload: [] });
+          } else {
+            toast.success(tBatchEdit("undo.singleEditSuccess"), {
+              duration: 10000,
+              action: {
+                label: tBatchEdit("undo.button"),
+                onClick: async () => {
+                  try {
+                    const undoResult = await undoProviderPatch({ undoToken, operationId });
+                    if (undoResult.ok) {
+                      toast.success(tBatchEdit("undo.singleEditUndone"));
+                      await doInvalidate();
+                    } else if (
+                      undoResult.errorCode === PROVIDER_BATCH_PATCH_ERROR_CODES.UNDO_EXPIRED
+                    ) {
+                      toast.error(tBatchEdit("undo.expired"));
+                    } else {
+                      toast.error(tBatchEdit("undo.failed"));
+                    }
+                  } catch {
                     toast.error(tBatchEdit("undo.failed"));
                   }
-                } catch {
-                  toast.error(tBatchEdit("undo.failed"));
-                }
+                },
               },
-            },
-          });
-
+            });
+          }
           void doInvalidate();
         } else {
           // For create: key is required

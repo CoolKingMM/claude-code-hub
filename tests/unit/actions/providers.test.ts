@@ -8,6 +8,7 @@ const getProviderStatisticsMock = vi.fn();
 const createProviderMock = vi.fn();
 const createProvidersMock = vi.fn();
 const updateProviderMock = vi.fn();
+const updateProviderWithKeysMock = vi.fn();
 const deleteProviderMock = vi.fn();
 const updateProviderPrioritiesBatchMock = vi.fn();
 
@@ -38,6 +39,7 @@ vi.mock("@/repository/provider", () => ({
   getProviderStatistics: getProviderStatisticsMock,
   resetProviderTotalCostResetAt: vi.fn(async () => {}),
   updateProvider: updateProviderMock,
+  updateProviderWithKeys: updateProviderWithKeysMock,
   updateProviderPrioritiesBatch: updateProviderPrioritiesBatchMock,
 }));
 
@@ -623,6 +625,47 @@ describe("Provider Actions - Async Optimization", () => {
   // 说明：当前代码实现的函数名为 editProvider/removeProvider。
   // 这里按需求用例命名 describe，但实际调用对应实现以确保测试可编译、可运行。
   describe("updateProvider", () => {
+    it("编辑时新密钥与配置一同保存，原密钥未输入时不被替换", async () => {
+      updateProviderWithKeysMock.mockResolvedValue({
+        provider: { id: 1 },
+        addedProviders: [{ id: 201, name: "p1-2", isEnabled: false }],
+      });
+      const { editProvider } = await import("@/actions/providers");
+      const result = await editProvider(1, {
+        name: "p1-updated",
+        additional_keys: [{ key: " new-key ", is_enabled: false }],
+      });
+      expect(result.ok).toBe(true);
+      expect(updateProviderWithKeysMock).toHaveBeenCalledWith(1, { name: "p1-updated" }, [
+        { key: "new-key", is_enabled: false },
+      ]);
+      expect(updateProviderMock).not.toHaveBeenCalled();
+      expect(saveProviderCircuitConfigMock).toHaveBeenCalledWith(201, expect.any(Object));
+      const audit = emitActionAuditMock.mock.calls.find(
+        ([event]) => event.action === "provider.update"
+      )?.[0];
+      expect(audit.redactExtraKeys).toContain("additional_keys");
+    });
+
+    it("追加失败时不执行单独更新，也不发布成功事件", async () => {
+      const error = new Error("duplicateKey");
+      error.name = "ProviderKeyAppendError";
+      updateProviderWithKeysMock.mockRejectedValue(error);
+      const { editProvider } = await import("@/actions/providers");
+      const result = await editProvider(1, {
+        name: "changed",
+        additional_keys: [{ key: "existing" }],
+      });
+      expect(result).toEqual({
+        ok: false,
+        error: "duplicateKey",
+        errorCode: "provider.keys.duplicateKey",
+      });
+      expect(updateProviderMock).not.toHaveBeenCalled();
+      expect(publishProviderCacheInvalidationMock).not.toHaveBeenCalled();
+      expect(emitActionAuditMock.mock.calls.some(([event]) => event.success)).toBe(false);
+    });
+
     it("should not call revalidatePath", async () => {
       const { editProvider } = await import("@/actions/providers");
       const result = await editProvider(1, { name: "p1-updated" });

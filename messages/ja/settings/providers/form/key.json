@@ -25,5 +25,8 @@
   "keyRequired": "すべてのキーを入力するか、空の行を削除してください。",
   "keyTooLong": "キーが長さの上限を超えています。",
   "duplicateKey": "同じキーは追加できません。",
-  "tooManyKeys": "一度に最大 {max} 個のキーを追加できます。"
+  "tooManyKeys": "一度に最大 {max} 個のキーを追加できます。",
+  "additionalTitle": "追加のキー",
+  "additionalDesc": "既存のキーは空欄で維持されます。新しいキーは保存後のプロバイダー設定を引き継ぎ、個別に有効・無効を設定できます。",
+  "editSaved": "設定を保存し、{count} 個のキーを追加しました"
 }

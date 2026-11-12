@@ -15,6 +15,8 @@ import { PROVIDER_TIMEOUT_DEFAULTS } from "@/lib/constants/provider.constants";
 import { resetEndpointCircuit } from "@/lib/endpoint-circuit-breaker";
 import { logger } from "@/lib/logger";
 import { SENSITIVE_PROVIDER_BATCH_UNDO_KEYS } from "@/lib/provider-batch-patch-error-codes";
+import { type ProviderKeyEntry, validateProviderKeys } from "@/lib/provider-key-batch";
+import { buildAdditionalProviderData } from "@/lib/provider-key-clone";
 import { normalizeProviderModelRedirectRules } from "@/lib/provider-model-redirects";
 import { parseProviderGroups } from "@/lib/utils/provider-group";
 import { resolveSystemTimezone } from "@/lib/utils/timezone";
@@ -198,7 +200,7 @@ async function restoreProviderInTransaction(
   return true;
 }
 
-type ProviderCreateTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type ProviderCreateTransaction = ProviderTransaction;
 
 export async function createProviders(providerData: CreateProviderData[]): Promise<Provider[]> {
   return db.transaction(async (tx) => {
@@ -212,7 +214,7 @@ export async function createProviders(providerData: CreateProviderData[]): Promi
 
 export async function createProvider(
   providerData: CreateProviderData,
-  options?: { tx?: ProviderCreateTransaction }
+  options?: { tx?: ProviderCreateTransaction; providerVendorId?: number | null }
 ): Promise<Provider> {
   const dbData = {
     name: providerData.name,
@@ -289,15 +291,17 @@ export async function createProvider(
   };
 
   const createInTransaction = async (tx: ProviderCreateTransaction): Promise<Provider> => {
-    const providerVendorId = await getOrCreateProviderVendorIdFromUrls(
-      {
-        providerUrl: providerData.url,
-        websiteUrl: providerData.website_url ?? null,
-        faviconUrl: providerData.favicon_url ?? null,
-        displayName: providerData.name,
-      },
-      { tx }
-    );
+    const providerVendorId =
+      options?.providerVendorId ??
+      (await getOrCreateProviderVendorIdFromUrls(
+        {
+          providerUrl: providerData.url,
+          websiteUrl: providerData.website_url ?? null,
+          faviconUrl: providerData.favicon_url ?? null,
+          displayName: providerData.name,
+        },
+        { tx }
+      ));
 
     const [provider] = await tx
       .insert(providers)
@@ -659,9 +663,10 @@ export async function findProviderById(id: number): Promise<Provider | null> {
 
 export async function updateProvider(
   id: number,
-  providerData: UpdateProviderData
+  providerData: UpdateProviderData,
+  options?: { tx: ProviderTransaction; afterCommit: Array<() => Promise<void>> }
 ): Promise<Provider | null> {
-  if (Object.keys(providerData).length === 0) {
+  if (Object.keys(providerData).length === 0 && !options?.tx) {
     return findProviderById(id);
   }
 
@@ -792,7 +797,7 @@ export async function updateProvider(
     providerData.provider_type !== undefined ||
     providerData.is_enabled === true;
 
-  const updateResult = await db.transaction(async (tx) => {
+  const updateInTransaction = async (tx: ProviderTransaction) => {
     let previousVendorId: number | null = null;
     let previousUrl: string | null = null;
     let previousProviderType: Provider["providerType"] | null = null;
@@ -957,37 +962,77 @@ export async function updateProvider(
           : null,
       endpointCircuitResetId,
     };
-  });
+  };
+  const updateResult = options?.tx
+    ? await updateInTransaction(options.tx)
+    : await db.transaction(updateInTransaction);
 
   if (!updateResult) {
     return null;
   }
 
-  if (updateResult.endpointCircuitResetId != null) {
-    try {
-      await resetEndpointCircuit(updateResult.endpointCircuitResetId);
-    } catch (error) {
-      logger.warn("updateProvider:reset_endpoint_circuit_failed", {
-        providerId: updateResult.provider.id,
-        endpointId: updateResult.endpointCircuitResetId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  const afterCommit = async () => {
+    if (updateResult.endpointCircuitResetId != null) {
+      try {
+        await resetEndpointCircuit(updateResult.endpointCircuitResetId);
+      } catch (error) {
+        logger.warn("updateProvider:reset_endpoint_circuit_failed", {
+          providerId: updateResult.provider.id,
+          endpointId: updateResult.endpointCircuitResetId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
-  }
 
-  if (updateResult.previousVendorIdToCleanup) {
-    try {
-      await tryDeleteProviderVendorIfEmpty(updateResult.previousVendorIdToCleanup);
-    } catch (error) {
-      logger.warn("updateProvider:vendor_cleanup_failed", {
-        providerId: updateResult.provider.id,
-        previousVendorId: updateResult.previousVendorIdToCleanup,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    if (updateResult.previousVendorIdToCleanup) {
+      try {
+        await tryDeleteProviderVendorIfEmpty(updateResult.previousVendorIdToCleanup);
+      } catch (error) {
+        logger.warn("updateProvider:vendor_cleanup_failed", {
+          providerId: updateResult.provider.id,
+          previousVendorId: updateResult.previousVendorIdToCleanup,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
-  }
+  };
+  if (options) options.afterCommit.push(afterCommit);
+  else await afterCommit();
 
   return updateResult.provider;
+}
+
+export class ProviderKeyAppendError extends Error {
+  constructor(public readonly code: string) {
+    super(code);
+    this.name = "ProviderKeyAppendError";
+  }
+}
+
+export async function updateProviderWithKeys(
+  id: number,
+  data: UpdateProviderData,
+  entries: ProviderKeyEntry[]
+): Promise<{ provider: Provider; addedProviders: Provider[] } | null> {
+  const afterCommit: Array<() => Promise<void>> = [];
+  const result = await db.transaction(async (tx) => {
+    const provider = await updateProvider(id, data, { tx, afterCommit });
+    if (!provider) return null;
+    const keyError = validateProviderKeys([
+      { key: provider.key, is_enabled: provider.isEnabled },
+      ...entries,
+    ]);
+    if (keyError) throw new ProviderKeyAppendError(keyError);
+    const addedProviders: Provider[] = [];
+    for (const input of buildAdditionalProviderData(provider, entries)) {
+      addedProviders.push(
+        await createProvider(input, { tx, providerVendorId: provider.providerVendorId })
+      );
+    }
+    return { provider, addedProviders };
+  });
+  for (const callback of afterCommit) await callback();
+  return result;
 }
 
 export async function updateProviderPrioritiesBatch(
