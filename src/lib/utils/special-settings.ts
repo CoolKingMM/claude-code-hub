@@ -132,6 +132,19 @@ function buildSettingKey(setting: SpecialSetting): string {
       ]);
     case "billing_header_rectifier":
       return JSON.stringify([setting.type, setting.hit, setting.removedCount]);
+    case "codex_history_filter":
+      return JSON.stringify([
+        setting.type,
+        setting.hit,
+        setting.providerId ?? null,
+        setting.droppedReasoningItems,
+        setting.droppedReferenceItems,
+        setting.droppedEncryptedItems,
+        setting.strippedItemIds,
+        setting.strippedEncryptedContentParts,
+        setting.convertedWebSearchItems,
+        setting.forcedStoreFalse,
+      ]);
     case "gemini_function_id_rectifier":
       return JSON.stringify([
         setting.type,
