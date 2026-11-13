@@ -74,7 +74,7 @@
     "verboseProviderErrorDesc": "开启后，CCH 会在某些上游失败类型下于 `error.details` 返回更详细的诊断信息（例如供应商可用性诊断或脱敏后的上游片段）。",
     "verboseProviderErrorTooltip": "该选项可能暴露供应商名称、内部路由线索、上游失败原因等诊断信息。仅建议在客户端可以查看底层排障上下文时开启。",
     "passThroughUpstreamErrorMessage": "透传上游错误消息",
-    "passThroughUpstreamErrorMessageDesc": "开启后，CCH 会在能提取出安全脱敏后的上游错误消息时替换 `error.message`；否则 `error.message` 回退到通用代理错误。它不会关闭“详细供应商错误信息”控制的 `error.details` 诊断。",
+    "passThroughUpstreamErrorMessageDesc": "将上游业务错误的 HTTP 状态、错误码和脱敏原因返回客户端，例如余额不足、模型套餐不支持、参数错误、限流。DNS、TLS、连接失败、网络超时仍沿用原处理；自定义错误覆写保持优先。",
     "enableHttp2": "启用 HTTP/2",
     "enableHttp2Desc": "启用后，代理请求将优先使用 HTTP/2 协议。如果 HTTP/2 失败，将自动降级到 HTTP/1.1。",
     "enableOpenaiResponsesWebsocket": "启用 OpenAI Responses WebSocket",

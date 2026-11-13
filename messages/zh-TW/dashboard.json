@@ -1339,6 +1339,8 @@
     "expand": "查看 {name} 的各金鑰消耗",
     "page": "第 {current} / {total} 頁，共 {count} 筆",
     "previous": "上一頁",
-    "next": "下一頁"
+    "next": "下一頁",
+    "cacheHitRate": "快取命中率",
+    "cacheHitRateDescription": "快取讀取 Token ÷ 總輸入 Token（一般輸入 + 快取寫入 + 快取讀取），依所選時間範圍的合計計算。"
   }
 }

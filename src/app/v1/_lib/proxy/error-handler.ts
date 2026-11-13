@@ -15,7 +15,11 @@ import { ERROR_CODES, getErrorMessageServer } from "@/lib/utils/error-messages";
 import { sanitizeErrorTextForDetail } from "@/lib/utils/upstream-error-detection";
 import { updateMessageRequestDetailsDurably } from "@/repository/message";
 import type { SystemSettings } from "@/types/system-config";
-import { deriveClientSafeUpstreamErrorMessage } from "./client-error-message";
+import {
+  deriveClientSafeUpstreamErrorMessage,
+  deriveUpstreamBusinessErrorMessage,
+  isUpstreamTransportError,
+} from "./client-error-message";
 import { attachSessionIdToErrorResponse } from "./error-session-id";
 import {
   ALL_PROVIDERS_UNAVAILABLE_MESSAGE,
@@ -143,7 +147,16 @@ export function resolveFinalClientErrorMessage({
   }
 
   if (error instanceof ProxyError) {
+    if (isUpstreamTransportError(error)) return fallback;
     return (
+      (error.upstreamError
+        ? deriveUpstreamBusinessErrorMessage({
+            rawText: error.upstreamError?.rawBody ?? error.upstreamError?.body,
+            candidateMessage: error.upstreamError?.safeClientMessageCandidate ?? error.message,
+            providerName: error.upstreamError?.providerName,
+            statusCode: error.upstreamError?.businessStatusCode ?? error.statusCode,
+          })
+        : null) ??
       deriveClientSafeUpstreamErrorMessage({
         rawText: error.upstreamError?.rawBody,
         candidateMessage:
@@ -151,7 +164,8 @@ export function resolveFinalClientErrorMessage({
           error.upstreamError?.body ??
           error.message,
         providerName: error.upstreamError?.providerName ?? null,
-      }) ?? fallback
+      }) ??
+      fallback
     );
   }
 

@@ -97,7 +97,7 @@ describe("resolveFinalClientErrorMessage", () => {
       override: null,
     });
 
-    expect(message).toBe("Rate limit exceeded for this endpoint");
+    expect(message).toBe("Upstream HTTP 429: Rate limit exceeded for this endpoint");
   });
 
   test.each([
@@ -233,5 +233,42 @@ describe("ProxyErrorHandler.handle client message", () => {
     expect(traceArguments).not.toContain(canary);
     expect(traceArguments).not.toContain("update keys");
     expect(mocks.getCachedSystemSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("response-backed business errors versus network errors", () => {
+  test("retains upstream model and plan reasons after failover without changing the terminal status", () => {
+    const message = resolveFinalClientErrorMessage({
+      error: new ProxyError("所有供应商暂时不可用，请稍后重试", 503, {
+        body: "",
+        businessStatusCode: 403,
+        safeClientMessageCandidate:
+          "Upstream HTTP 403: deepseek-v4.1 is not subscribed to required model plan (model_not_in_plan)",
+      }),
+      currentFallbackMessage: "所有供应商暂时不可用，请稍后重试",
+      settings: { passThroughUpstreamErrorMessage: true },
+    });
+    expect(message).toBe(
+      "Upstream HTTP 403: deepseek-v4.1 is not subscribed to required model plan (model_not_in_plan)"
+    );
+  });
+  test.each(["ECONNRESET", "TLS handshake failed", "socket hang up"])(
+    "keeps %s on the existing generic path",
+    (message) => {
+      const result = resolveFinalClientErrorMessage({
+        error: new ProxyError(message, 502, { body: message }),
+        currentFallbackMessage: message,
+        settings: { passThroughUpstreamErrorMessage: true },
+      });
+      expect(result).toBe("上游服务暂时不可用，请稍后重试");
+    }
+  );
+  test("does not call a locally rejected parameter an upstream response", () => {
+    const result = resolveFinalClientErrorMessage({
+      error: new ProxyError("Invalid request", 400),
+      currentFallbackMessage: "Invalid request",
+      settings: { passThroughUpstreamErrorMessage: true },
+    });
+    expect(result).not.toContain("Upstream HTTP");
   });
 });

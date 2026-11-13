@@ -157,7 +157,7 @@
     "verboseProviderErrorDesc": "When enabled, CCH may return detailed diagnostic information for some upstream failure types in `error.details` (for example provider availability diagnostics or sanitized upstream snippets).",
     "verboseProviderErrorTooltip": "May expose provider names, internal routing clues, upstream failure reasons, and other diagnostic details. Enable only if clients are allowed to see low-level troubleshooting context.",
     "passThroughUpstreamErrorMessage": "Pass Through Upstream Error Message",
-    "passThroughUpstreamErrorMessageDesc": "When enabled, CCH may replace `error.message` with a sanitized upstream error message when a safe one can be derived; otherwise `error.message` falls back to the generic proxy error. It does not disable `error.details` diagnostics controlled by Verbose Provider Error.",
+    "passThroughUpstreamErrorMessageDesc": "Return the upstream HTTP status, error code and sanitized explanation for response-backed business errors such as balance, model plan, invalid parameters or rate limits. DNS, TLS, connection errors and timeouts retain the existing handling. Custom error overrides still take priority.",
     "timezoneLabel": "System Timezone",
     "timezoneDescription": "Set the system timezone for unified backend time boundary calculations and frontend date/time display. Leave empty to use the TZ environment variable or default to UTC.",
     "timezoneAuto": "Auto (use TZ env variable)",

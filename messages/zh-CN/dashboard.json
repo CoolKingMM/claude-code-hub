@@ -1342,6 +1342,8 @@
     "expand": "查看 {name} 的各密钥消耗",
     "page": "第 {current} / {total} 页，共 {count} 条",
     "previous": "上一页",
-    "next": "下一页"
+    "next": "下一页",
+    "cacheHitRate": "缓存命中率",
+    "cacheHitRateDescription": "缓存读取 Token ÷ 总输入 Token（普通输入 + 缓存写入 + 缓存读取），按所选时间范围的合计计算。"
   }
 }

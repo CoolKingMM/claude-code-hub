@@ -22,6 +22,7 @@ import {
   type DashboardUsageQuery,
   USAGE_PERIODS,
   type UsageItem,
+  type UsageMetrics,
 } from "@/types/dashboard-usage";
 
 const scopes = ["channel", "model", "key", "day"] as const;
@@ -31,6 +32,11 @@ const tokenFields = [
   "cacheCreationTokens",
   "cacheReadTokens",
 ] as const;
+
+export function cacheHitRate(metrics: UsageMetrics): string {
+  const totalInput = metrics.inputTokens + metrics.cacheCreationTokens + metrics.cacheReadTokens;
+  return `${(totalInput > 0 ? (metrics.cacheReadTokens / totalInput) * 100 : 0).toFixed(1)}%`;
+}
 
 function useUsage(query: DashboardUsageQuery, enabled = true) {
   return useQuery({
@@ -99,6 +105,9 @@ function UsageRows({
                 ? `${((item.cost / data.summary.cost) * 100).toFixed(1)}%`
                 : "0%"}
             </TableCell>
+            <TableCell className="text-right tabular-nums" title={t("cacheHitRateDescription")}>
+              {cacheHitRate(item)}
+            </TableCell>
             <TableCell className="text-right tabular-nums">
               {item.requests.toLocaleString()}
             </TableCell>
@@ -110,7 +119,7 @@ function UsageRows({
           </TableRow>
           {expanded === item.id && (
             <TableRow>
-              <TableCell colSpan={8} className="bg-muted/30 p-4">
+              <TableCell colSpan={9} className="bg-muted/30 p-4">
                 <ChannelUsage
                   query={{ ...query, scope: "providerKey", channelId: item.id, page: 1 }}
                   currencyCode={currencyCode}
@@ -137,7 +146,7 @@ function UsageTable({
       <TableHeader>
         <TableRow>
           <TableHead>{t(`scopes.${query.scope}`)}</TableHead>
-          {(["cost", "share", "requests", ...tokenFields] as const).map((field) => (
+          {(["cost", "share", "cacheHitRate", "requests", ...tokenFields] as const).map((field) => (
             <TableHead key={field} className="text-right whitespace-nowrap">
               {t(field)}
             </TableHead>
@@ -149,7 +158,7 @@ function UsageTable({
           <UsageRows {...{ data, query, currencyCode, expanded, onExpand }} />
         ) : (
           <TableRow>
-            <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+            <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
               {t("empty")}
             </TableCell>
           </TableRow>
@@ -323,14 +332,20 @@ export function DashboardUsage({ currencyCode }: { currencyCode: CurrencyCode })
           <p className="text-xs text-muted-foreground">
             {t("timezone", { timezone: data.timezone })}
           </p>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-            {(["cost", "requests", ...tokenFields] as const).map((field) => (
-              <div key={field} className="rounded-lg bg-muted/40 p-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+            {(["cost", "cacheHitRate", "requests", ...tokenFields] as const).map((field) => (
+              <div
+                key={field}
+                className="rounded-lg bg-muted/40 p-3"
+                title={field === "cacheHitRate" ? t("cacheHitRateDescription") : undefined}
+              >
                 <p className="text-xs text-muted-foreground">{t(field)}</p>
                 <p className="mt-1 font-semibold tabular-nums">
-                  {field === "cost"
-                    ? formatCurrency(data.summary.cost, currencyCode)
-                    : data.summary[field].toLocaleString()}
+                  {field === "cacheHitRate"
+                    ? cacheHitRate(data.summary)
+                    : field === "cost"
+                      ? formatCurrency(data.summary.cost, currencyCode)
+                      : data.summary[field].toLocaleString()}
                 </p>
               </div>
             ))}

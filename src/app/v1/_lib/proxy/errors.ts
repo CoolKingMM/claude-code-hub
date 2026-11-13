@@ -72,6 +72,8 @@ export class ProxyError extends Error {
        * 仅供标准客户端错误响应在系统开关允许时使用，不进入详细日志/规则匹配。
        */
       safeClientMessageCandidate?: string;
+      /** Original HTTP status retained only for a final business-error message after failover. */
+      businessStatusCode?: number;
     },
     isLocalAbort: boolean = false
   ) {

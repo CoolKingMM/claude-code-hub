@@ -95,7 +95,11 @@ import {
   CLIENT_ABORT_METER_MAX_RETAINED_BYTES,
   createClientAbortMeteringObserver,
 } from "./client-abort-metering";
-import { deriveClientSafeUpstreamErrorMessage } from "./client-error-message";
+import {
+  deriveClientSafeUpstreamErrorMessage,
+  deriveUpstreamBusinessErrorMessage,
+  isUpstreamTransportError,
+} from "./client-error-message";
 import {
   filterCodexHistoryForUpstream,
   isCodexHistoryFilterEnabledFor,
@@ -9290,22 +9294,34 @@ export class ProxyForwarder {
   private static buildAllProvidersUnavailableError(finalError?: Error | null): ProxyError {
     const safeClientMessageCandidate =
       finalError instanceof ProxyError &&
+      !isUpstreamTransportError(finalError) &&
       (finalError.upstreamError?.rawBody ||
         finalError.upstreamError?.safeClientMessageCandidate ||
         finalError.upstreamError?.body)
-        ? (deriveClientSafeUpstreamErrorMessage({
+        ? (deriveUpstreamBusinessErrorMessage({
+            rawText: finalError.upstreamError?.rawBody ?? finalError.upstreamError?.body,
+            candidateMessage: finalError.message,
+            providerName: finalError.upstreamError?.providerName,
+            statusCode: finalError.statusCode,
+          }) ??
+          deriveClientSafeUpstreamErrorMessage({
             rawText: finalError.upstreamError?.rawBody ?? finalError.upstreamError?.body,
             candidateMessage:
               finalError.upstreamError?.safeClientMessageCandidate ??
               finalError.upstreamError?.body ??
               finalError.message,
             providerName: finalError.upstreamError?.providerName ?? null,
-          }) ?? undefined)
+          }) ??
+          undefined)
         : undefined;
 
     return new ProxyError(ALL_PROVIDERS_UNAVAILABLE_MESSAGE, 503, {
       body: "",
       safeClientMessageCandidate,
+      businessStatusCode:
+        safeClientMessageCandidate?.startsWith("Upstream HTTP") && finalError instanceof ProxyError
+          ? finalError.statusCode
+          : undefined,
     });
   }
 

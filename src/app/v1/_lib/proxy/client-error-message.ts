@@ -195,3 +195,103 @@ export function deriveClientSafeUpstreamErrorMessage(
 
   return null;
 }
+
+const TRANSPORT_ERROR_RE =
+  /\b(?:ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EPIPE|UND_ERR_[A-Z_]+|ERR_(?:TLS|SSL)_[A-Z_]+|fetch failed|socket hang up|network error|connection (?:reset|refused|closed|timed out)|(?:connect|connection|read|headers|body|gateway|upstream|request) timeout|timed out|certificate (?:expired|invalid)|SSL handshake|TLS handshake)\b/i;
+const BUSINESS_ERROR_RE =
+  /(?:insufficient|balance|credit|quota|billing|payment|subscription|subscribed|plan|rate.?limit|too many requests|invalid.?request|invalid.?argument|invalid.?parameter|invalid.?api.?key|context.?length|not.?supported|not.?found|not.?allowed|permission|access.?denied|余额|额度|套餐|订阅|充值|限流|参数|鉴权|权限|不支持)/i;
+
+/** Only response-backed business errors opt into richer diagnostics; transport errors keep defaults. */
+export function isUpstreamTransportError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const value = error as {
+    isLocalAbort?: boolean;
+    statusCode?: number;
+    message?: string;
+    cause?: unknown;
+    upstreamError?: { body?: string; rawBody?: string };
+  };
+  return (
+    value.isLocalAbort === true ||
+    value.statusCode === 408 ||
+    value.statusCode === 504 ||
+    value.statusCode === 524 ||
+    TRANSPORT_ERROR_RE.test(
+      `${value.message ?? ""} ${value.upstreamError?.rawBody ?? value.upstreamError?.body ?? ""}`.slice(
+        0,
+        8192
+      )
+    ) ||
+    (value.cause !== error && isUpstreamTransportError(value.cause))
+  );
+}
+
+export function deriveUpstreamBusinessErrorMessage(
+  input: DeriveClientSafeUpstreamErrorMessageInput & { statusCode: number }
+): string | null {
+  if (
+    input.statusCode < 400 ||
+    input.statusCode > 599 ||
+    isUpstreamTransportError({
+      statusCode: input.statusCode,
+      message: input.candidateMessage,
+      upstreamError: { body: input.rawText },
+    })
+  )
+    return null;
+  const raw = input.rawText?.slice(0, 64 * 1024).trim() ?? "";
+  if (/^(?:<!doctype|<html|<head|<body)/i.test(raw)) return null;
+  let message: string | null = null;
+  let code: string | null = null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      const object = parsed as Record<string, unknown>;
+      const error = object.error ?? object;
+      if (typeof error === "string") message = error;
+      else if (error && typeof error === "object") {
+        const detail = error as Record<string, unknown>;
+        if (typeof detail.message === "string") message = detail.message;
+        if (typeof detail.code === "string") code = detail.code;
+        else if (typeof detail.type === "string") code = detail.type;
+        // Relays sometimes nest the actual provider business error.
+        const nested = detail.upstream_error;
+        if (!message && nested && typeof nested === "object") {
+          const nestedObject = nested as Record<string, unknown>;
+          const nestedError = (nestedObject.error ?? nestedObject) as Record<string, unknown>;
+          if (typeof nestedError.message === "string") message = nestedError.message;
+        }
+      }
+    }
+  } catch {
+    /* Plain-text and SSE errors use the existing bounded extractor. */
+  }
+  message ??= deriveCandidateFromRawText(raw) ?? input.candidateMessage?.trim() ?? null;
+  message = message?.replace(/^Upstream HTTP \d{3}:\s*/, "") ?? null;
+  if (!message || INTERNAL_ONLY_RE.test(message) || containsRawJsonBlob(message)) return null;
+  // Structured 4xx errors are useful by themselves. 5xx and plain text require a business signal.
+  if (
+    !BUSINESS_ERROR_RE.test(`${code ?? ""} ${message}`) &&
+    !(raw.startsWith("{") && input.statusCode < 500)
+  )
+    return null;
+  let safe = sanitizeErrorTextForDetail(message.slice(0, 4096))
+    .replace(URL_RE, " ")
+    .replace(DOMAIN_RE, " ")
+    .replace(HOSTLIKE_RE, " ")
+    .replace(IPV4_RE, " ")
+    .replace(IPV6_RE, " ")
+    .replace(REQUEST_ID_RE, " ")
+    .replace(REQUEST_ID_TOKEN_RE, " ")
+    .replace(KEY_VALUE_RE, " ")
+    .replace(/\b(?:sk|rk|pk)-[A-Za-z0-9_-]{8,}\b/giu, "[REDACTED_KEY]")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (input.providerName)
+    safe = safe.replace(new RegExp(escapeRegExp(input.providerName), "giu"), "upstream");
+  if (!safe || containsRawJsonBlob(safe) || isUpstreamTransportError({ message: safe }))
+    return null;
+  if (code && /^[A-Za-z][A-Za-z0-9_.-]{1,79}$/.test(code) && !safe.includes(code))
+    safe += ` (${code})`;
+  return `Upstream HTTP ${input.statusCode}: ${safe.slice(0, 1000)}`;
+}

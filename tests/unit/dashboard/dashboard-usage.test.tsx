@@ -5,7 +5,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import dashboard from "../../../messages/en/dashboard.json";
-import { DashboardUsage } from "@/app/[locale]/dashboard/_components/dashboard-usage";
+import { cacheHitRate, DashboardUsage } from "@/app/[locale]/dashboard/_components/dashboard-usage";
 import type { DashboardUsageData, DashboardUsageQuery } from "@/types/dashboard-usage";
 
 const fetchUsage = vi.hoisted(() => vi.fn());
@@ -87,12 +87,22 @@ async function enter(container: HTMLElement, id: string, value: string) {
 }
 const t = dashboard.usage;
 describe("dashboard usage controls", () => {
+  test("cache hit rate uses the combined input buckets and handles empty input", () => {
+    expect(cacheHitRate(metrics)).toBe("29.4%");
+    expect(
+      cacheHitRate({ ...metrics, inputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 })
+    ).toBe("0.0%");
+    expect(
+      cacheHitRate({ ...metrics, inputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 100 })
+    ).toBe("100.0%");
+  });
   test("loads only today's channels and recorded totals", async () => {
     const c = await render();
     expect(fetchUsage).toHaveBeenCalledOnce();
     expect(fetchUsage.mock.lastCall?.[0]).toEqual({ period: "today", scope: "channel", page: 1 });
     expect(c.textContent).toContain("$4.00");
     expect(c.textContent).toContain("100.0%");
+    expect(c.textContent).toContain("29.4%");
     expect(c.textContent).toContain("Asia/Shanghai");
     expect(c.querySelector('button[aria-expanded="false"]')).toBeTruthy();
   });

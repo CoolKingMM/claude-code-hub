@@ -1342,6 +1342,8 @@
     "expand": "View credential costs for {name}",
     "page": "Page {current} of {total}, {count} items",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "cacheHitRate": "Cache hit rate",
+    "cacheHitRateDescription": "Cache read tokens divided by all input tokens (uncached input + cache creation + cache read). Calculated from totals for the selected range."
   }
 }

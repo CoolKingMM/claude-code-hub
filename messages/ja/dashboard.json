@@ -1335,6 +1335,8 @@
     "expand": "{name} のキー別料金を表示",
     "page": "{current} / {total} ページ、全 {count} 件",
     "previous": "前へ",
-    "next": "次へ"
+    "next": "次へ",
+    "cacheHitRate": "キャッシュヒット率",
+    "cacheHitRateDescription": "キャッシュ読み取りトークン ÷ 全入力トークン（通常入力 + キャッシュ書き込み + キャッシュ読み取り）。選択期間の合計から計算します。"
   }
 }
