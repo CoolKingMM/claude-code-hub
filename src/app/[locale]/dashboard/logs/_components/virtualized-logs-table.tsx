@@ -1345,7 +1345,6 @@ export function VirtualizedLogsTable({
                           errorMessage={log.errorMessage}
                           providerChain={log.providerChain}
                           routingTrace={log.routingTrace}
-                          channelName={log.providerName}
                           sessionId={log.sessionId}
                           sourceSessionId={log.sourceSessionId}
                           sessionIdentityKind={log.sessionIdentityKind}

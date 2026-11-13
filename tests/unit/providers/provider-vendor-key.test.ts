@@ -21,7 +21,7 @@ describe("group-first vendor identity", () => {
     ).toBe(
       await computeVendorKey({ providerUrl: "https://same.example/v1", groupTag: "vip,codex" })
     );
-    expect(await computeVendorKey({ providerUrl: "invalid", groupTag: "claude" })).toBeNull();
+    expect(await computeVendorKey({ providerUrl: "https://[", groupTag: "claude" })).toBeNull();
   });
   test("empty and default groups stay equivalent and long keys fit the database", () => {
     expect(scopeProviderVendorKey("example:443", null)).toBe("example:443");
