@@ -18,6 +18,7 @@ import { normalizeRoutingTrace, type RoutingTraceV1 } from "@/types/routing-trac
 import type { SpecialSetting } from "@/types/special-settings";
 import { escapeLike } from "./_shared/like";
 import { EXCLUDE_WARMUP_CONDITION } from "./_shared/message-request-conditions";
+import { providerChannelName } from "./_shared/provider-channel-name";
 import {
   buildActualResponseModelMismatchCondition,
   buildDefaultHiddenUsageLogEndpointCondition,
@@ -382,7 +383,7 @@ export async function findUsageLogsBatch(
       requestSequence: messageRequest.requestSequence,
       userName: users.name,
       keyName: keysTable.name,
-      providerName: providers.name,
+      providerName: providerChannelName,
       model: messageRequest.model,
       originalModel: messageRequest.originalModel,
       actualResponseModel: messageRequest.actualResponseModel,
@@ -595,7 +596,7 @@ export async function findUsageLogsBatch(
       userName: users.name,
       key: usageLedger.key,
       keyName: keysTable.name,
-      providerName: providers.name,
+      providerName: providerChannelName,
       model: usageLedger.model,
       originalModel: usageLedger.originalModel,
       actualResponseModel: usageLedger.actualResponseModel,
@@ -1466,7 +1467,7 @@ export async function findReadonlyUsageLogsBatchForKey(
         requestSequence: messageRequest.requestSequence,
         userName: users.name,
         keyName: keysTable.name,
-        providerName: providers.name,
+        providerName: providerChannelName,
         model: messageRequest.model,
         originalModel: messageRequest.originalModel,
         actualResponseModel: messageRequest.actualResponseModel,
@@ -1524,7 +1525,7 @@ export async function findReadonlyUsageLogsBatchForKey(
             userName: users.name,
             key: usageLedger.key,
             keyName: keysTable.name,
-            providerName: providers.name,
+            providerName: providerChannelName,
             model: usageLedger.model,
             originalModel: usageLedger.originalModel,
             actualResponseModel: usageLedger.actualResponseModel,
@@ -1742,7 +1743,7 @@ export async function findUsageLogsWithDetails(
       requestSequence: messageRequest.requestSequence, // Request Sequence
       userName: users.name,
       keyName: keysTable.name,
-      providerName: providers.name, // 被拦截的请求为 null
+      providerName: providerChannelName, // 被拦截的请求为 null
       model: messageRequest.model,
       originalModel: messageRequest.originalModel, // 原始模型（重定向前）
       actualResponseModel: messageRequest.actualResponseModel, // 实际响应模型（audit）

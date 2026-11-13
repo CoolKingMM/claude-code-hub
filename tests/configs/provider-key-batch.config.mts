@@ -5,6 +5,9 @@ export default createCoverageConfig({
   environment: "happy-dom",
   testFiles: [
     "tests/unit/providers/provider-vendor-groups.test.ts",
+    "tests/unit/providers/provider-vendor-key.test.ts",
+    "tests/unit/repository/provider-vendor-group-sync.test.ts",
+    "tests/unit/repository/provider-endpoints-vendor-key.test.ts",
     "tests/unit/settings/providers/provider-manager.test.tsx",
     "tests/unit/settings/providers/provider-list-vendor-groups.test.tsx",
     "tests/unit/settings/providers/existing-provider-keys.test.tsx",
@@ -30,6 +33,7 @@ export default createCoverageConfig({
   ],
   sourceFiles: [
     "src/lib/provider-vendor-groups.ts",
+    "src/lib/provider-vendor-key.ts",
     "src/app/[locale]/settings/providers/_components/provider-list.tsx",
     "src/app/[locale]/settings/providers/_components/forms/provider-form/components/existing-provider-keys.tsx",
     "src/app/[locale]/settings/special-handling/_components/provider-channel-picker.tsx",

@@ -14,6 +14,7 @@ import {
   PROVIDER_ENDPOINT_CONFLICT_CODE,
   PROVIDER_ENDPOINT_WRITE_READ_INCONSISTENCY_CODE,
 } from "@/lib/provider-endpoint-error-codes";
+import { scopeProviderVendorKey } from "@/lib/provider-vendor-key";
 import type {
   ProviderEndpoint,
   ProviderEndpointProbeLog,
@@ -168,16 +169,13 @@ function normalizeHostWithPort(rawUrl: string): string | null {
 export async function computeVendorKey(input: {
   providerUrl: string;
   websiteUrl?: string | null;
+  groupTag?: string | null;
 }): Promise<string | null> {
   const { providerUrl, websiteUrl } = input;
-
-  // Case 1: websiteUrl is non-empty - use hostname only (existing behavior)
-  if (websiteUrl?.trim()) {
-    return normalizeWebsiteDomainKeyFromUrl(websiteUrl);
-  }
-
-  // Case 2: websiteUrl is empty - use host:port as key
-  return normalizeHostWithPort(providerUrl);
+  const baseKey = websiteUrl?.trim()
+    ? normalizeWebsiteDomainKeyFromUrl(websiteUrl)
+    : normalizeHostWithPort(providerUrl);
+  return baseKey ? scopeProviderVendorKey(baseKey, input.groupTag) : null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -424,6 +422,7 @@ export async function getOrCreateProviderVendorIdFromUrls(
   input: {
     providerUrl: string;
     websiteUrl?: string | null;
+    groupTag?: string | null;
     faviconUrl?: string | null;
     displayName?: string | null;
   },
@@ -435,6 +434,7 @@ export async function getOrCreateProviderVendorIdFromUrls(
   const websiteDomain = await computeVendorKey({
     providerUrl: input.providerUrl,
     websiteUrl: input.websiteUrl,
+    groupTag: input.groupTag,
   });
   if (!websiteDomain) {
     throw new Error("Failed to resolve provider vendor domain");
@@ -501,6 +501,70 @@ export async function getOrCreateProviderVendorIdFromUrls(
   return fallback[0].id;
 }
 
+/** Preserve the configured pool when a group change creates an independent vendor. */
+export async function copyProviderEndpointPool(
+  previousVendorId: number,
+  vendorId: number,
+  providerType: ProviderType,
+  tx: QueryExecutor
+): Promise<void> {
+  if (previousVendorId === vendorId) return;
+  await tx.execute(sql`
+    INSERT INTO provider_endpoints
+      (vendor_id, provider_type, url, label, sort_order, is_enabled,
+       last_probed_at, last_probe_ok, last_probe_status_code, last_probe_latency_ms,
+       last_probe_error_type, last_probe_error_message)
+    SELECT ${vendorId}, provider_type, url, label, sort_order, is_enabled,
+      last_probed_at, last_probe_ok, last_probe_status_code, last_probe_latency_ms,
+      last_probe_error_type, last_probe_error_message
+    FROM provider_endpoints WHERE vendor_id = ${previousVendorId}
+      AND provider_type = ${providerType} AND deleted_at IS NULL
+    ON CONFLICT (vendor_id, provider_type, url) WHERE deleted_at IS NULL DO NOTHING
+  `);
+}
+
+/** Batch edits and undo must respect the same group identity as individual edits. */
+export async function syncProviderVendorsForGroupChange(
+  providerIds: number[],
+  tx: QueryExecutor
+): Promise<void> {
+  const rows = await tx
+    .select({
+      id: providers.id,
+      url: providers.url,
+      websiteUrl: providers.websiteUrl,
+      faviconUrl: providers.faviconUrl,
+      name: providers.name,
+      groupTag: providers.groupTag,
+      vendorId: providers.providerVendorId,
+      providerType: providers.providerType,
+    })
+    .from(providers)
+    .where(and(inArray(providers.id, providerIds), isNull(providers.deletedAt)));
+  for (const row of rows) {
+    const vendorId = await getOrCreateProviderVendorIdFromUrls(
+      {
+        providerUrl: row.url,
+        websiteUrl: row.websiteUrl,
+        groupTag: row.groupTag,
+        displayName: row.name,
+        faviconUrl: row.faviconUrl,
+      },
+      { tx }
+    );
+    if (row.vendorId === vendorId) continue;
+    if (row.vendorId) await copyProviderEndpointPool(row.vendorId, vendorId, row.providerType, tx);
+    await tx
+      .update(providers)
+      .set({ providerVendorId: vendorId, updatedAt: new Date() })
+      .where(eq(providers.id, row.id));
+    await ensureProviderEndpointExistsForUrl(
+      { vendorId, providerType: row.providerType, url: row.url },
+      { tx }
+    );
+  }
+}
+
 /**
  * 从域名派生显示名称（直接使用域名的中间部分）
  * 例如: anthropic.com -> Anthropic, api.openai.com -> OpenAI
@@ -558,6 +622,7 @@ export async function backfillProviderVendorsFromProviders(): Promise<{
         websiteUrl: providers.websiteUrl,
         faviconUrl: providers.faviconUrl,
         providerVendorId: providers.providerVendorId,
+        groupTag: providers.groupTag,
       })
       .from(providers)
       .where(
@@ -579,6 +644,7 @@ export async function backfillProviderVendorsFromProviders(): Promise<{
       const vendorKey = await computeVendorKey({
         providerUrl: row.url,
         websiteUrl: row.websiteUrl,
+        groupTag: row.groupTag,
       });
 
       if (!vendorKey) {
@@ -593,11 +659,15 @@ export async function backfillProviderVendorsFromProviders(): Promise<{
 
       try {
         // For displayName, extract domain part (remove port if present)
-        const domainForDisplayName = vendorKey.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+        const domainForDisplayName = vendorKey
+          .split("#group=")[0]
+          .replace(/:\d+$/, "")
+          .replace(/^\[|\]$/g, "");
         const displayName = await deriveDisplayNameFromDomain(domainForDisplayName);
         const vendorId = await getOrCreateProviderVendorIdFromUrls({
           providerUrl: row.url,
           websiteUrl: row.websiteUrl ?? null,
+          groupTag: row.groupTag,
           faviconUrl: row.faviconUrl ?? null,
           displayName,
         });

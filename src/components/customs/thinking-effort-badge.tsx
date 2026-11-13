@@ -9,11 +9,11 @@ const THINKING_EFFORT_BADGE_STYLES: Record<string, string> = {
   low: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
   medium:
     "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
-  high: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300",
+  high: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300",
   // xhigh 介于 high 与 max 之间，需要独立样式以维持强度等级的视觉顺序。
   xhigh:
-    "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300",
-  max: "border-red-300 bg-red-100 text-red-800 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200",
+    "border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-300",
+  max: "border-purple-300 bg-purple-100 text-purple-800 dark:border-purple-700 dark:bg-purple-950/40 dark:text-purple-200",
 };
 
 const DEFAULT_BADGE_STYLE =

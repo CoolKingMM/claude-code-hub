@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/repository/provider-endpoints", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/repository/provider-endpoints")>();
+  return { ...actual, syncProviderVendorsForGroupChange: vi.fn(async () => {}) };
+});
+
 const transactionMock = vi.fn();
 const selectMock = vi.fn();
 const updateMock = vi.fn();

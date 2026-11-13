@@ -45,6 +45,7 @@ interface ProviderChainPopoverProps {
   /** Whether a cost badge is displayed, affects name max width */
   hasCostBadge?: boolean;
   /** Callback when a chain item is clicked in the popover */
+  channelName?: string | null;
   onChainItemClick?: (chainIndex: number) => void;
 }
 
@@ -306,6 +307,7 @@ export function ProviderChainPopover({
   chain,
   routingTrace,
   finalProvider,
+  channelName,
   hasCostBadge = false,
   onChainItemClick,
 }: ProviderChainPopoverProps) {
@@ -342,7 +344,7 @@ export function ProviderChainPopover({
       displayName,
       winnerOrigin
     );
-    const triggerProviderName = discoveryFinalProvider ?? displayName;
+    const triggerProviderName = channelName || discoveryFinalProvider || displayName;
     const terminal = getDiscoveryTerminal(normalizedRoutingTrace);
     const terminalPresentation =
       terminal.outcome === "success"

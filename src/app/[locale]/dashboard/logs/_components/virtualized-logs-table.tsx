@@ -1027,9 +1027,10 @@ export function VirtualizedLogsTable({
                                       <ProviderChainPopover
                                         chain={log.providerChain ?? []}
                                         routingTrace={log.routingTrace}
+                                        channelName={log.providerName}
                                         finalProvider={
-                                          getFinalProviderName(log.providerChain ?? []) ||
                                           log.providerName ||
+                                          getFinalProviderName(log.providerChain ?? []) ||
                                           tChain("circuit.unknown")
                                         }
                                         hasCostBadge={hasCostBadge}
@@ -1344,6 +1345,7 @@ export function VirtualizedLogsTable({
                           errorMessage={log.errorMessage}
                           providerChain={log.providerChain}
                           routingTrace={log.routingTrace}
+                          channelName={log.providerName}
                           sessionId={log.sessionId}
                           sourceSessionId={log.sourceSessionId}
                           sessionIdentityKind={log.sessionIdentityKind}

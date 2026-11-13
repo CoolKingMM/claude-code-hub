@@ -30,9 +30,11 @@ import type {
 } from "@/types/provider";
 import { toProvider } from "./_shared/transformers";
 import {
+  copyProviderEndpointPool,
   ensureProviderEndpointExistsForUrl,
   getOrCreateProviderVendorIdFromUrls,
   syncProviderEndpointOnProviderEdit,
+  syncProviderVendorsForGroupChange,
   tryDeleteProviderVendorIfEmpty,
 } from "./provider-endpoints";
 
@@ -299,6 +301,7 @@ export async function createProvider(
           websiteUrl: providerData.website_url ?? null,
           faviconUrl: providerData.favicon_url ?? null,
           displayName: providerData.name,
+          groupTag: providerData.group_tag,
         },
         { tx }
       ));
@@ -791,7 +794,9 @@ export async function updateProvider(
   if (providerData.cc !== undefined) dbData.cc = providerData.cc;
 
   const shouldRefreshVendor =
-    providerData.url !== undefined || providerData.website_url !== undefined;
+    providerData.url !== undefined ||
+    providerData.website_url !== undefined ||
+    providerData.group_tag !== undefined;
   const shouldSyncEndpoint =
     shouldRefreshVendor ||
     providerData.provider_type !== undefined ||
@@ -814,6 +819,7 @@ export async function updateProvider(
           providerVendorId: providers.providerVendorId,
           providerType: providers.providerType,
           isEnabled: providers.isEnabled,
+          groupTag: providers.groupTag,
         })
         .from(providers)
         .where(and(eq(providers.id, id), isNull(providers.deletedAt)))
@@ -832,10 +838,26 @@ export async function updateProvider(
               websiteUrl: providerData.website_url ?? current.websiteUrl,
               faviconUrl: providerData.favicon_url ?? current.faviconUrl,
               displayName: providerData.name ?? current.name,
+              groupTag:
+                providerData.group_tag !== undefined ? providerData.group_tag : current.groupTag,
             },
             { tx }
           );
           dbData.providerVendorId = providerVendorId;
+          if (
+            providerData.group_tag !== undefined &&
+            current.providerVendorId &&
+            (providerData.url ?? current.url) === current.url &&
+            (providerData.website_url ?? current.websiteUrl) === current.websiteUrl &&
+            (providerData.provider_type ?? current.providerType) === current.providerType
+          ) {
+            await copyProviderEndpointPool(
+              current.providerVendorId,
+              providerVendorId,
+              providerData.provider_type ?? current.providerType,
+              tx
+            );
+          }
         }
       }
     }
@@ -1465,16 +1487,35 @@ export async function updateProvidersBatch(
     return 0;
   }
 
-  const result = await db
-    .update(providers)
-    .set(setClauses)
-    .where(and(inArray(providers.id, uniqueIds), isNull(providers.deletedAt)))
-    .returning({
-      id: providers.id,
-      providerVendorId: providers.providerVendorId,
-      providerType: providers.providerType,
-      url: providers.url,
-    });
+  const executor = async (
+    tx: Pick<ProviderTransaction, "select" | "insert" | "update" | "delete" | "execute">
+  ) => {
+    const result = await tx
+      .update(providers)
+      .set(setClauses)
+      .where(and(inArray(providers.id, uniqueIds), isNull(providers.deletedAt)))
+      .returning({
+        id: providers.id,
+        providerVendorId: providers.providerVendorId,
+        providerType: providers.providerType,
+        url: providers.url,
+      });
+    if (updates.groupTag !== undefined) {
+      await syncProviderVendorsForGroupChange(uniqueIds, tx);
+      return tx
+        .select({
+          id: providers.id,
+          providerVendorId: providers.providerVendorId,
+          providerType: providers.providerType,
+          url: providers.url,
+        })
+        .from(providers)
+        .where(and(inArray(providers.id, uniqueIds), isNull(providers.deletedAt)));
+    }
+    return result;
+  };
+  const result =
+    updates.groupTag !== undefined ? await db.transaction(executor) : await executor(db);
 
   // #779/#781：批量启用供应商时，best-effort 确保 endpoint pool 中存在对应 URL（避免历史/竞态导致启用后严格端点被阻断）。
   if (updates.isEnabled === true && result.length > 0) {
@@ -1851,6 +1892,7 @@ export async function applyProviderBatchOperationIfUnchanged(
         if (updatedRows.length !== ids.length) {
           throw new ProviderBatchPreimageMismatchError();
         }
+        if (group.updates.groupTag !== undefined) await syncProviderVendorsForGroupChange(ids, tx);
         updatedCount += updatedRows.length;
       }
 
@@ -2042,6 +2084,7 @@ export async function undoProviderBatchOperation(input: {
         if (updated.length !== ids.length) {
           throw new ProviderBatchPreimageMismatchError();
         }
+        if (group.updates.groupTag !== undefined) await syncProviderVendorsForGroupChange(ids, tx);
         revertedCount += updated.length;
       }
 
@@ -2151,6 +2194,7 @@ export async function updateProviderBatchGroupsIfUnchanged(
         }
 
         updatedCount += updatedRows.length;
+        if (group.updates.groupTag !== undefined) await syncProviderVendorsForGroupChange(ids, tx);
         if (group.updates.isEnabled === true) {
           enabledRows.push(...updatedRows);
         }

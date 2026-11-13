@@ -5810,6 +5810,7 @@ export async function reclusterProviderVendors(args: {
       const newVendorKey = await computeVendorKey({
         providerUrl: provider.url,
         websiteUrl: provider.websiteUrl,
+        groupTag: provider.groupTag,
       });
 
       if (!newVendorKey) {
@@ -5871,6 +5872,7 @@ export async function reclusterProviderVendors(args: {
             {
               providerUrl: provider.url,
               websiteUrl: provider.websiteUrl ?? null,
+              groupTag: provider.groupTag,
             },
             { tx }
           );
