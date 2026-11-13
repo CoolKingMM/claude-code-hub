@@ -40,6 +40,56 @@ vi.mock("@/app/v1/_lib/proxy/model-guard", () => ({
   },
 }));
 
+vi.mock("@/app/v1/_lib/proxy/sensitive-word-guard", () => ({
+  ProxySensitiveWordGuard: {
+    ensure: async () => {
+      callOrder.push("sensitive");
+      return null;
+    },
+  },
+}));
+
+vi.mock("@/app/v1/_lib/proxy/rate-limit-guard", () => ({
+  ProxyRateLimitGuard: {
+    ensure: async () => {
+      callOrder.push("rateLimit");
+      return null;
+    },
+  },
+}));
+
+vi.mock("@/app/v1/_lib/proxy/request-filter", () => ({
+  ProxyRequestFilter: {
+    ensure: async () => {
+      callOrder.push("requestFilter");
+      return null;
+    },
+  },
+}));
+
+vi.mock("@/app/v1/_lib/proxy/provider-request-filter", () => ({
+  ProxyProviderRequestFilter: {
+    ensure: async () => {
+      callOrder.push("providerRequestFilter");
+      return null;
+    },
+  },
+}));
+
+vi.mock("@/app/v1/_lib/proxy/session-guard", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/v1/_lib/proxy/session-guard")>();
+  return {
+    ...actual,
+    ProxySessionGuard: {
+      ...actual.ProxySessionGuard,
+      ensure: async (...args: Parameters<typeof actual.ProxySessionGuard.ensure>) => {
+        callOrder.push("session");
+        await actual.ProxySessionGuard.ensure(...args);
+      },
+    },
+  };
+});
+
 vi.mock("@/app/v1/_lib/proxy/provider-selector", () => ({
   ProxyProviderResolver: {
     ensure: async (session: { setProvider: (provider: Provider) => void }) => {
@@ -118,7 +168,7 @@ vi.mock("@/lib/claude-code/metadata-user-id", () => ({
     injectClaudeMetadataUserIdWithContextMock(...args),
 }));
 
-vi.mock("@/app/v1/_lib/codex/session-completer", () => ({
+vi.mock("@/app/v1/codex/session-completer", () => ({
   completeCodexSessionIdentifiers: (...args: unknown[]) =>
     completeCodexSessionIdentifiersMock(...args),
 }));

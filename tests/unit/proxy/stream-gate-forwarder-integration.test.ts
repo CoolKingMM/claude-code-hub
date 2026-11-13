@@ -749,7 +749,7 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
     });
 
     test("上游 error 帧先于内容：precommit 失败触发供应商切换，失败供应商零字节泄漏", async () => {
-      const provider1 = createProvider({ id: 1, name: "gate-p1" });
+      const provider1 = createProvider({ id: 1, name: "gate-p1", maxRetryAttempts: 1 });
       const provider2 = createProvider({ id: 2, name: "gate-p2" });
       const session = createSession();
       session.setProvider(provider1);

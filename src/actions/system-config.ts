@@ -8,11 +8,7 @@ import { getSession } from "@/lib/auth";
 import { invalidateSystemSettingsCache } from "@/lib/config";
 import { DEFAULT_SETTINGS } from "@/lib/config/system-settings-cache";
 import { logger } from "@/lib/logger";
-import {
-  invalidateAllLeaderboardCaches,
-  invalidateAllOverviewCaches,
-  invalidateAllStatisticsCaches,
-} from "@/lib/redis";
+import { invalidateAllOverviewCaches, invalidateAllStatisticsCaches } from "@/lib/redis";
 import { resolveSystemTimezone } from "@/lib/utils/timezone";
 import {
   DISCOVERY_WINDOW_INVALID_ERROR_CODE,
@@ -239,15 +235,13 @@ export async function saveSystemSettings(formData: {
     invalidateSystemSettingsCache();
 
     if (validated.timezone !== undefined) {
-      await Promise.all([
-        invalidateAllOverviewCaches(),
-        invalidateAllStatisticsCaches(),
-        invalidateAllLeaderboardCaches(),
-      ]).catch((error) => {
-        logger.warn("[SystemSettings] Failed to invalidate timezone-sensitive dashboard caches", {
-          error,
-        });
-      });
+      await Promise.all([invalidateAllOverviewCaches(), invalidateAllStatisticsCaches()]).catch(
+        (error) => {
+          logger.warn("[SystemSettings] Failed to invalidate timezone-sensitive dashboard caches", {
+            error,
+          });
+        }
+      );
     }
 
     // Revalidate paths for all locales to ensure cache invalidation across i18n routes

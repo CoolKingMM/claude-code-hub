@@ -64,6 +64,8 @@ const baseSettings = {
   enableResponseFixer: true,
   allowNonConversationEndpointProviderFallback: true,
   fakeStreamingWhitelist: [],
+  enableProviderOutputSafetyFilter: false,
+  providerOutputSafetyFilterRules: [],
   responseFixerConfig: {
     fixEncoding: true,
     fixSseFormat: true,

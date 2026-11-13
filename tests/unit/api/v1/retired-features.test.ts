@@ -18,7 +18,7 @@ describe("retired management features", () => {
     const response = await app.request(`http://localhost/api/v1${path}`);
     expect(response.status).toBe(404);
     const document = buildOpenApiDocument(app);
-    expect(document.paths).not.toHaveProperty(path);
+    expect(document.paths).not.toHaveProperty(`/api/v1${path}`);
   });
   test("key list, model expansion, monetary limits and provider controls remain documented", () => {
     const paths = buildOpenApiDocument(app).paths;
@@ -29,7 +29,7 @@ describe("retired management features", () => {
       "/providers/{id}/limit-usage",
       "/system/settings",
     ])
-      expect(paths).toHaveProperty(path);
+      expect(paths).toHaveProperty(`/api/v1${path}`);
   });
   test("legacy auxiliary URLs return 410 without importing any worker", async () => {
     const { GET } = await import("@/app/api/public-status/route");

@@ -482,7 +482,7 @@ describe("ignore client session id semantics", () => {
 });
 
 describe("metrics-only and endpoint policy gating", () => {
-  test("cache-effectiveness only: fingerprints the request but never looks up or nominates", async () => {
+  test("disabled affinity skips retired cache simulation", async () => {
     envControl.affinityEnabled = false;
     envControl.cacheEffectiveness = true;
     settingsControl.ignoreClientSessionId = false;
@@ -491,8 +491,7 @@ describe("metrics-only and endpoint policy gating", () => {
     const result = await ProxyProviderResolver.ensure(session);
 
     expect(result).toBeNull();
-    expect(session.affinity).not.toBeNull();
-    expect(session.affinity?.nominatedProviderId).toBeNull();
+    expect(session.affinity).toBeNull();
     expect(storeMocks.lookup).not.toHaveBeenCalled();
     expect(session.provider?.id).toBe(55);
   });

@@ -37,14 +37,6 @@ function envReplayDefault(): boolean {
   }
 }
 
-function envCacheEffectivenessDefault(): boolean {
-  try {
-    return getEnvConfig().ENABLE_CACHE_EFFECTIVENESS;
-  } catch {
-    return true;
-  }
-}
-
 function envFallback(): ProxyRuntimeSettings {
   try {
     const env = getEnvConfig();
@@ -53,7 +45,7 @@ function envFallback(): ProxyRuntimeSettings {
       affinityIgnoreClientSessionId: true,
       replayEnabled: env.ENABLE_REQUEST_REPLAY,
       replayCacheTtlMinutes: REPLAY_CACHE_TTL_MINUTES_DEFAULT,
-      cacheEffectivenessEnabled: env.ENABLE_CACHE_EFFECTIVENESS,
+      cacheEffectivenessEnabled: false,
     };
   } catch {
     return {
@@ -61,7 +53,7 @@ function envFallback(): ProxyRuntimeSettings {
       affinityIgnoreClientSessionId: true,
       replayEnabled: false,
       replayCacheTtlMinutes: REPLAY_CACHE_TTL_MINUTES_DEFAULT,
-      cacheEffectivenessEnabled: true,
+      cacheEffectivenessEnabled: false,
     };
   }
 }
@@ -74,8 +66,7 @@ export async function getProxyRuntimeSettings(): Promise<ProxyRuntimeSettings> {
       affinityIgnoreClientSessionId: settings.affinityIgnoreClientSessionId,
       replayEnabled: settings.replayEnabled ?? envReplayDefault(),
       replayCacheTtlMinutes: settings.replayCacheTtlMinutes ?? REPLAY_CACHE_TTL_MINUTES_DEFAULT,
-      cacheEffectivenessEnabled:
-        settings.cacheEffectivenessEnabled ?? envCacheEffectivenessDefault(),
+      cacheEffectivenessEnabled: false,
     };
     highConcurrencyModeEnabled = settings.enableHighConcurrencyMode === true;
     return lastKnown;
@@ -90,11 +81,6 @@ export async function getProxyRuntimeSettings(): Promise<ProxyRuntimeSettings> {
  */
 export function getCachedProxyRuntimeSettings(): ProxyRuntimeSettings | null {
   return lastKnown;
-}
-
-/** F3b 有效开关（同步）：系统设置覆写优先，无快照时跟随 env。 */
-export function isCacheEffectivenessEnabled(): boolean {
-  return lastKnown?.cacheEffectivenessEnabled ?? envCacheEffectivenessDefault();
 }
 
 /** Shrinks long-lived Redis projections while high-concurrency mode is active. */

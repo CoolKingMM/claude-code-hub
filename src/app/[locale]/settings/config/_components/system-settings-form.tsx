@@ -491,7 +491,6 @@ export function SystemSettingsForm({
         enableBillingHeaderRectifier,
         enableResponseInputRectifier,
         allowNonConversationEndpointProviderFallback,
-        fakeStreamingWhitelist: sanitizedFakeStreamingWhitelist,
         streamGateMode,
         affinityIgnoreClientSessionId,
         replayEnabled,
