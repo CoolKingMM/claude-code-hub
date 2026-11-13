@@ -1,13 +1,13 @@
 import type { AuthSession } from "@/lib/auth";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-const readCurrentPublicStatusConfigSnapshotMock = vi.hoisted(() => vi.fn());
-const readPublicStatusPayloadMock = vi.hoisted(() => vi.fn());
-const schedulePublicStatusRebuildMock = vi.hoisted(() => vi.fn());
-const savePublicStatusSettingsMock = vi.hoisted(() => vi.fn());
 const validateAuthTokenMock = vi.hoisted(() => vi.fn());
 const getCachedSystemSettingsMock = vi.hoisted(() => vi.fn());
 const lookupIpMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/config/system-settings-cache", () => ({
+  getCachedSystemSettings: getCachedSystemSettingsMock,
+}));
 
 vi.mock("@/lib/ip-geo/client", () => ({
   lookupIp: lookupIpMock,
@@ -25,34 +25,10 @@ const adminSession = {
   key: { id: 1, userId: 1, key: "admin-token", canLoginWebUi: true },
 } as AuthSession;
 
-describe("v1 public status and ip geo endpoints", () => {
+describe("v1 ip geo endpoints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     validateAuthTokenMock.mockResolvedValue(adminSession);
-    readCurrentPublicStatusConfigSnapshotMock.mockResolvedValue({
-      configVersion: "cfg-1",
-      siteTitle: "CCH",
-      siteDescription: "Status page",
-      timeZone: "UTC",
-      defaultIntervalMinutes: 5,
-      defaultRangeHours: 24,
-      groups: [{ slug: "default" }],
-    });
-    readPublicStatusPayloadMock.mockResolvedValue({
-      rebuildState: "fresh",
-      sourceGeneration: "gen-1",
-      generatedAt: "2026-04-28T00:00:00.000Z",
-      freshUntil: "2026-04-28T00:05:00.000Z",
-      groups: [],
-    });
-    savePublicStatusSettingsMock.mockResolvedValue({
-      ok: true,
-      data: {
-        updatedGroupCount: 1,
-        configVersion: "cfg-1",
-        publicStatusProjectionWarningCode: null,
-      },
-    });
     getCachedSystemSettingsMock.mockResolvedValue({ ipGeoLookupEnabled: true });
     lookupIpMock.mockResolvedValue({
       status: "private",
@@ -114,7 +90,7 @@ describe("v1 public status and ip geo endpoints", () => {
     expect(lookupIpMock).not.toHaveBeenCalled();
   });
 
-  test("documents public status and ip geo REST paths", async () => {
+  test("documents ip geo REST paths", async () => {
     const { json } = await callV1Route({
       method: "GET",
       pathname: "/api/v1/openapi.json",
