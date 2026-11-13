@@ -89,7 +89,10 @@ describe("audit log action messages", () => {
     const canonicalKeys = flattenLeafKeys(readLocaleActionTree("en")).sort();
     const emittedKeys = collectEmittedAuditActionTypes();
 
-    expect(canonicalKeys).toEqual(emittedKeys);
+    // Retired actions remain translated so existing audit records still have readable labels.
+    expect(canonicalKeys).toEqual(
+      [...emittedKeys, "user.reset_5h_limit", "user.reset_5h_limit_only"].sort()
+    );
 
     for (const locale of LOCALES) {
       expect(

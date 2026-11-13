@@ -30,6 +30,14 @@ export type ClientActionImportAllowlistEntry = {
 
 export const ACTION_MIGRATION_MATRIX = [
   {
+    module: "dashboard-usage",
+    sourceFile: "dashboard-usage.ts",
+    resource: "dashboard",
+    endpointFamilies: ["/api/v1/dashboard/usage"],
+    access: "read",
+    exportPolicy: "all-action-exports",
+  },
+  {
     module: "personal-keys",
     sourceFile: "personal-keys.ts",
     resource: "keys",

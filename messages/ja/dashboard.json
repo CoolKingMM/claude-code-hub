@@ -986,51 +986,6 @@
       "description": "右上の「キーを追加」ボタンをクリックしてキーを追加できます"
     }
   },
-  "keyListHeader": {
-    "todayUsage": "本日の使用量",
-    "userStatus": {
-      "disabled": "無効",
-      "expired": "期限切れ",
-      "expiringSoon": "まもなく期限切れ",
-      "active": "有効"
-    },
-    "allowedModels": {
-      "label": "許可モデル",
-      "noRestrictions": "許可されたクライアント：制限なし"
-    },
-    "expiresAt": "有効期限",
-    "proxyStatus": {
-      "loading": "プロキシー ステータス読み込み中",
-      "fetchFailed": "プロキシー ステータスの取得に失敗しました",
-      "noStatus": "プロキシー ステータスなし",
-      "activeRequests": "アクティブリクエスト",
-      "lastRequest": "最新リクエスト",
-      "noRecord": "記録なし",
-      "timeAgo": {
-        "justNow": "たった今",
-        "secondsAgo": "{count}秒前",
-        "minutesAgo": "{count}分前",
-        "hoursAgo": "{count}時間前",
-        "daysAgo": "{count}日前"
-      }
-    },
-    "addKey": "キーを追加",
-    "keyCreatedDialog": {
-      "title": "キーの作成に成功しました",
-      "description": "APIキーが正常に作成されました。漏洩しないよう安全にコピーして保管してください。完全なキーは後からキー一覧でいつでも再表示できます。",
-      "apiKeyLabel": "API キー",
-      "warningText": "このキーは漏洩しないよう安全に保管してください。必要に応じて、キー一覧からいつでも完全なキーを再表示できます",
-      "httpWarningText": "HTTPアクセスが検出されました。ブラウザの制限によりコピー機能が使用できません。目のアイコンをクリックしてキーを表示し、手動でコピーしてください。",
-      "copyTooltip": "クリップボードにコピー",
-      "showTooltip": "完全なキーを表示",
-      "hideTooltip": "キーを非表示",
-      "closeButton": "閉じる"
-    },
-    "allowedClients": {
-      "label": "許可されたクライアント",
-      "noRestrictions": "許可されたクライアント：制限なし"
-    }
-  },
   "keyLimitUsage": {
     "loading": "読み込み中...",
     "error": "取得に失敗しました",

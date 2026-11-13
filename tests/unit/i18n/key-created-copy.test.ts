@@ -18,12 +18,7 @@ import { describe, expect, test } from "vitest";
 
 const LOCALES = ["zh-CN", "zh-TW", "en", "ja", "ru"] as const;
 
-const COPY_PATHS: ReadonlyArray<readonly string[]> = [
-  ["keyListHeader", "keyCreatedDialog", "description"],
-  ["keyListHeader", "keyCreatedDialog", "warningText"],
-  ["addKeyForm", "generatedKey", "hint"],
-  ["userManagement", "createDialog", "keyHint"],
-];
+const COPY_PATHS: ReadonlyArray<readonly string[]> = [["addKeyForm", "generatedKey", "hint"]];
 
 const ONE_TIME_CLAIM_PATTERNS: RegExp[] = [
   /仅显示一次/,

@@ -988,51 +988,6 @@
       "description": "可点击右上角 \"新增 Key\" 按钮添加密钥"
     }
   },
-  "keyListHeader": {
-    "todayUsage": "今日用量",
-    "userStatus": {
-      "disabled": "已禁用",
-      "expired": "已过期",
-      "expiringSoon": "即将过期",
-      "active": "已启用"
-    },
-    "allowedModels": {
-      "label": "允许的模型",
-      "noRestrictions": "允许的模型：无限制"
-    },
-    "expiresAt": "过期时间",
-    "proxyStatus": {
-      "loading": "代理状态加载中",
-      "fetchFailed": "代理状态获取失败",
-      "noStatus": "暂无代理状态",
-      "activeRequests": "活跃请求",
-      "lastRequest": "最近请求",
-      "noRecord": "暂无记录",
-      "timeAgo": {
-        "justNow": "刚刚",
-        "secondsAgo": "{count}s前",
-        "minutesAgo": "{count}分钟前",
-        "hoursAgo": "{count}小时前",
-        "daysAgo": "{count}天前"
-      }
-    },
-    "addKey": "新增 Key",
-    "keyCreatedDialog": {
-      "title": "Key 创建成功",
-      "description": "你的 API Key 已成功创建。请复制并妥善保存，避免泄露；后续可在密钥列表中重新查看完整密钥。",
-      "apiKeyLabel": "API Key",
-      "warningText": "请妥善保管此密钥，避免泄露。如有需要，可随时在密钥列表中重新查看完整密钥",
-      "httpWarningText": "检测到 HTTP 访问，浏览器限制无法使用复制功能。请点击眼睛图标显示密钥后手动复制。",
-      "copyTooltip": "复制到剪贴板",
-      "showTooltip": "显示完整密钥",
-      "hideTooltip": "隐藏密钥",
-      "closeButton": "关闭"
-    },
-    "allowedClients": {
-      "label": "允许的客户端",
-      "noRestrictions": "允许的客户端：无限制"
-    }
-  },
   "keyLimitUsage": {
     "loading": "加载中...",
     "error": "获取失败",

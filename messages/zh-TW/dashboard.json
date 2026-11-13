@@ -986,51 +986,6 @@
       "description": "可點選右上角「新增金鑰」按鈕新增金鑰"
     }
   },
-  "keyListHeader": {
-    "todayUsage": "今日使用量",
-    "userStatus": {
-      "disabled": "已禁用",
-      "expired": "已過期",
-      "expiringSoon": "即將過期",
-      "active": "已啟用"
-    },
-    "allowedModels": {
-      "label": "允許的模型",
-      "noRestrictions": "允許的模型：無限制"
-    },
-    "expiresAt": "到期時間",
-    "proxyStatus": {
-      "loading": "代理狀態載入中",
-      "fetchFailed": "代理狀態取得失敗",
-      "noStatus": "暫無代理狀態",
-      "activeRequests": "活躍請求",
-      "lastRequest": "最近請求",
-      "noRecord": "暫無記錄",
-      "timeAgo": {
-        "justNow": "剛剛",
-        "secondsAgo": "{count}秒前",
-        "minutesAgo": "{count}分鐘前",
-        "hoursAgo": "{count}小時前",
-        "daysAgo": "{count} 天前"
-      }
-    },
-    "addKey": "新增金鑰",
-    "keyCreatedDialog": {
-      "title": "金鑰建立成功",
-      "description": "您的 API 金鑰已成功建立。請複製並妥善保存，避免外洩；後續可在金鑰列表中重新檢視完整金鑰。",
-      "apiKeyLabel": "API 金鑰",
-      "warningText": "請妥善保管此金鑰，避免外洩。如有需要，可隨時在金鑰列表中重新檢視完整金鑰",
-      "httpWarningText": "偵測到 HTTP 存取，瀏覽器限制無法使用複製功能。請點擊眼睛圖示顯示金鑰後手動複製。",
-      "copyTooltip": "複製到剪貼簿",
-      "showTooltip": "顯示完整金鑰",
-      "hideTooltip": "隱藏金鑰",
-      "closeButton": "關閉"
-    },
-    "allowedClients": {
-      "label": "允許的用戶端",
-      "noRestrictions": "允許的用戶端：無限制"
-    }
-  },
   "keyLimitUsage": {
     "loading": "載入中...",
     "error": "取得失敗",

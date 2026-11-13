@@ -988,51 +988,6 @@
       "description": "Click the \"Add Key\" button in the top right corner to add a key"
     }
   },
-  "keyListHeader": {
-    "todayUsage": "Today's Usage",
-    "userStatus": {
-      "disabled": "Disabled",
-      "expired": "Expired",
-      "expiringSoon": "Expiring soon",
-      "active": "Enabled"
-    },
-    "allowedModels": {
-      "label": "Allowed Models",
-      "noRestrictions": "Allowed Models: No restrictions"
-    },
-    "expiresAt": "Expires",
-    "proxyStatus": {
-      "loading": "Loading proxy status",
-      "fetchFailed": "Failed to fetch proxy status",
-      "noStatus": "No proxy status",
-      "activeRequests": "Active Requests",
-      "lastRequest": "Last Request",
-      "noRecord": "No record",
-      "timeAgo": {
-        "justNow": "Just now",
-        "secondsAgo": "{count}s ago",
-        "minutesAgo": "{count} min ago",
-        "hoursAgo": "{count}h ago",
-        "daysAgo": "{count}d ago"
-      }
-    },
-    "addKey": "Add Key",
-    "keyCreatedDialog": {
-      "title": "Key Created Successfully",
-      "description": "Your API key has been created successfully. Copy and store it securely, and keep it confidential. You can view the full key again in the key list at any time.",
-      "apiKeyLabel": "API Key",
-      "warningText": "Keep this key secure and do not share it. You can view the full key again in the key list whenever needed.",
-      "httpWarningText": "HTTP access detected. Browser restrictions prevent clipboard access. Click the eye icon to reveal the key and copy manually.",
-      "copyTooltip": "Copy to clipboard",
-      "showTooltip": "Show full key",
-      "hideTooltip": "Hide key",
-      "closeButton": "Close"
-    },
-    "allowedClients": {
-      "label": "Clients allowed",
-      "noRestrictions": "Clients allowed: no restrictions"
-    }
-  },
   "keyLimitUsage": {
     "loading": "Loading...",
     "error": "Fetch failed",
