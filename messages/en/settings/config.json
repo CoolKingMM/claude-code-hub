@@ -2,6 +2,12 @@
   "autoCleanup": "Auto Log Cleanup",
   "autoCleanupDesc": "Automatically clean up historical log data on schedule to free up database storage space.",
   "description": "Manage system basic parameters that affect site display and statistics behavior.",
+  "specialHandling": {
+    "title": "Special handling",
+    "description": "Manage compatibility settings for terminals, long connections, and unsafe provider output.",
+    "sectionTitle": "Terminal and channel protection",
+    "sectionDescription": "Prevent long requests from ending with 499/CLIENT_ABORTED and filter high-risk terminal commands returned by providers."
+  },
   "form": {
     "allowGlobalView": "Allow Global Usage View",
     "allowGlobalViewDesc": "When disabled, regular users can only view their own key usage statistics in the dashboard.",
@@ -79,15 +85,16 @@
     "allowNonConversationEndpointProviderFallback": "Allow cross-provider fallback for non-conversation endpoints",
     "allowNonConversationEndpointProviderFallbackDesc": "Controls whether /v1/messages/count_tokens and /v1/responses/compact may reuse the existing decision chain to switch to a compatible provider after the current provider fails. Enabled by default while preserving raw passthrough and non-billing semantics.",
     "fakeStreaming": {
-      "title": "Fake streaming whitelist",
-      "description": "For long-running synchronous generations (image / video) that exceed Cloudflare's 120s no-body timeout, CCH keeps the SSE connection alive with safe heartbeat pings while it serially calls upstream providers internally and only emits a final, non-empty result. Listed models are auto-enabled; an empty list disables fake streaming entirely.",
-      "modelLabel": "Model",
-      "modelPlaceholder": "exact client-requested model name",
-      "groupsLabel": "Groups",
-      "allGroupsHint": "No groups selected — applies to all provider groups.",
-      "addModel": "Add model",
-      "remove": "Remove",
-      "emptyState": "No models configured. Fake streaming is disabled — use \"Add model\" to enable it for specific models."
+      "title": "Prevent long requests from ending with 499/CLIENT_ABORTED",
+      "description": "Enable by provider / channel. All models on selected providers send SSE heartbeats while waiting for the upstream non-streaming result, preventing long requests from ending with 499/CLIENT_ABORTED due to inactivity. Selecting no providers disables this feature.",
+      "providerLabel": "Providers / channels",
+      "selectedCount": "Enabled {count} channels in the current group",
+      "groupSelectLabel": "Select provider group",
+      "noProviders": "No providers are available. Add channels in provider management first.",
+      "noProvidersInGroup": "No channels are available in this group.",
+      "defaultGroup": "Default group",
+      "providerToggleLabel": "Prevent long requests from ending with 499/CLIENT_ABORTED for {name}",
+      "emptyState": "No providers selected. Fake streaming is disabled."
     },
     "providerOutputSafety": {
       "title": "Provider Output Safety Filter",

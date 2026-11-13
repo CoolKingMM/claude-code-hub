@@ -4,6 +4,10 @@ import { act, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import config from "../../../messages/en/settings/config.json";
+import jaConfig from "../../../messages/ja/settings/config.json";
+import ruConfig from "../../../messages/ru/settings/config.json";
+import zhCNConfig from "../../../messages/zh-CN/settings/config.json";
+import zhTWConfig from "../../../messages/zh-TW/settings/config.json";
 import {
   ProviderChannelPicker,
   type SpecialHandlingProvider,
@@ -80,13 +84,17 @@ function Harness({
   );
 }
 
-function render(node: ReactNode) {
+function render(node: ReactNode, locale = "en", localeConfig = config) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() =>
     root.render(
-      <NextIntlClientProvider locale="en" messages={{ settings: { config } }} timeZone="UTC">
+      <NextIntlClientProvider
+        locale={locale}
+        messages={{ settings: { config: localeConfig } }}
+        timeZone="UTC"
+      >
         {node}
       </NextIntlClientProvider>
     )
@@ -121,6 +129,65 @@ function group(value: string) {
 }
 
 describe("特殊处理完整渠道选择", () => {
+  test.each([
+    ["en", config],
+    ["ja", jaConfig],
+    ["ru", ruConfig],
+    ["zh-CN", zhCNConfig],
+    ["zh-TW", zhTWConfig],
+  ] as const)("%s 的两张卡片均可展开渠道并提供完整翻译", (locale, localeConfig) => {
+    for (const section of ["specialHandling", "form"] as const) {
+      const translated = localeConfig[section];
+      const canonical = zhCNConfig[section];
+      const keys =
+        section === "form"
+          ? ["fakeStreaming", "codexHistoryFilter", "providerOutputSafety", "channelPicker"]
+          : Object.keys(canonical);
+      for (const key of keys) {
+        expect(translated).toHaveProperty(key);
+      }
+    }
+    for (const section of ["fakeStreaming", "codexHistoryFilter"] as const) {
+      const labels = localeConfig.form[section];
+      for (const key of Object.keys(zhCNConfig.form[section])) {
+        expect(labels).toHaveProperty(key, expect.any(String));
+      }
+      expect(labels.providerToggleLabel).toContain("{name}");
+      expect(labels.selectedCount).toContain("{count}");
+    }
+    render(
+      <SpecialHandlingForm
+        initialSettings={{
+          fakeStreamingProviderIds: [3],
+          enableCodexHistoryFilter: true,
+          codexHistoryFilterProviderIds: [1],
+          enableProviderOutputSafetyFilter: true,
+          providerOutputSafetyFilterRules: [],
+        }}
+        providers={providers}
+        labels={{
+          fakeStreaming: localeConfig.form.fakeStreaming,
+          codexHistoryFilter: localeConfig.form.codexHistoryFilter,
+          providerOutputSafety: localeConfig.form.providerOutputSafety,
+          saveSettings: "Save",
+          saving: "Saving",
+          saveFailed: "Failed",
+          configUpdated: "Saved",
+        }}
+      />,
+      locale,
+      localeConfig
+    );
+    for (const testId of ["fake-streaming", "codex-history-filter"]) {
+      click(`[data-testid="${testId}-picker"]`);
+      expect(document.querySelectorAll(`[data-testid^="${testId}-provider-"]`)).toHaveLength(3);
+      for (const button of document.querySelectorAll(`[data-testid="${testId}-list"] button`)) {
+        expect(button.getAttribute("aria-label")).toContain("(#");
+      }
+      click(`[data-testid="${testId}-picker"]`);
+    }
+  });
+
   test("默认显示全部分组，超过 50 个渠道也完整展示并可滚动", () => {
     const items = Array.from({ length: 120 }, (_, index) => ({
       ...providers[index % 3],

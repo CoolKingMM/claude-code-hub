@@ -2,6 +2,12 @@
   "autoCleanup": "ログ自動クリーンアップ",
   "autoCleanupDesc": "スケジュールに従って履歴ログを自動的にクリーンアップし、データベース容量を解放します。",
   "description": "システムの基本パラメータを管理し、サイト表示と統計動作に影響します。",
+  "specialHandling": {
+    "title": "特殊処理",
+    "description": "端末、長時間接続、プロバイダの危険な出力に対する互換性設定を管理します。",
+    "sectionTitle": "端末とチャネルの保護",
+    "sectionDescription": "長時間リクエストの 499/CLIENT_ABORTED 中断を防ぎ、プロバイダが返す高リスクな端末コマンドを除去します。"
+  },
   "form": {
     "allowGlobalView": "グローバル使用量表示を許可",
     "allowGlobalViewDesc": "無効にすると、一般ユーザーはダッシュボードで自分のキーの使用統計のみを表示できます。",
@@ -79,15 +85,16 @@
     "allowNonConversationEndpointProviderFallback": "非会話エンドポイントのクロスプロバイダ fallback を許可",
     "allowNonConversationEndpointProviderFallbackDesc": "/v1/messages/count_tokens と /v1/responses/compact で現在のプロバイダが失敗した際に、既存の決定チェーンを使って互換プロバイダへ切り替えて再試行するかを制御します。既定で有効で、raw passthrough と非課金の意味論は維持されます。",
     "fakeStreaming": {
-      "title": "Fake ストリーミング出力ホワイトリスト",
-      "description": "画像 / 動画など Cloudflare の 120 秒ノーボディタイムアウトを超えやすい長時間同期生成では、CCH が SSE ハートビートで接続を維持しつつ内部で上流プロバイダを直列に呼び出し、最終的な非空結果のみをクライアントへ返します。リスト掲載モデルは自動的に有効化、空リストは完全に無効化を意味します。",
-      "modelLabel": "モデル",
-      "modelPlaceholder": "クライアント要求の正確なモデル名",
-      "groupsLabel": "プロバイダグループ",
-      "allGroupsHint": "グループ未選択 → すべてのプロバイダグループに適用されます。",
-      "addModel": "モデル追加",
-      "remove": "削除",
-      "emptyState": "モデル未設定 — fake streaming は無効です。「モデル追加」で対象モデルを設定すると有効化されます。"
+      "title": "長時間リクエストの 499/CLIENT_ABORTED 中断を防止",
+      "description": "プロバイダ / チャネル単位で有効化します。選択したプロバイダのすべてのモデルで、上流の非ストリーミング結果を待つ間に SSE ハートビートを送信し、長時間データが届かないことによる 499/CLIENT_ABORTED 中断を防ぎます。プロバイダ未選択の場合は無効です。",
+      "providerLabel": "プロバイダ / チャネル",
+      "selectedCount": "現在のグループで {count} 個のチャネルが有効",
+      "groupSelectLabel": "プロバイダグループを選択",
+      "noProviders": "設定可能なプロバイダがありません。先にプロバイダ管理でチャネルを追加してください。",
+      "noProvidersInGroup": "このグループには設定可能なチャネルがありません。",
+      "defaultGroup": "デフォルトグループ",
+      "providerToggleLabel": "{name} の長時間リクエストの 499/CLIENT_ABORTED 中断を防止",
+      "emptyState": "プロバイダ未選択のため、fake streaming は無効です。"
     },
     "providerOutputSafety": {
       "title": "Provider 出力安全フィルター",

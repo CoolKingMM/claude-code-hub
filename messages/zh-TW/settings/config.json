@@ -2,6 +2,12 @@
   "autoCleanup": "自動日誌清理",
   "autoCleanupDesc": "定時自動清理歷史日誌資料，釋放資料庫儲存空間。",
   "description": "管理系統的基礎參數，影響站台顯示和統計行為。",
+  "specialHandling": {
+    "title": "特殊處理",
+    "description": "集中管理針對終端、長連線與渠道不安全輸出的特殊相容處理。",
+    "sectionTitle": "終端與渠道防護",
+    "sectionDescription": "設定避免長請求 499/CLIENT_ABORTED 中斷，以及過濾渠道回傳的高風險終端命令。"
+  },
   "form": {
     "allowGlobalView": "允許查看全站使用量",
     "allowGlobalViewDesc": "關閉後，普通使用者在儀表板僅能查看自己金鑰的使用統計。",
@@ -79,15 +85,16 @@
     "allowNonConversationEndpointProviderFallback": "允許非對話端點跨供應商 fallback",
     "allowNonConversationEndpointProviderFallbackDesc": "控制 /v1/messages/count_tokens 與 /v1/responses/compact 在目前供應商失敗時，是否沿用既有決策鏈切換到相容供應商重試。預設開啟，並持續保持 raw passthrough 與非計費語義。",
     "fakeStreaming": {
-      "title": "Fake 串流輸出白名單",
-      "description": "針對圖像 / 影片等長耗時同步生成場景（容易超過 Cloudflare 120 秒無回應主體逾時），CCH 會先回傳 SSE 心跳保持連線，在內部串行呼叫上游供應商，僅在最終取得非空結果時才回寫最終回應。命中白名單的模型會啟用 fake streaming；列表為空表示完全停用。",
-      "modelLabel": "模型",
-      "modelPlaceholder": "客戶端請求中的精確模型名稱",
-      "groupsLabel": "供應商分組",
-      "allGroupsHint": "未選擇分組 → 套用於所有供應商分組。",
-      "addModel": "新增模型",
-      "remove": "刪除",
-      "emptyState": "尚未設定任何模型，fake streaming 已關閉。點擊「新增模型」即可為指定模型啟用。"
+      "title": "避免長請求 499/CLIENT_ABORTED 中斷",
+      "description": "按供應商 / 渠道啟用：所選供應商下的所有模型會先向客戶端傳送 SSE 心跳，再等待上游非串流結果，避免長請求因長時間無資料而產生 499/CLIENT_ABORTED。未選擇供應商表示關閉。",
+      "providerLabel": "供應商 / 渠道",
+      "selectedCount": "目前分組已啟用 {count} 個渠道",
+      "groupSelectLabel": "選擇供應商分組",
+      "noProviders": "目前沒有可設定的供應商。請先在供應商管理中新增渠道。",
+      "noProvidersInGroup": "目前分組沒有可設定的渠道。",
+      "defaultGroup": "預設分組",
+      "providerToggleLabel": "為 {name} 啟用避免長請求 499/CLIENT_ABORTED 中斷",
+      "emptyState": "尚未選擇任何供應商，fake streaming 已關閉。"
     },
     "providerOutputSafety": {
       "title": "Provider 輸出安全過濾",
