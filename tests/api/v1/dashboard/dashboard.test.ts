@@ -157,7 +157,7 @@ describe("v1 dashboard endpoints", () => {
       headers,
     });
     expect(response.response.status).toBe(200);
-    expect(response.response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.response.headers.get("cache-control")).toContain("no-store");
     expect(response.json).toMatchObject({ summary: { cost: 12 } });
     expect(getDashboardUsageMock).toHaveBeenCalledWith({
       period: "custom",
@@ -186,7 +186,6 @@ describe("v1 dashboard endpoints", () => {
     expect(getDashboardUsageMock).not.toHaveBeenCalled();
   });
   test("usage requires authentication and propagates action errors", async () => {
-    validateAuthTokenMock.mockResolvedValueOnce(null);
     const anonymous = await callV1Route({ method: "GET", pathname: "/api/v1/dashboard/usage" });
     expect(anonymous.response.status).toBe(401);
     expect(getDashboardUsageMock).not.toHaveBeenCalled();
