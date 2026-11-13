@@ -687,36 +687,13 @@ export async function register() {
       const { scheduleAutoCleanup } = await import("@/lib/log-cleanup/cleanup-queue");
       await scheduleAutoCleanup();
 
-      // 初始化通知任务队列（如果启用）
-      const { scheduleNotifications } = await import("@/lib/notification/notification-queue");
-      await scheduleNotifications();
-
-      const { startUserStatisticsResetQueue } = await import(
-        "@/lib/user-statistics-reset/reset-queue"
-      );
-      startUserStatisticsResetQueue();
       (
         globalThis as typeof globalThis & {
           __CCH_STOP_BACKGROUND_QUEUES__?: () => Promise<void>;
         }
       ).__CCH_STOP_BACKGROUND_QUEUES__ = async () => {
-        const [{ stopCleanupQueue }, { stopNotificationQueue }, { stopUserStatisticsResetQueue }] =
-          await Promise.all([
-            import("@/lib/log-cleanup/cleanup-queue"),
-            import("@/lib/notification/notification-queue"),
-            import("@/lib/user-statistics-reset/reset-queue"),
-          ]);
-        const results = await Promise.allSettled([
-          stopCleanupQueue(),
-          stopNotificationQueue(),
-          stopUserStatisticsResetQueue(),
-        ]);
-        const failures = results.flatMap((result) =>
-          result.status === "rejected" ? [result.reason] : []
-        );
-        if (failures.length > 0) {
-          throw new AggregateError(failures, "Failed to stop background queues");
-        }
+        const { stopCleanupQueue } = await import("@/lib/log-cleanup/cleanup-queue");
+        await stopCleanupQueue();
       };
 
       // 初始化智能探测调度器（如果启用）
@@ -735,20 +712,6 @@ export async function register() {
         startEndpointProbeScheduler();
       } catch (error) {
         logger.warn("[Instrumentation] Failed to start endpoint probe scheduler", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-
-      const { reconcilePublicStatusSiteTitleAtStartup } = await import(
-        "@/lib/public-status/startup-reconciliation"
-      );
-      await reconcilePublicStatusSiteTitleAtStartup();
-
-      try {
-        const { startPublicStatusRebuildScheduler } = await import("@/lib/public-status/scheduler");
-        startPublicStatusRebuildScheduler();
-      } catch (error) {
-        logger.warn("[Instrumentation] Failed to start public status rebuild scheduler", {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -878,13 +841,6 @@ export async function register() {
         // 继续启动 - 错误检测不是核心功能的关键依赖
       }
 
-      // NOTE: 开发环境禁用通知队列（Bull + Turbopack 不兼容）
-      // 通知功能仅在生产环境可用，开发环境需要手动测试
-      logger.warn(
-        "Notification queue disabled in development mode due to Bull + Turbopack incompatibility. " +
-          "Notification features are only available in production environment."
-      );
-
       // 初始化智能探测调度器（开发环境也支持）
       const { startProbeScheduler, isSmartProbingEnabled } = await import(
         "@/lib/circuit-breaker-probe"
@@ -902,22 +858,6 @@ export async function register() {
           startEndpointProbeScheduler();
         } catch (error) {
           logger.warn("[Instrumentation] Failed to start endpoint probe scheduler", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-
-        const { reconcilePublicStatusSiteTitleAtStartup } = await import(
-          "@/lib/public-status/startup-reconciliation"
-        );
-        await reconcilePublicStatusSiteTitleAtStartup();
-
-        try {
-          const { startPublicStatusRebuildScheduler } = await import(
-            "@/lib/public-status/scheduler"
-          );
-          startPublicStatusRebuildScheduler();
-        } catch (error) {
-          logger.warn("[Instrumentation] Failed to start public status rebuild scheduler", {
             error: error instanceof Error ? error.message : String(error),
           });
         }

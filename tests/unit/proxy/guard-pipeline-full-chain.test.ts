@@ -141,7 +141,6 @@ describe("GuardPipeline：全链路放行与 replay 短路", () => {
       "sensitive",
       "client",
       "model",
-      "version",
       "probe",
       "session",
       "warmup",
@@ -181,7 +180,6 @@ describe("GuardPipeline：全链路放行与 replay 短路", () => {
       "sensitive",
       "client",
       "model",
-      "version",
       "probe",
       "session",
       "warmup",
@@ -220,8 +218,28 @@ describe("GuardPipeline：全链路放行与 replay 短路", () => {
 
     expect(flagCalls).toBe(1);
     expect(res).toBeNull();
-    expect(callOrder).toEqual(["auth", "client", "model", "version", "probe", "provider"]);
+    expect(callOrder).toEqual(["auth", "client", "model", "probe", "provider"]);
     expect(callOrder).not.toContain("session");
     expect(callOrder).not.toContain("messageContext");
   });
+});
+
+test("旧版本升级检查不会阻断默认对话，显式自定义守卫仍可调用", async () => {
+  callOrder.length = 0;
+  replayResult = null;
+  const {
+    GuardPipelineBuilder,
+    CHAT_PIPELINE,
+    RAW_PASSTHROUGH_PIPELINE,
+    RAW_SAFE_SESSION_PIPELINE,
+  } = await import("@/app/v1/_lib/proxy/guard-pipeline");
+  for (const preset of [CHAT_PIPELINE, RAW_PASSTHROUGH_PIPELINE, RAW_SAFE_SESSION_PIPELINE]) {
+    expect(preset.steps).not.toContain("version");
+    expect(preset.steps).toContain("auth");
+    expect(preset.steps).toContain("client");
+    expect(preset.steps).toContain("provider");
+  }
+  const session = {} as Parameters<ReturnType<typeof GuardPipelineBuilder.build>["run"]>[0];
+  await GuardPipelineBuilder.build({ steps: ["version"] }).run(session);
+  expect(callOrder).toEqual(["version"]);
 });

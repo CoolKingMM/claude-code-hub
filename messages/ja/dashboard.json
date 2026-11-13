@@ -1026,7 +1026,8 @@
     "systemSettings": "設定",
     "feedback": "フィードバック",
     "login": "ログイン",
-    "logout": "ログアウト"
+    "logout": "ログアウト",
+    "apiKeys": "API キー"
   },
   "statistics": {
     "title": "使用統計",
@@ -2391,5 +2392,16 @@
     },
     "alreadySet": "設定済み",
     "confirmAdd": "追加"
+  },
+  "apiKeys": {
+    "title": "API キー管理",
+    "description": "アクセスキー、有効状態、利用金額の上限を管理します。チャネルの上限はプロバイダーの編集画面で設定します。",
+    "refresh": "更新",
+    "fetchFailed": "概要を取得できませんでした",
+    "owner": "キー所有者",
+    "defaultOwner": "個人",
+    "initialize": "キー管理を初期化",
+    "status": "状態",
+    "toggle": "{name} を有効または無効にする"
   }
 }

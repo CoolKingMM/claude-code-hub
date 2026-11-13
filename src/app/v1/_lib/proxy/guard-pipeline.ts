@@ -11,7 +11,6 @@ import { ProxyRequestFilter } from "./request-filter";
 import { ProxySensitiveWordGuard } from "./sensitive-word-guard";
 import type { ProxySession } from "./session";
 import { ProxySessionGuard } from "./session-guard";
-import { ProxyVersionGuard } from "./version-guard";
 import { ProxyWarmupGuard } from "./warmup-guard";
 
 // Request type classification for pipeline presets
@@ -74,6 +73,7 @@ const Steps: Record<GuardStepKey, GuardStep> = {
   version: {
     name: "version",
     async execute(session) {
+      const { ProxyVersionGuard } = await import("./version-guard");
       return ProxyVersionGuard.ensure(session);
     },
   },
@@ -214,7 +214,6 @@ export const CHAT_PIPELINE: GuardConfig = {
     "sensitive",
     "client",
     "model",
-    "version",
     "probe",
     "session",
     "warmup",
@@ -228,11 +227,11 @@ export const CHAT_PIPELINE: GuardConfig = {
 };
 
 export const RAW_PASSTHROUGH_PIPELINE: GuardConfig = {
-  steps: ["auth", "client", "model", "version", "probe", "provider"],
+  steps: ["auth", "client", "model", "probe", "provider"],
 };
 
 export const RAW_SAFE_SESSION_PIPELINE: GuardConfig = {
-  steps: ["auth", "client", "model", "version", "probe", "session", "provider", "messageContext"],
+  steps: ["auth", "client", "model", "probe", "session", "provider", "messageContext"],
 };
 
 export const COUNT_TOKENS_PIPELINE: GuardConfig = RAW_SAFE_SESSION_PIPELINE;

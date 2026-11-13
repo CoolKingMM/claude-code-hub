@@ -4,7 +4,6 @@ import { redirect } from "@/i18n/routing";
 import { getSession } from "@/lib/auth";
 import { DashboardHeader } from "./_components/dashboard-header";
 import { DashboardMain } from "./_components/dashboard-main";
-import { WebhookMigrationDialog } from "./_components/webhook-migration-dialog";
 
 export default async function DashboardLayout({
   children,
@@ -30,7 +29,6 @@ export default async function DashboardLayout({
     <div className="min-h-[var(--cch-viewport-height,100vh)] bg-background">
       <DashboardHeader session={session} locale={locale} />
       <DashboardMain>{children}</DashboardMain>
-      <WebhookMigrationDialog />
     </div>
   );
 }

@@ -567,71 +567,11 @@ export async function recordFailure(providerId: number, error: Error): Promise<v
           retryAt,
         }
       );
-
-      // 异步发送熔断器告警（不阻塞主流程）
-      triggerCircuitBreakerAlert(providerId, health.failureCount, retryAt, error.message).catch(
-        (err) => {
-          logger.error({
-            action: "trigger_circuit_breaker_alert_error",
-            providerId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      );
     }
   }
 
   // 持久化状态变更到 Redis
   persistStateToRedis(providerId, health);
-}
-
-/**
- * 触发熔断器告警通知
- */
-async function triggerCircuitBreakerAlert(
-  providerId: number,
-  failureCount: number,
-  retryAt: string,
-  lastError: string
-): Promise<void> {
-  try {
-    // 动态导入以避免循环依赖
-    const { db } = await import("@/drizzle/db");
-    const { providers } = await import("@/drizzle/schema");
-    const { eq } = await import("drizzle-orm");
-    const { sendCircuitBreakerAlert } = await import("@/lib/notification/notifier");
-
-    // 查询供应商名称
-    const provider = await db
-      .select({ name: providers.name })
-      .from(providers)
-      .where(eq(providers.id, providerId))
-      .limit(1);
-
-    if (!provider || provider.length === 0) {
-      logger.warn({
-        action: "circuit_breaker_alert_provider_not_found",
-        providerId,
-      });
-      return;
-    }
-
-    // sendCircuitBreakerAlert 只接受一个参数，webhook URL 在函数内部从配置读取
-    await sendCircuitBreakerAlert({
-      providerName: provider[0].name,
-      providerId,
-      failureCount,
-      retryAt,
-      lastError,
-    });
-  } catch (error) {
-    // 告警失败不影响熔断器功能
-    logger.error({
-      action: "circuit_breaker_alert_error",
-      providerId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
 
 /**

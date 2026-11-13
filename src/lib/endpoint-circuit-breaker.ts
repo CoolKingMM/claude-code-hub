@@ -350,27 +350,11 @@ export async function recordEndpointFailure(endpointId: number, error: Error): P
       health.circuitOpenUntil = Date.now() + config.openDuration;
       health.halfOpenSuccessCount = 0;
 
-      const retryAt = new Date(health.circuitOpenUntil).toISOString();
-
       logger.warn("[EndpointCircuitBreaker] Endpoint circuit opened", {
         endpointId,
         failureCount: health.failureCount,
         threshold: config.failureThreshold,
         errorMessage: error.message,
-      });
-
-      // Async alert (non-blocking)
-      triggerEndpointCircuitBreakerAlert(
-        endpointId,
-        health.failureCount,
-        retryAt,
-        error.message
-      ).catch((err) => {
-        logger.error({
-          action: "trigger_endpoint_circuit_breaker_alert_error",
-          endpointId,
-          error: err instanceof Error ? err.message : String(err),
-        });
       });
     }
     // If already open: failureCount is updated above, but timer stays fixed — no death spiral

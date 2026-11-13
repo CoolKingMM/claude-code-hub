@@ -39,19 +39,7 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     label: "特殊处理",
     iconName: "shield-alert",
   },
-  {
-    href: "/settings/status-page",
-    labelKey: "nav.statusPage",
-    label: "Status Page",
-    iconName: "activity",
-  },
   { href: "/settings/prices", labelKey: "nav.prices", label: "Prices", iconName: "dollar-sign" },
-  {
-    href: "/settings/providers",
-    labelKey: "nav.providers",
-    label: "Providers",
-    iconName: "server",
-  },
   {
     href: "/settings/sensitive-words",
     labelKey: "nav.sensitiveWords",
@@ -70,20 +58,8 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     label: "Request Filters",
     iconName: "filter",
   },
-  {
-    href: "/settings/client-versions",
-    labelKey: "nav.clientVersions",
-    label: "Client Versions",
-    iconName: "smartphone",
-  },
   { href: "/settings/data", labelKey: "nav.data", label: "Data", iconName: "database" },
   { href: "/settings/logs", labelKey: "nav.logs", label: "Logs", iconName: "file-text" },
-  {
-    href: "/settings/notifications",
-    labelKey: "nav.notifications",
-    label: "Notifications",
-    iconName: "bell",
-  },
   {
     href: "/dashboard/audit-logs",
     labelKey: "nav.auditLogs",

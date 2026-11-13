@@ -1028,7 +1028,8 @@
     "systemSettings": "Settings",
     "feedback": "Feedback",
     "login": "Login",
-    "logout": "Logout"
+    "logout": "Logout",
+    "apiKeys": "API Keys"
   },
   "statistics": {
     "title": "Usage Statistics",
@@ -2462,5 +2463,16 @@
     },
     "alreadySet": "Configured",
     "confirmAdd": "Add"
+  },
+  "apiKeys": {
+    "title": "API Key Management",
+    "description": "Manage access keys, enabled status and spending limits. Configure channel limits in the provider editor.",
+    "refresh": "Refresh",
+    "fetchFailed": "Failed to load overview",
+    "owner": "Key owner",
+    "defaultOwner": "Personal",
+    "initialize": "Initialize key management",
+    "status": "Status",
+    "toggle": "Enable or disable {name}"
   }
 }

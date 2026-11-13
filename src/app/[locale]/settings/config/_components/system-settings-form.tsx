@@ -6,7 +6,6 @@ import {
   CircleHelp,
   Clock,
   Coins,
-  Eye,
   FileCode,
   Filter,
   Gauge,
@@ -173,9 +172,7 @@ export function SystemSettingsForm({
   const tCommon = useTranslations("settings.common");
   const tIpLogging = useTranslations("settings.config.ipLogging");
   const [siteTitle, setSiteTitle] = useState(initialSettings.siteTitle);
-  const [allowGlobalUsageView, setAllowGlobalUsageView] = useState(
-    initialSettings.allowGlobalUsageView
-  );
+  const [allowGlobalUsageView] = useState(initialSettings.allowGlobalUsageView);
   const [currencyDisplay, setCurrencyDisplay] = useState<CurrencyCode>(
     initialSettings.currencyDisplay
   );
@@ -534,7 +531,6 @@ export function SystemSettingsForm({
 
       if (result.data) {
         setSiteTitle(result.data.siteTitle);
-        setAllowGlobalUsageView(result.data.allowGlobalUsageView);
         setCurrencyDisplay(result.data.currencyDisplay);
         setBillingModelSource(result.data.billingModelSource);
         setCodexPriorityBillingSource(result.data.codexPriorityBillingSource);
@@ -747,25 +743,6 @@ export function SystemSettingsForm({
 
       {/* Toggle Settings */}
       <div className="space-y-3">
-        {/* Allow Global Usage View */}
-        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between hover:bg-white/[0.04] transition-colors">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 shrink-0">
-              <Eye className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">{t("allowGlobalView")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("allowGlobalViewDesc")}</p>
-            </div>
-          </div>
-          <Switch
-            id="allow-global-usage"
-            checked={allowGlobalUsageView}
-            onCheckedChange={(checked) => setAllowGlobalUsageView(checked)}
-            disabled={isPending}
-          />
-        </div>
-
         {/* Bill Non-Successful Requests */}
         <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between hover:bg-white/[0.04] transition-colors">
           <div className="flex items-start gap-3">

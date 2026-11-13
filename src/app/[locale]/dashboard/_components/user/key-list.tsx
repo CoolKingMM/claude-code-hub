@@ -1,5 +1,6 @@
 "use client";
 import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DataTable, TableColumnTypes } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -16,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Link } from "@/i18n/routing";
-import { getUnmaskedKey } from "@/lib/api-client/v1/actions/keys";
+import { getUnmaskedKey, toggleKeyEnabled } from "@/lib/api-client/v1/actions/keys";
 import { copyToClipboard, isClipboardSupported } from "@/lib/utils/clipboard";
 import { type CurrencyCode, formatCurrency } from "@/lib/utils/currency";
 import type { User, UserKeyDisplay } from "@/types/user";
@@ -40,6 +42,9 @@ export function KeyList({
 }: KeyListProps) {
   const t = useTranslations("dashboard.keyList");
   const tCommon = useTranslations("common");
+  const tKeys = useTranslations("dashboard.apiKeys");
+  const router = useRouter();
+  const [togglingKeyIds, setTogglingKeyIds] = useState<Set<number>>(new Set());
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
   const [visibleKeyIds, setVisibleKeyIds] = useState<Set<number>>(new Set());
@@ -154,6 +159,7 @@ export function KeyList({
             (record.limitDailyUsd && record.limitDailyUsd > 0) ||
             (record.limitWeeklyUsd && record.limitWeeklyUsd > 0) ||
             (record.limitMonthlyUsd && record.limitMonthlyUsd > 0) ||
+            (record.limitTotalUsd && record.limitTotalUsd > 0) ||
             (record.limitConcurrentSessions && record.limitConcurrentSessions > 0)
         );
 
@@ -281,6 +287,34 @@ export function KeyList({
           </div>
         );
       },
+    }),
+    TableColumnTypes.text<UserKeyDisplay>("status", tKeys("status"), {
+      render: (_, record) => (
+        <Switch
+          checked={record.status === "enabled"}
+          disabled={
+            togglingKeyIds.has(record.id) ||
+            !(currentUser && (currentUser.role === "admin" || currentUser.id === keyOwnerUserId))
+          }
+          aria-label={tKeys("toggle", { name: record.name })}
+          onCheckedChange={async (enabled) => {
+            setTogglingKeyIds((prev) => new Set(prev).add(record.id));
+            try {
+              const result = await toggleKeyEnabled(record.id, enabled);
+              if (!result.ok) toast.error(result.error || tCommon("error"));
+              else router.refresh();
+            } catch {
+              toast.error(tCommon("error"));
+            } finally {
+              setTogglingKeyIds((prev) => {
+                const next = new Set(prev);
+                next.delete(record.id);
+                return next;
+              });
+            }
+          }}
+        />
+      ),
     }),
     TableColumnTypes.text<UserKeyDisplay>("todayCallCount", t("columns.todayCalls"), {
       render: (value) => (

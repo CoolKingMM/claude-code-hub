@@ -278,10 +278,7 @@ describe("circuit-breaker", () => {
     await recordFailure(1, new Error("boom"));
     expect(redisState?.circuitOpenUntil).toBe(openUntil);
 
-    // recordFailure 在达到阈值后会触发异步告警（dynamic import + non-blocking）。
-    // 切回真实计时器推进事件循环，避免任务悬挂导致后续用例 mock 串台。
-    vi.useRealTimers();
-    await expect.poll(() => sendAlertMock.mock.calls.length, { timeout: 1000 }).toBe(1);
+    expect(sendAlertMock).not.toHaveBeenCalled();
   });
 
   test("配置加载失败时应缓存默认配置，避免重复请求配置存储", async () => {

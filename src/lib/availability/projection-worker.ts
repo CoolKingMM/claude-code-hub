@@ -13,6 +13,7 @@ import { withAdvisoryLock } from "@/lib/migrate";
 const BATCH = 300;
 const BUSY_MS = 10;
 const TICK_MS = 200;
+const MAX_IDLE_MS = 30_000;
 const BACKFILL_LOCK = "claude-code-hub:availability-projection-backfill";
 /** Match MAX_AVAILABILITY_QUERY_RANGE_DAYS so historical ranges are not silently empty after upgrade. */
 const BACKFILL_RANGE_DAYS = 100;
@@ -21,7 +22,8 @@ const BACKFILL_CHUNK_HOURS = 6;
 type SchedulerState = {
   started?: boolean;
   stopRequested?: boolean;
-  intervalId?: ReturnType<typeof setInterval>;
+  intervalId?: ReturnType<typeof setTimeout>;
+  idleDelayMs?: number;
   currentPromise?: Promise<void>;
   bootstrapPromise?: Promise<void>;
 };
@@ -446,6 +448,10 @@ export async function processBatch(): Promise<number> {
   });
 }
 
+export function nextProjectionDelay(previousDelay: number, processed: number): number {
+  return processed > 0 ? TICK_MS : Math.min(Math.max(previousDelay * 2, 1000), MAX_IDLE_MS);
+}
+
 async function runCycle(): Promise<void> {
   const s = state();
   if (s.stopRequested) return;
@@ -463,10 +469,12 @@ async function runCycle(): Promise<void> {
         if (n < BATCH) break;
         await new Promise((r) => setTimeout(r, BUSY_MS));
       }
+      s.idleDelayMs = nextProjectionDelay(s.idleDelayMs ?? TICK_MS, total);
       if (total > 0) {
-        logger.info("[AvailProjection] projected events", { count: total });
+        logger.debug("[AvailProjection] projected events", { count: total });
       }
     } catch (error) {
+      s.idleDelayMs = MAX_IDLE_MS;
       logger.warn("[AvailProjection] cycle failed", {
         error: error instanceof Error ? error.message : String(error),
       });
@@ -481,13 +489,22 @@ async function runCycle(): Promise<void> {
   await current;
 }
 
+function scheduleNextCycle(): void {
+  const s = state();
+  if (s.stopRequested) return;
+  s.intervalId = setTimeout(() => {
+    s.intervalId = undefined;
+    void runCycle().finally(scheduleNextCycle);
+  }, s.idleDelayMs ?? TICK_MS);
+  s.intervalId.unref?.();
+}
+
 export function startAvailabilityProjectionWorker(): void {
   const s = state();
   if (s.started) return;
-
   s.stopRequested = false;
   s.started = true;
-
+  s.idleDelayMs = TICK_MS;
   s.bootstrapPromise = (async () => {
     try {
       await bootstrapBackfill();
@@ -496,22 +513,19 @@ export function startAvailabilityProjectionWorker(): void {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-    void runCycle();
+    if (!s.stopRequested) {
+      await runCycle();
+      scheduleNextCycle();
+    }
   })();
-
-  s.intervalId = setInterval(() => {
-    void runCycle();
-  }, TICK_MS);
-  (s.intervalId as { unref?: () => void } | undefined)?.unref?.();
-
-  logger.info("[AvailProjection] worker started");
+  logger.info("[AvailProjection] worker started", { maxIdleMs: MAX_IDLE_MS });
 }
 
 export async function stopAvailabilityProjectionWorker(): Promise<void> {
   const s = state();
   s.stopRequested = true;
   if (s.intervalId) {
-    clearInterval(s.intervalId);
+    clearTimeout(s.intervalId);
     s.intervalId = undefined;
   }
   await s.bootstrapPromise;
@@ -527,7 +541,7 @@ export function getAvailabilityProjectionWorkerStatus() {
     started: s.started === true,
     running: Boolean(s.currentPromise),
     bootstrapping: Boolean(s.bootstrapPromise),
-    tickMs: TICK_MS,
+    tickMs: s.idleDelayMs ?? TICK_MS,
   };
 }
 

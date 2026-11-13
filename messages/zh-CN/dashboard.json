@@ -1028,7 +1028,8 @@
     "systemSettings": "系统设置",
     "feedback": "反馈问题",
     "login": "登录",
-    "logout": "退出登录"
+    "logout": "退出登录",
+    "apiKeys": "API 密钥"
   },
   "statistics": {
     "title": "使用统计",
@@ -2414,5 +2415,16 @@
     },
     "alreadySet": "已配置",
     "confirmAdd": "添加"
+  },
+  "apiKeys": {
+    "title": "API 密钥管理",
+    "description": "管理访问密钥、启停状态与金额限额；渠道限额在编辑供应商时设置。",
+    "refresh": "刷新",
+    "fetchFailed": "读取概览失败",
+    "owner": "密钥归属",
+    "defaultOwner": "个人",
+    "initialize": "初始化密钥管理",
+    "status": "状态",
+    "toggle": "启停 {name}"
   }
 }

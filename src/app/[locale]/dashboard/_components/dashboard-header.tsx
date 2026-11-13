@@ -1,5 +1,4 @@
 import { getTranslations } from "next-intl/server";
-import { VersionUpdateNotifier } from "@/components/customs/version-update-notifier";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
@@ -23,13 +22,8 @@ export async function DashboardHeader({ session, locale }: DashboardHeaderProps)
   const NAV_ITEMS: (DashboardNavItem & { adminOnly?: boolean })[] = [
     { href: "/dashboard", label: t("dashboard") },
     { href: "/dashboard/logs", label: t("usageLogs") },
-    { href: "/dashboard/leaderboard", label: t("leaderboard") },
-    { href: "/dashboard/availability", label: t("availability"), adminOnly: true },
     { href: "/dashboard/providers", label: t("providers"), adminOnly: true },
-    ...(isAdmin
-      ? [{ href: "/dashboard/quotas", label: t("quotasManagement") }]
-      : [{ href: "/dashboard/my-quota", label: t("myQuota") }]),
-    { href: "/dashboard/users", label: t("userManagement") },
+    { href: "/dashboard/users", label: t("apiKeys") },
     documentationItem,
     { href: "/settings", label: t("systemSettings"), adminOnly: true },
   ];
@@ -49,7 +43,6 @@ export async function DashboardHeader({ session, locale }: DashboardHeaderProps)
         <div className="flex items-center gap-3">
           <ThemeSwitcher />
           <LanguageSwitcher size="sm" />
-          {session && <VersionUpdateNotifier />}
           {session ? (
             <UserMenu user={session.user} />
           ) : (

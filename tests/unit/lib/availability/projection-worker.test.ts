@@ -211,3 +211,50 @@ describe("availability projection-worker", () => {
     expect(withAdvisoryLock).not.toHaveBeenCalled();
   });
 });
+
+describe("availability maintenance polling", () => {
+  it("backs off idle cycles and immediately catches up after traffic", async () => {
+    const { nextProjectionDelay } = await import("@/lib/availability/projection-worker");
+    expect(nextProjectionDelay(200, 0)).toBe(1000);
+    expect(nextProjectionDelay(1000, 0)).toBe(2000);
+    expect(nextProjectionDelay(16000, 0)).toBe(30000);
+    expect(nextProjectionDelay(30000, 0)).toBe(30000);
+    expect(nextProjectionDelay(30000, 1)).toBe(200);
+  });
+  it("keeps consuming without overlap and stops without leaving a timer", async () => {
+    vi.resetModules();
+    delete (globalThis as { __CCH_AVAIL_PROJ_WORKER__?: unknown }).__CCH_AVAIL_PROJ_WORKER__;
+    vi.useFakeTimers();
+    const execute = vi.fn(async () => [{ key: "backfill_done" }]);
+    const transaction = vi.fn(
+      async (fn: (tx: { execute: ReturnType<typeof vi.fn> }) => Promise<number>) =>
+        fn({ execute: vi.fn(async () => []) })
+    );
+    vi.doMock("@/drizzle/db", () => ({ db: { execute, transaction } }));
+    vi.doMock("@/lib/logger", () => ({
+      logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    }));
+    const worker = await import("@/lib/availability/projection-worker");
+    try {
+      worker.startAvailabilityProjectionWorker();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(transaction).toHaveBeenCalledOnce();
+      expect(worker.getAvailabilityProjectionWorkerStatus()).toMatchObject({
+        started: true,
+        running: false,
+        tickMs: 1000,
+      });
+      worker.startAvailabilityProjectionWorker();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(transaction).toHaveBeenCalledTimes(2);
+      expect(worker.getAvailabilityProjectionWorkerStatus().tickMs).toBe(2000);
+      await worker.stopAvailabilityProjectionWorker();
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(transaction).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      await worker.stopAvailabilityProjectionWorker();
+      vi.useRealTimers();
+    }
+  });
+});

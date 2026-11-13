@@ -149,7 +149,6 @@ describe("GuardPipeline：warmup 拦截点", () => {
       "sensitive",
       "client",
       "model",
-      "version",
       "probe",
       "session",
       "warmup",
@@ -179,7 +178,7 @@ describe("GuardPipeline：warmup 拦截点", () => {
 
     expect(res).not.toBeNull();
     expect(res?.status).toBe(200);
-    expect(callOrder).toEqual(["auth", "sensitive", "client", "model", "version", "probe"]);
+    expect(callOrder).toEqual(["auth", "sensitive", "client", "model", "probe"]);
     expect(callOrder).not.toContain("session");
     expect(callOrder).not.toContain("warmup");
     expect(callOrder).not.toContain("rateLimit");
@@ -210,7 +209,6 @@ describe("GuardPipeline：warmup 拦截点", () => {
       "auth",
       "client",
       "model",
-      "version",
       "probe",
       "session",
       "provider",
@@ -254,7 +252,6 @@ describe("GuardPipeline：warmup 拦截点", () => {
       "auth",
       "client",
       "model",
-      "version",
       "probe",
       "session",
       "provider",
@@ -285,7 +282,6 @@ describe("GuardPipeline：warmup 拦截点", () => {
       "sensitive",
       "client",
       "model",
-      "version",
       "probe",
       "session",
       "warmup",

@@ -110,6 +110,7 @@ jobs:
           bun x biome check --changed --since=HEAD^ --no-errors-on-unmatched
           bun run openapi:check || { bun run openapi:generate; git diff -- src/lib/api-client/v1/openapi-types.gen.ts; exit 1; }
           bun x vitest run --config tests/configs/provider-key-batch.config.mts --coverage --configLoader bundle
+          bun x vitest run --config tests/configs/personal-admin.config.mts --coverage --configLoader bundle
 
       - name: Set up QEMU
         if: steps.build_flag.outputs.should_build == 'true'
