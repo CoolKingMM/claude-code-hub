@@ -8,6 +8,8 @@ import {
   DashboardOverviewResponseSchema,
   DashboardRateLimitStatsQuerySchema,
   DashboardStatisticsQuerySchema,
+  DashboardUsageQuerySchema,
+  DashboardUsageResponseSchema,
   DispatchSimulatorInputSchema,
 } from "@/lib/api/v1/schemas/dashboard";
 import {
@@ -16,6 +18,7 @@ import {
   getDashboardProxyStatus,
   getDashboardRateLimitStats,
   getDashboardStatistics,
+  getDashboardUsage,
   simulateDispatch,
 } from "./handlers";
 
@@ -45,6 +48,29 @@ const problemResponses = {
     content: { "application/problem+json": { schema: ProblemJsonSchema } },
   },
 } as const;
+
+dashboardRouter.openapi(
+  createRoute({
+    method: "get",
+    path: "/dashboard/usage",
+    middleware: requireAuth("read"),
+    tags: ["Dashboard"],
+    summary: "Get usage costs for a selected date range",
+    description:
+      "Returns recorded ledger costs grouped by channel, model, API key or day. Admins see all usage; regular callers see only their own owner's usage. Custom dates include both calendar days in the system timezone. Provider credentials are never returned.",
+    "x-required-access": "read",
+    security,
+    request: { query: DashboardUsageQuerySchema },
+    responses: {
+      200: {
+        description: "Paginated usage groups and full-range totals.",
+        content: { "application/json": { schema: DashboardUsageResponseSchema } },
+      },
+      ...problemResponses,
+    },
+  }),
+  getDashboardUsage as never
+);
 
 dashboardRouter.openapi(
   createRoute({

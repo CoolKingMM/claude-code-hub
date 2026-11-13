@@ -11,12 +11,27 @@ import { jsonResponse } from "@/lib/api/v1/_shared/response-helpers";
 import {
   DashboardRateLimitStatsQuerySchema,
   DashboardStatisticsQuerySchema,
+  DashboardUsageQuerySchema,
   DispatchSimulatorInputSchema,
 } from "@/lib/api/v1/schemas/dashboard";
 
 export async function getDashboardOverview(c: Context): Promise<Response> {
   const actions = await import("@/actions/overview");
   return actionJson(c, await callAction(c, actions.getOverviewData, [], c.get("auth")));
+}
+
+export async function getDashboardUsage(c: Context): Promise<Response> {
+  const query = DashboardUsageQuerySchema.safeParse(c.req.query());
+  if (!query.success) return fromZodError(query.error, new URL(c.req.url).pathname);
+  const actions = await import("@/actions/dashboard-usage");
+  const result = await callAction(
+    c,
+    actions.getDashboardUsage,
+    [query.data] as never[],
+    c.get("auth")
+  );
+  if (!result.ok) return actionError(c, result);
+  return jsonResponse(result.data, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function getDashboardStatistics(c: Context): Promise<Response> {

@@ -1,5 +1,36 @@
 import { z } from "@hono/zod-openapi";
 
+export { DashboardUsageQuerySchema } from "@/lib/validation/dashboard-usage";
+
+const UsageMetricsSchema = z.object({
+  requests: z.number().describe("Billable request count."),
+  cost: z.number().describe("Recorded cost in USD, without repricing historical usage."),
+  inputTokens: z.number().describe("Input tokens."),
+  outputTokens: z.number().describe("Output tokens."),
+  cacheCreationTokens: z.number().describe("Cache creation tokens."),
+  cacheReadTokens: z.number().describe("Cache read tokens."),
+});
+
+export const DashboardUsageResponseSchema = z.object({
+  summary: UsageMetricsSchema.describe("Metrics for the complete selected range."),
+  items: z
+    .array(
+      UsageMetricsSchema.extend({
+        id: z.string().describe("Grouping identifier; never a credential."),
+        name: z.string().nullable().describe("Display name; null for a removed entity."),
+        providerType: z.string().nullable().describe("Channel protocol type."),
+      })
+    )
+    .describe("Selected grouping page."),
+  totalCount: z.number().describe("Total grouped rows."),
+  page: z.number().describe("Current page."),
+  pageSize: z.number().describe("Maximum page size."),
+  startTime: z.string().describe("Inclusive range start."),
+  endTime: z.string().describe("Exclusive range end."),
+  timezone: z.string().describe("System timezone used for calendar dates."),
+  generatedAt: z.string().describe("Time of the cached aggregation."),
+});
+
 export const DashboardTimeRangeSchema = z
   .enum(["today", "7days", "30days", "thisMonth"])
   .describe("Dashboard statistics time range.");

@@ -31,6 +31,9 @@ vi.mock("@/lib/api-client/v1/actions/personal-keys", () => ({
 vi.mock("sonner", () => ({ toast: { error: mocks.toast } }));
 vi.mock("@/lib/api-client/v1/actions/users", () => ({ createUserOnly: mocks.createUser }));
 vi.mock("@/lib/api-client/v1/actions/overview", () => ({ getOverviewData: mocks.overview }));
+vi.mock("@/app/[locale]/dashboard/_components/dashboard-usage", () => ({
+  DashboardUsage: () => <div data-testid="dashboard-usage" />,
+}));
 vi.mock("@/app/[locale]/dashboard/_components/user/key-list", () => ({
   KeyList: (props: unknown) => {
     mocks.keyList(props);

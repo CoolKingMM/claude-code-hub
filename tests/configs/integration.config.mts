@@ -6,6 +6,7 @@ export default createTestRunnerConfig({
   hookTimeout: 20000,
   fileParallelism: false,
   testFiles: [
+    "tests/integration/dashboard-usage-postgres.test.ts",
     "tests/integration/usage-ledger.test.ts",
     "tests/integration/session-identity-postgres.test.ts",
     "tests/integration/my-usage-imported-ledger.test.ts",

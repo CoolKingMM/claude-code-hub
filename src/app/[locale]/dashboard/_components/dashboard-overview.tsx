@@ -9,6 +9,7 @@ import { getOverviewData, type OverviewData } from "@/lib/api-client/v1/actions/
 import { type CurrencyCode, formatCurrency } from "@/lib/utils/currency";
 import { BentoGrid } from "./bento/bento-grid";
 import { BentoMetricCard } from "./bento/metric-card";
+import { DashboardUsage } from "./dashboard-usage";
 
 export function DashboardOverview({
   isAdmin,
@@ -75,6 +76,7 @@ export function DashboardOverview({
           accentColor="emerald"
         />
       </BentoGrid>
+      <DashboardUsage currencyCode={currencyCode} />
       <div className="flex flex-wrap gap-3">
         <Button asChild variant="outline">
           <Link href="/dashboard/logs">{tNav("usageLogs")}</Link>

@@ -2,14 +2,12 @@ import type { AuthSession } from "@/lib/auth";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const validateAuthTokenMock = vi.hoisted(() => vi.fn());
+const getDashboardUsageMock = vi.hoisted(() => vi.fn());
 const getOverviewDataMock = vi.hoisted(() => vi.fn());
 const getUserStatisticsMock = vi.hoisted(() => vi.fn());
 const getConcurrentSessionsMock = vi.hoisted(() => vi.fn());
-const getDashboardRealtimeDataMock = vi.hoisted(() => vi.fn());
-const getProviderSlotsMock = vi.hoisted(() => vi.fn());
 const getRateLimitStatsMock = vi.hoisted(() => vi.fn());
 const getProxyStatusMock = vi.hoisted(() => vi.fn());
-const fetchClientVersionStatsMock = vi.hoisted(() => vi.fn());
 const simulateDispatchActionMock = vi.hoisted(() => vi.fn());
 const getSystemSettingsRepoMock = vi.hoisted(() => vi.fn());
 
@@ -17,6 +15,7 @@ vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return { ...actual, validateAuthToken: validateAuthTokenMock };
 });
+vi.mock("@/actions/dashboard-usage", () => ({ getDashboardUsage: getDashboardUsageMock }));
 vi.mock("@/actions/overview", () => ({ getOverviewData: getOverviewDataMock }));
 vi.mock("@/actions/statistics", () => ({ getUserStatistics: getUserStatisticsMock }));
 vi.mock("@/actions/concurrent-sessions", () => ({
@@ -59,17 +58,18 @@ describe("v1 dashboard endpoints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     validateAuthTokenMock.mockResolvedValue(adminSession);
+    getDashboardUsageMock.mockResolvedValue({
+      ok: true,
+      data: { summary: { cost: 12 }, items: [] },
+    });
     getOverviewDataMock.mockResolvedValue({ ok: true, data: overview });
     getUserStatisticsMock.mockResolvedValue({
       ok: true,
       data: { timeRange: "7days", chartData: [] },
     });
     getConcurrentSessionsMock.mockResolvedValue({ ok: true, data: 2 });
-    getDashboardRealtimeDataMock.mockResolvedValue({ ok: true, data: { metrics: overview } });
-    getProviderSlotsMock.mockResolvedValue({ ok: true, data: [{ providerId: 1, name: "p1" }] });
     getRateLimitStatsMock.mockResolvedValue({ ok: true, data: { total_events: 1 } });
     getProxyStatusMock.mockResolvedValue({ ok: true, data: { users: [] } });
-    fetchClientVersionStatsMock.mockResolvedValue({ ok: true, data: [{ client: "claude-code" }] });
     simulateDispatchActionMock.mockResolvedValue({ ok: true, data: { finalCandidateCount: 1 } });
     getSystemSettingsRepoMock.mockResolvedValue({ allowGlobalUsageView: true });
   });
@@ -148,11 +148,66 @@ describe("v1 dashboard endpoints", () => {
     expect(invalid.response.headers.get("content-type")).toContain("application/problem+json");
   });
 
+  test("usage validates custom dates and expands only the selected channel", async () => {
+    const headers = { Authorization: "Bearer admin-token" };
+    const response = await callV1Route({
+      method: "GET",
+      pathname:
+        "/api/v1/dashboard/usage?period=custom&scope=providerKey&startDate=2026-01-01&endDate=2026-01-02&channelId=8%3Acodex&page=2&pageSize=10",
+      headers,
+    });
+    expect(response.response.status).toBe(200);
+    expect(response.response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.json).toMatchObject({ summary: { cost: 12 } });
+    expect(getDashboardUsageMock).toHaveBeenCalledWith({
+      period: "custom",
+      scope: "providerKey",
+      startDate: "2026-01-01",
+      endDate: "2026-01-02",
+      channelId: "8:codex",
+      page: 2,
+      pageSize: 10,
+    });
+    getDashboardUsageMock.mockClear();
+    for (const query of [
+      "period=custom",
+      "scope=providerKey",
+      "pageSize=101",
+      "period=custom&startDate=2026-02-30&endDate=2026-03-01",
+    ]) {
+      const invalid = await callV1Route({
+        method: "GET",
+        pathname: `/api/v1/dashboard/usage?${query}`,
+        headers,
+      });
+      expect(invalid.response.status).toBe(400);
+      expect(invalid.response.headers.get("content-type")).toContain("application/problem+json");
+    }
+    expect(getDashboardUsageMock).not.toHaveBeenCalled();
+  });
+  test("usage requires authentication and propagates action errors", async () => {
+    validateAuthTokenMock.mockResolvedValueOnce(null);
+    const anonymous = await callV1Route({ method: "GET", pathname: "/api/v1/dashboard/usage" });
+    expect(anonymous.response.status).toBe(401);
+    expect(getDashboardUsageMock).not.toHaveBeenCalled();
+    getDashboardUsageMock.mockResolvedValueOnce({
+      ok: false,
+      errorCode: "PERMISSION_DENIED",
+      error: "denied",
+    });
+    const denied = await callV1Route({
+      method: "GET",
+      pathname: "/api/v1/dashboard/usage",
+      headers: { Authorization: "Bearer admin-token" },
+    });
+    expect(denied.response.status).toBe(403);
+  });
   test("documents dashboard REST paths", async () => {
     const { json } = await callV1Route({ method: "GET", pathname: "/api/v1/openapi.json" });
     const doc = json as { paths: Record<string, unknown> };
 
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/overview");
+    expect(doc.paths).toHaveProperty("/api/v1/dashboard/usage");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/statistics");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/concurrent-sessions");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/rate-limit-stats");
