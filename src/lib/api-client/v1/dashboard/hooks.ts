@@ -42,20 +42,6 @@ export function useDashboardConcurrentSessions() {
   });
 }
 
-export function useDashboardRealtime() {
-  return useQuery({
-    queryKey: v1Keys.dashboard.realtime(),
-    queryFn: () => apiClient.get("/api/v1/dashboard/realtime"),
-  });
-}
-
-export function useDashboardProviderSlots() {
-  return useQuery({
-    queryKey: v1Keys.dashboard.providerSlots(),
-    queryFn: () => apiClient.get("/api/v1/dashboard/provider-slots"),
-  });
-}
-
 export function useDashboardRateLimitStats(params?: DashboardRateLimitStatsQuery) {
   return useQuery({
     queryKey: v1Keys.dashboard.rateLimitStats(params),
@@ -67,13 +53,6 @@ export function useDashboardProxyStatus() {
   return useQuery({
     queryKey: v1Keys.dashboard.proxyStatus(),
     queryFn: () => apiClient.get("/api/v1/dashboard/proxy-status"),
-  });
-}
-
-export function useDashboardClientVersions() {
-  return useQuery({
-    queryKey: v1Keys.dashboard.clientVersions(),
-    queryFn: () => apiClient.get("/api/v1/dashboard/client-versions"),
   });
 }
 

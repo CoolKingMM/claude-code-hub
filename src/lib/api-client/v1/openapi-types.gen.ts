@@ -2403,7 +2403,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List personal API keys */
+        /**
+         * List personal API keys
+         * @description Lists masked keys and usage summaries for one owner. Admins may access any owner; regular sessions may access only their own keys.
+         */
         get: operations["getKeys"];
         put?: never;
         post?: never;
@@ -2420,7 +2423,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get key model statistics */
+        /**
+         * Get key model statistics
+         * @description Loads today's model statistics on demand for one key. Admins may access any key; regular sessions may access only their own keys.
+         */
         get: operations["getKeysByKeyidModelStats"];
         put?: never;
         post?: never;

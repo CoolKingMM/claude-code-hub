@@ -19,8 +19,6 @@ const instrumentationState = globalThis as unknown as {
   __CCH_SHUTDOWN_IN_PROGRESS__?: boolean;
   __CCH_CLOUD_PRICE_SYNC_STARTED__?: boolean;
   __CCH_CLOUD_PRICE_SYNC_INTERVAL_ID__?: ReturnType<typeof setInterval>;
-  __CCH_CACHE_EFFECTIVENESS_STARTED__?: boolean;
-  __CCH_CACHE_EFFECTIVENESS_INTERVAL_ID__?: ReturnType<typeof setInterval>;
   __CCH_REPLAY_CLEANUP_STARTED__?: boolean;
   __CCH_REPLAY_CLEANUP_INTERVAL_ID__?: ReturnType<typeof setInterval>;
   __CCH_API_KEY_VF_SYNC_STARTED__?: boolean;

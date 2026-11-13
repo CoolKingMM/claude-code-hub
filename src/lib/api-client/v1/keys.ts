@@ -16,16 +16,6 @@ export const v1Keys = {
     list: () => ["v1", "provider-groups", "list"] as const,
     detail: (id: number) => ["v1", "provider-groups", "detail", id] as const,
   },
-  webhookTargets: {
-    all: ["v1", "webhook-targets"] as const,
-    list: () => ["v1", "webhook-targets", "list"] as const,
-    detail: (id: number) => ["v1", "webhook-targets", "detail", id] as const,
-  },
-  notifications: {
-    all: ["v1", "notifications"] as const,
-    settings: () => ["v1", "notifications", "settings"] as const,
-    bindings: (type: string) => ["v1", "notifications", "bindings", type] as const,
-  },
   system: {
     all: ["v1", "system"] as const,
     settings: () => ["v1", "system", "settings"] as const,
@@ -47,26 +37,9 @@ export const v1Keys = {
     providerOptions: () => ["v1", "request-filters", "options", "providers"] as const,
     groupOptions: () => ["v1", "request-filters", "options", "groups"] as const,
   },
-  publicStatus: {
-    all: ["v1", "public-status"] as const,
-    current: (params?: Record<string, unknown>) =>
-      ["v1", "public-status", "current", params ?? {}] as const,
-    settings: () => ["v1", "public-status", "settings"] as const,
-  },
   ipGeo: {
     all: ["v1", "ip-geo"] as const,
     lookup: (ip: string, lang?: string) => ["v1", "ip-geo", ip, lang ?? ""] as const,
-  },
-  adminUserInsights: {
-    all: ["v1", "admin-user-insights"] as const,
-    overview: (userId: number, params?: Record<string, unknown>) =>
-      ["v1", "admin-user-insights", userId, "overview", params ?? {}] as const,
-    keyTrend: (userId: number, params?: Record<string, unknown>) =>
-      ["v1", "admin-user-insights", userId, "key-trend", params ?? {}] as const,
-    modelBreakdown: (userId: number, params?: Record<string, unknown>) =>
-      ["v1", "admin-user-insights", userId, "model-breakdown", params ?? {}] as const,
-    providerBreakdown: (userId: number, params?: Record<string, unknown>) =>
-      ["v1", "admin-user-insights", userId, "provider-breakdown", params ?? {}] as const,
   },
   auditLogs: {
     all: ["v1", "audit-logs"] as const,
@@ -88,12 +61,9 @@ export const v1Keys = {
     statistics: (params?: Record<string, unknown>) =>
       ["v1", "dashboard", "statistics", params ?? {}] as const,
     concurrentSessions: () => ["v1", "dashboard", "concurrent-sessions"] as const,
-    realtime: () => ["v1", "dashboard", "realtime"] as const,
-    providerSlots: () => ["v1", "dashboard", "provider-slots"] as const,
     rateLimitStats: (params?: Record<string, unknown>) =>
       ["v1", "dashboard", "rate-limit-stats", params ?? {}] as const,
     proxyStatus: () => ["v1", "dashboard", "proxy-status"] as const,
-    clientVersions: () => ["v1", "dashboard", "client-versions"] as const,
   },
   sessions: {
     all: ["v1", "sessions"] as const,

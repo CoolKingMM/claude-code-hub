@@ -38,6 +38,8 @@ const mocks = vi.hoisted(() => ({
   updateSessionBindingSmart: vi.fn(async () => ({ updated: true, reason: "test" })),
   updateSessionProvider: vi.fn(async () => {}),
   clearSessionProvider: vi.fn(async () => {}),
+  clearSessionProviders: vi.fn(async () => {}),
+  applyForProvider: vi.fn(async () => {}),
   isHttp2Enabled: vi.fn(async () => false),
   getPreferredProviderEndpoints: vi.fn(async () => []),
   getEndpointFilterStats: vi.fn(async () => null),
@@ -129,6 +131,7 @@ vi.mock("@/lib/session-manager", () => ({
     updateSessionBindingSmart: mocks.updateSessionBindingSmart,
     updateSessionProvider: mocks.updateSessionProvider,
     clearSessionProvider: mocks.clearSessionProvider,
+    clearSessionProviders: mocks.clearSessionProviders,
     storeSessionSpecialSettings: mocks.storeSessionSpecialSettings,
     storeSessionRequestPhaseSnapshot: mocks.storeSessionRequestPhaseSnapshot,
     storeSessionResponsePhaseSnapshot: mocks.storeSessionResponsePhaseSnapshot,
@@ -138,6 +141,10 @@ vi.mock("@/lib/session-manager", () => ({
 vi.mock("@/app/v1/_lib/proxy/affinity/affinity-recorder", () => ({
   tombstoneAffinityOnFailure: mocks.tombstoneAffinityOnFailure,
   recordAffinityWinner: mocks.recordAffinityWinner,
+}));
+
+vi.mock("@/lib/request-filter-engine", () => ({
+  requestFilterEngine: { applyForProvider: mocks.applyForProvider },
 }));
 
 vi.mock("@/app/v1/_lib/proxy/provider-selector", () => ({
@@ -574,6 +581,7 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    mocks.pickRandomProviderWithExclusion.mockReset();
     mocks.categorizeErrorAsync.mockResolvedValue(ProxyErrorCategory.PROVIDER_ERROR);
   });
 
@@ -638,6 +646,7 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
     test("赢家出现后立即取消仍在等待本地容量的候选", async () => {
       vi.useFakeTimers();
       const abortController = new AbortController();
+      let sent: Promise<Response> | undefined;
       try {
         const first = createProvider({ id: 1, name: "first", firstByteTimeoutStreamingMs: 1000 });
         const second = createProvider({ id: 2, name: "queued", firstByteTimeoutStreamingMs: 1000 });
@@ -684,16 +693,11 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
           });
           return new Response(body, { headers: { "content-type": "text/event-stream" } });
         });
-        const sent = ProxyForwarder.send(session);
+        sent = ProxyForwarder.send(session);
+        void sent.catch(() => undefined);
         await dispatched.promise;
         await vi.advanceTimersByTimeAsync(1500);
-        expect(
-          occupied.snapshot().waiting,
-          JSON.stringify({
-            dispatches: dispatch.mock.calls.map((args) => (args[1] as Provider).id),
-            trace: session.getProviderChain(),
-          })
-        ).toBe(1);
+        expect(occupied.snapshot().waiting).toBe(1);
         await vi.advanceTimersByTimeAsync(500);
         const response = await sent;
         expect(await response.text()).toBe(CONTENT_DELTA_FRAME + MESSAGE_STOP_FRAME);
@@ -703,6 +707,7 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
         expect(mocks.recordFailure).not.toHaveBeenCalled();
       } finally {
         abortController.abort();
+        await sent?.catch(() => undefined);
         vi.useRealTimers();
       }
     });
