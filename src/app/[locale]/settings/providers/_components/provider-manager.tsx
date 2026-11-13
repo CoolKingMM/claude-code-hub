@@ -98,7 +98,7 @@ export function ProviderManager({
   const [typeFilter, setTypeFilter] = useState<ProviderType | "all">("all");
   const [sortBy, setSortBy] = useState<SortKey>("priority");
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"list" | "vendor" | "groups">("list");
+  const [viewMode, setViewMode] = useState<"list" | "vendor" | "groups">("vendor");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   // Status and group filters
@@ -300,6 +300,7 @@ export function ProviderManager({
   }, []);
 
   const handleEnterMultiSelectMode = useCallback(() => {
+    setViewMode("list");
     setIsMultiSelectMode(true);
   }, []);
 
@@ -697,6 +698,7 @@ export function ProviderManager({
               />
             ) : (
               <ProviderVendorView
+                collapseKeysByDefault
                 providers={filteredProviders}
                 currentUser={currentUser}
                 enableMultiProviderTypes={enableMultiProviderTypes}

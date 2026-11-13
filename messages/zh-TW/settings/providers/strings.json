@@ -117,5 +117,10 @@
     "resetCircuit": "重置熔斷",
     "resetCircuitSuccess": "端點熔斷已重置",
     "resetCircuitFailed": "重置端點熔斷失敗"
-  }
+  },
+  "vendorEnabledKeys": "已啟用 {count} 個金鑰",
+  "manageVendorKeys": "管理金鑰",
+  "expandVendorKeys": "展開 {name} 的金鑰",
+  "collapseVendorKeys": "收合 {name} 的金鑰",
+  "vendorKeyToggleLabel": "啟用 {name} 的金鑰 #{id}"
 }

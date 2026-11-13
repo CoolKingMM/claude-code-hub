@@ -117,5 +117,10 @@
     "resetCircuit": "サーキットリセット",
     "resetCircuitSuccess": "エンドポイントのサーキットブレーカーをリセットしました",
     "resetCircuitFailed": "エンドポイントのサーキットブレーカーのリセットに失敗しました"
-  }
+  },
+  "vendorEnabledKeys": "{count} 個のキーが有効",
+  "manageVendorKeys": "キーを管理",
+  "expandVendorKeys": "{name} のキーを展開",
+  "collapseVendorKeys": "{name} のキーを折りたたむ",
+  "vendorKeyToggleLabel": "{name} のキー #{id} を有効にする"
 }

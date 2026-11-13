@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, InfoIcon, Loader2, Trash2 } from "lucide-react";
+import { ChevronDown, ExternalLink, InfoIcon, Loader2, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -19,11 +19,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   getProviderVendors,
   removeProviderVendor,
 } from "@/lib/api-client/v1/actions/provider-endpoints";
+import { groupProvidersByVendor } from "@/lib/provider-vendor-groups";
 import type { CurrencyCode } from "@/lib/utils/currency";
 import { getErrorMessage } from "@/lib/utils/error-messages";
 import type { ProviderDisplay, ProviderVendor } from "@/types/provider";
@@ -41,6 +43,7 @@ interface ProviderVendorViewProps {
   statistics: Record<number, any>;
   statisticsLoading: boolean;
   currencyCode: CurrencyCode;
+  collapseKeysByDefault?: boolean;
 }
 
 export function ProviderVendorView(props: ProviderVendorViewProps) {
@@ -51,6 +54,7 @@ export function ProviderVendorView(props: ProviderVendorViewProps) {
     statistics,
     statisticsLoading,
     currencyCode,
+    collapseKeysByDefault = false,
   } = props;
 
   const { data: vendors = [], isLoading: isVendorsLoading } = useQuery({
@@ -64,34 +68,7 @@ export function ProviderVendorView(props: ProviderVendorViewProps) {
     return new Map(vendors.map((vendor) => [vendor.id, vendor]));
   }, [vendors]);
 
-  const providersByVendor = useMemo(() => {
-    const grouped: Record<number, ProviderDisplay[]> = {};
-    const orphaned: ProviderDisplay[] = [];
-
-    providers.forEach((p) => {
-      const vendorId = p.providerVendorId;
-      if (!vendorId || vendorId <= 0) {
-        orphaned.push(p);
-      } else {
-        if (!grouped[vendorId]) {
-          grouped[vendorId] = [];
-        }
-        grouped[vendorId].push(p);
-      }
-    });
-
-    if (orphaned.length > 0) {
-      grouped[-1] = orphaned;
-    }
-
-    return grouped;
-  }, [providers]);
-
-  const allVendorIds = useMemo(() => {
-    const ids = new Set<number>(vendors.map((v) => v.id));
-    Object.keys(providersByVendor).forEach((id) => ids.add(Number(id)));
-    return Array.from(ids).sort((a, b) => a - b);
-  }, [vendors, providersByVendor]);
+  const vendorGroups = useMemo(() => groupProvidersByVendor(providers), [providers]);
 
   if (isVendorsLoading) {
     return (
@@ -103,9 +80,8 @@ export function ProviderVendorView(props: ProviderVendorViewProps) {
 
   return (
     <div className="space-y-8">
-      {allVendorIds.map((vendorId) => {
+      {vendorGroups.map(({ vendorId, providers: vendorProviders }) => {
         const vendor = vendorId > 0 ? vendorById.get(vendorId) : undefined;
-        const vendorProviders = providersByVendor[vendorId] || [];
 
         if (vendorProviders.length === 0) return null;
 
@@ -120,6 +96,7 @@ export function ProviderVendorView(props: ProviderVendorViewProps) {
             statistics={statistics}
             statisticsLoading={statisticsLoading}
             currencyCode={currencyCode}
+            collapseKeysByDefault={collapseKeysByDefault}
           />
         );
       })}
@@ -136,6 +113,7 @@ function VendorCard({
   statistics,
   statisticsLoading,
   currencyCode,
+  collapseKeysByDefault,
 }: {
   vendor?: ProviderVendor;
   vendorId: number;
@@ -145,83 +123,108 @@ function VendorCard({
   statistics: Record<number, any>;
   statisticsLoading: boolean;
   currencyCode: CurrencyCode;
+  collapseKeysByDefault: boolean;
 }) {
   const t = useTranslations("settings.providers");
+  const [expanded, setExpanded] = useState(!collapseKeysByDefault);
 
   const displayName =
-    vendorId === -1
-      ? t("orphanedProviders")
+    vendorId < 0
+      ? providers[0].name
       : vendor?.displayName || vendor?.websiteDomain || t("vendorFallbackName", { id: vendorId });
   const websiteUrl = vendor?.websiteUrl;
   const faviconUrl = vendor?.faviconUrl;
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="bg-muted/30 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 border bg-background">
-              <AvatarImage src={faviconUrl || ""} />
-              <AvatarFallback>{displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                {displayName}
-                {vendorId > 0 && (
-                  <TooltipProvider>
-                    <Tooltip delayDuration={200}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <InfoIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("vendorAggregationRule")}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {websiteUrl && (
-                  <a
-                    href={websiteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </CardTitle>
-              <CardDescription>
-                {providers.length} {t("vendorKeys")}
-              </CardDescription>
+    <Collapsible open={expanded} onOpenChange={setExpanded} asChild>
+      <Card className="overflow-hidden" data-testid={`vendor-card-${vendorId}`}>
+        <CardHeader className="bg-muted/30 pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10 border bg-background">
+                <AvatarImage src={faviconUrl || ""} />
+                <AvatarFallback>{displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {displayName}
+                  {vendorId > 0 && (
+                    <TooltipProvider>
+                      <Tooltip delayDuration={200}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <InfoIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("vendorAggregationRule")}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {websiteUrl && (
+                    <a
+                      href={websiteUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {providers.length} {t("vendorKeys")}
+                  {" · "}
+                  {t("vendorEnabledKeys", {
+                    count: providers.filter((provider) => provider.isEnabled).length,
+                  })}
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label={t(expanded ? "collapseVendorKeys" : "expandVendorKeys", {
+                    name: displayName,
+                  })}
+                >
+                  {t("manageVendorKeys")}
+                  <ChevronDown
+                    className={`ml-2 h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {vendorId > 0 && <DeleteVendorDialog vendor={vendor} vendorId={vendorId} />}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {vendorId > 0 && <DeleteVendorDialog vendor={vendor} vendorId={vendorId} />}
-          </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent className="p-0">
-        <VendorKeysCompactList
-          vendorId={vendorId}
-          vendorWebsiteDomain={vendor?.websiteDomain ?? ""}
-          vendorWebsiteUrl={vendor?.websiteUrl ?? null}
-          providers={providers}
-          currentUser={currentUser}
-          enableMultiProviderTypes={enableMultiProviderTypes}
-          statistics={statistics}
-          statisticsLoading={statisticsLoading}
-          currencyCode={currencyCode}
-        />
+        <CollapsibleContent asChild>
+          <CardContent className="p-0">
+            <VendorKeysCompactList
+              vendorId={vendorId}
+              vendorWebsiteDomain={vendor?.websiteDomain ?? ""}
+              vendorWebsiteUrl={vendor?.websiteUrl ?? null}
+              providers={providers}
+              currentUser={currentUser}
+              enableMultiProviderTypes={enableMultiProviderTypes}
+              statistics={statistics}
+              statisticsLoading={statisticsLoading}
+              currencyCode={currencyCode}
+            />
 
-        {enableMultiProviderTypes && vendorId > 0 && (
-          <ProviderEndpointsSection vendorId={vendorId} deferUntilInView />
-        )}
-      </CardContent>
-    </Card>
+            {enableMultiProviderTypes && vendorId > 0 && (
+              <ProviderEndpointsSection vendorId={vendorId} deferUntilInView />
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
 

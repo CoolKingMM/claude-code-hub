@@ -117,5 +117,10 @@
     "resetCircuit": "Сброс цепи",
     "resetCircuitSuccess": "Цепь эндпоинта сброшена",
     "resetCircuitFailed": "Не удалось сбросить цепь эндпоинта"
-  }
+  },
+  "vendorEnabledKeys": "Включено ключей: {count}",
+  "manageVendorKeys": "Управление ключами",
+  "expandVendorKeys": "Показать ключи {name}",
+  "collapseVendorKeys": "Скрыть ключи {name}",
+  "vendorKeyToggleLabel": "Включить ключ #{id} для {name}"
 }

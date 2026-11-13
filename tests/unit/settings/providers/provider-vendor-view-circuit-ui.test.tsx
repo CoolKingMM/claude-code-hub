@@ -264,6 +264,50 @@ describe("ProviderVendorView vendor list", () => {
     }
   });
 
+  test("多个密钥显示为一个服务商，展开后分别切换密钥", async () => {
+    providersActionMocks.editProvider.mockResolvedValue({ ok: true, data: {} } as never);
+    const { unmount } = renderWithProviders(
+      <ProviderVendorView
+        providers={[
+          makeProviderDisplay({ id: 1, name: "Provider A", isEnabled: true }),
+          makeProviderDisplay({ id: 2, name: "Provider A-2", isEnabled: false }),
+          makeProviderDisplay({ id: 3, name: "Provider A-3", isEnabled: true }),
+        ]}
+        collapseKeysByDefault
+        currentUser={ADMIN_USER}
+        enableMultiProviderTypes
+        healthStatus={{}}
+        statistics={{}}
+        statisticsLoading={false}
+        currencyCode="USD"
+      />
+    );
+    await flushTicks(4);
+    expect(document.querySelectorAll('[data-testid^="vendor-card-"]')).toHaveLength(1);
+    expect(document.body.textContent).not.toContain("Provider A-2");
+    const expand = document.querySelector('[aria-label="Expand keys for Vendor A"]') as HTMLElement;
+    expect(expand).not.toBeNull();
+    await act(async () => expand.click());
+    await flushTicks(2);
+    expect(document.body.textContent).toContain("Provider A-2");
+    expect(document.body.textContent).toContain("Provider A-3");
+    const key1 = document.querySelector('[aria-label="Enable key #1 for Provider A"]');
+    const key2 = document.querySelector(
+      '[aria-label="Enable key #2 for Provider A-2"]'
+    ) as HTMLElement;
+    expect(key1?.getAttribute("aria-checked")).toBe("true");
+    expect(key2.getAttribute("aria-checked")).toBe("false");
+    await act(async () => key2.click());
+    await flushTicks(2);
+    expect(providersActionMocks.editProvider).toHaveBeenCalledWith(2, { is_enabled: true });
+    expect(
+      document
+        .querySelector('[aria-label="Enable key #1 for Provider A"]')
+        ?.getAttribute("aria-checked")
+    ).toBe("true");
+    unmount();
+  });
+
   test("vendors with zero providers are hidden", async () => {
     providerEndpointsActionMocks.getProviderVendors.mockResolvedValueOnce([
       {

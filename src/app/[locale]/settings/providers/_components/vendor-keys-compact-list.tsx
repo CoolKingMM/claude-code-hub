@@ -538,6 +538,10 @@ function VendorKeyRow(props: {
             ) : null}
             {props.canEdit && (
               <Switch
+                aria-label={t("vendorKeyToggleLabel", {
+                  name: props.provider.name,
+                  id: props.provider.id,
+                })}
                 checked={props.provider.isEnabled}
                 onCheckedChange={(checked) => toggleMutation.mutate(checked)}
                 className="scale-75 data-[state=checked]:bg-green-500"

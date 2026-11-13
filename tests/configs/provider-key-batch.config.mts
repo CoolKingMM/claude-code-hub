@@ -4,6 +4,10 @@ export default createCoverageConfig({
   name: "provider-key-batch",
   environment: "happy-dom",
   testFiles: [
+    "tests/unit/providers/provider-vendor-groups.test.ts",
+    "tests/unit/settings/providers/provider-manager.test.tsx",
+    "tests/unit/settings/providers/provider-vendor-view-circuit-ui.test.tsx",
+    "tests/unit/settings/providers/vendor-keys-compact-list-ui.test.tsx",
     "tests/unit/settings/provider-channel-picker.test.tsx",
     "tests/unit/providers/provider-key-batch.test.ts",
     "tests/unit/settings/providers/provider-keys-input.test.tsx",
@@ -21,6 +25,7 @@ export default createCoverageConfig({
     "tests/unit/repository/system-config-update-missing-columns.test.ts",
   ],
   sourceFiles: [
+    "src/lib/provider-vendor-groups.ts",
     "src/app/[locale]/settings/special-handling/_components/provider-channel-picker.tsx",
     "src/lib/provider-key-batch.ts",
     "src/lib/provider-key-clone.ts",

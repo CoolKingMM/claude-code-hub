@@ -56,7 +56,13 @@ vi.mock("@/app/[locale]/settings/providers/_components/provider-group-tab", () =
 
 // ProviderVendorView -- not under test
 vi.mock("@/app/[locale]/settings/providers/_components/provider-vendor-view", () => ({
-  ProviderVendorView: () => null,
+  ProviderVendorView: ({ providers }: { providers: ProviderDisplay[] }) => (
+    <div data-testid="provider-vendor-view">
+      {providers.map((provider) => (
+        <span key={provider.id}>{provider.name}</span>
+      ))}
+    </div>
+  ),
 }));
 
 // ProviderTypeFilter
@@ -148,7 +154,7 @@ function makeProvider(overrides: Partial<ProviderDisplay> = {}): ProviderDisplay
   };
 }
 
-function renderWithProviders(node: ReactNode) {
+function renderWithProviders(node: ReactNode, selectList = true) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -160,6 +166,11 @@ function renderWithProviders(node: ReactNode) {
       </NextIntlClientProvider>
     );
   });
+
+  const listButton = Array.from(container.querySelectorAll("button")).find(
+    (button) => button.title === "List"
+  );
+  if (selectList) act(() => listButton?.click());
 
   return {
     unmount: () => {
@@ -185,6 +196,18 @@ beforeEach(async () => {
   // Dynamic import to ensure mocks take effect
   const mod = await import("@/app/[locale]/settings/providers/_components/provider-manager");
   ProviderManager = mod.ProviderManager;
+});
+
+describe("ProviderManager default vendor view", () => {
+  test("默认显示聚合服务商而不是逐个密钥", () => {
+    const { container, unmount } = renderWithProviders(
+      <ProviderManager providers={[makeProvider()]} healthStatus={{}} enableMultiProviderTypes />,
+      false
+    );
+    expect(container.querySelector('[data-testid="provider-vendor-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-list"]')).toBeNull();
+    unmount();
+  });
 });
 
 describe("ProviderManager circuitBrokenCount with endpoint circuits", () => {

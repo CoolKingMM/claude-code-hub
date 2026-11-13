@@ -117,5 +117,10 @@
     "resetCircuit": "Reset Circuit",
     "resetCircuitSuccess": "Endpoint circuit breaker reset",
     "resetCircuitFailed": "Failed to reset endpoint circuit breaker"
-  }
+  },
+  "vendorEnabledKeys": "{count} keys enabled",
+  "manageVendorKeys": "Manage keys",
+  "expandVendorKeys": "Expand keys for {name}",
+  "collapseVendorKeys": "Collapse keys for {name}",
+  "vendorKeyToggleLabel": "Enable key #{id} for {name}"
 }
