@@ -5,6 +5,9 @@ export default createCoverageConfig({
   environment: "happy-dom",
   testFiles: [
     "tests/unit/dashboard/personal-admin.test.tsx",
+    "tests/unit/public-status/status-page-title.test.tsx",
+    "tests/unit/public-status/status-slug-page.test.tsx",
+    "tests/unit/public-status/status-page-locale.test.ts",
     "tests/unit/dashboard/personal-key-list.test.tsx",
     "tests/unit/lib/availability/projection-worker.test.ts",
     "tests/unit/lib/circuit-breaker.test.ts",
