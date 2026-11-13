@@ -98,7 +98,7 @@ export function ProviderManager({
   const [typeFilter, setTypeFilter] = useState<ProviderType | "all">("all");
   const [sortBy, setSortBy] = useState<SortKey>("priority");
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"list" | "vendor" | "groups">("vendor");
+  const [viewMode, setViewMode] = useState<"list" | "vendor" | "groups">("list");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   // Status and group filters
@@ -680,6 +680,7 @@ export function ProviderManager({
             {viewMode === "list" ? (
               <ProviderList
                 providers={filteredProviders}
+                allProviders={providers}
                 currentUser={currentUser}
                 healthStatus={healthStatus}
                 endpointCircuitInfo={endpointCircuitInfo}

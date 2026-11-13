@@ -120,6 +120,9 @@
   },
   "vendorEnabledKeys": "已啟用 {count} 個金鑰",
   "manageVendorKeys": "管理金鑰",
+  "vendorListKeyLabel": "金鑰 {index}",
+  "vendorFilteredKeys": "顯示 {visible} / {total} 個金鑰",
+  "vendorSelectKeys": "選擇 {name} 的所有可見金鑰",
   "expandVendorKeys": "展開 {name} 的金鑰",
   "collapseVendorKeys": "收合 {name} 的金鑰",
   "vendorKeyToggleLabel": "啟用 {name} 的金鑰 #{id}"

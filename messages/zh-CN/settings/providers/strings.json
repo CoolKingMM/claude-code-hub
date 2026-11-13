@@ -120,6 +120,9 @@
   },
   "vendorEnabledKeys": "已启用 {count} 个密钥",
   "manageVendorKeys": "管理密钥",
+  "vendorListKeyLabel": "密钥 {index}",
+  "vendorFilteredKeys": "显示 {visible} / {total} 个密钥",
+  "vendorSelectKeys": "选择 {name} 的全部可见密钥",
   "expandVendorKeys": "展开 {name} 的密钥",
   "collapseVendorKeys": "收起 {name} 的密钥",
   "vendorKeyToggleLabel": "启用 {name} 的密钥 #{id}"

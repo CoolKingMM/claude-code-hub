@@ -198,14 +198,14 @@ beforeEach(async () => {
   ProviderManager = mod.ProviderManager;
 });
 
-describe("ProviderManager default vendor view", () => {
-  test("默认显示聚合服务商而不是逐个密钥", () => {
+describe("ProviderManager default list view", () => {
+  test("默认使用列表视图", () => {
     const { container, unmount } = renderWithProviders(
       <ProviderManager providers={[makeProvider()]} healthStatus={{}} enableMultiProviderTypes />,
       false
     );
-    expect(container.querySelector('[data-testid="provider-vendor-view"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-list"]')).toBeNull();
+    expect(container.querySelector('[data-testid="provider-list"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-vendor-view"]')).toBeNull();
     unmount();
   });
 });

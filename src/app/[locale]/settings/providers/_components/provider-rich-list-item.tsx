@@ -88,6 +88,7 @@ import { ProviderFormDialogContent } from "./provider-form-dialog-content";
 
 interface ProviderRichListItemProps {
   provider: ProviderDisplay;
+  displayName?: string;
   vendor?: ProviderVendor;
   currentUser?: User;
   healthStatus?: ProviderCircuitHealth;
@@ -116,6 +117,7 @@ interface ProviderRichListItemProps {
 
 function ProviderRichListItemInner({
   provider,
+  displayName = provider.name,
   vendor,
   currentUser,
   healthStatus,
@@ -519,7 +521,7 @@ function ProviderRichListItemInner({
             checked={isSelected}
             onCheckedChange={(checked) => onSelectChange?.(Boolean(checked))}
             onClick={(e) => e.stopPropagation()}
-            aria-label={tList("selectProvider", { name: provider.name })}
+            aria-label={tList("selectProvider", { name: displayName })}
             className="flex-shrink-0"
           />
         )}
@@ -539,10 +541,11 @@ function ProviderRichListItemInner({
             >
               <TypeIcon className="h-3.5 w-3.5" aria-hidden />
             </div>
-            <span className="font-semibold truncate">{provider.name}</span>
+            <span className="font-semibold truncate">{displayName}</span>
           </div>
           {canEdit && (
             <Switch
+              aria-label={t("vendorKeyToggleLabel", { name: displayName, id: provider.id })}
               checked={provider.isEnabled}
               onCheckedChange={handleToggle}
               disabled={togglePending}
@@ -756,7 +759,7 @@ function ProviderRichListItemInner({
                 }}
               />
             )}
-            <span className="font-semibold truncate">{provider.name}</span>
+            <span className="font-semibold truncate">{displayName}</span>
             {canEdit ? (
               <GroupEditCombobox
                 currentGroups={providerGroups}
@@ -974,6 +977,7 @@ function ProviderRichListItemInner({
         <div className="hidden md:flex items-center gap-1 flex-shrink-0">
           {canEdit && (
             <Switch
+              aria-label={t("vendorKeyToggleLabel", { name: displayName, id: provider.id })}
               checked={provider.isEnabled}
               onCheckedChange={handleToggle}
               disabled={togglePending}
@@ -1157,6 +1161,7 @@ export const ProviderRichListItem = memo(ProviderRichListItemInner, (prev, next)
   // If any of these assumptions change, add the relevant prop to this comparison.
   return (
     prev.provider === next.provider &&
+    prev.displayName === next.displayName &&
     prev.vendor === next.vendor &&
     prev.currentUser === next.currentUser &&
     prev.healthStatus === next.healthStatus &&

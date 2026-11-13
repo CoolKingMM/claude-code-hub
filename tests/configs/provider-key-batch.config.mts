@@ -6,6 +6,7 @@ export default createCoverageConfig({
   testFiles: [
     "tests/unit/providers/provider-vendor-groups.test.ts",
     "tests/unit/settings/providers/provider-manager.test.tsx",
+    "tests/unit/settings/providers/provider-list-vendor-groups.test.tsx",
     "tests/unit/settings/providers/provider-vendor-view-circuit-ui.test.tsx",
     "tests/unit/settings/providers/vendor-keys-compact-list-ui.test.tsx",
     "tests/unit/settings/provider-channel-picker.test.tsx",
@@ -27,6 +28,7 @@ export default createCoverageConfig({
   ],
   sourceFiles: [
     "src/lib/provider-vendor-groups.ts",
+    "src/app/[locale]/settings/providers/_components/provider-list.tsx",
     "src/app/[locale]/settings/special-handling/_components/provider-channel-picker.tsx",
     "src/lib/provider-key-batch.ts",
     "src/lib/provider-key-clone.ts",

@@ -120,6 +120,9 @@
   },
   "vendorEnabledKeys": "Включено ключей: {count}",
   "manageVendorKeys": "Управление ключами",
+  "vendorListKeyLabel": "Ключ {index}",
+  "vendorFilteredKeys": "Показано ключей: {visible} / {total}",
+  "vendorSelectKeys": "Выбрать все видимые ключи {name}",
   "expandVendorKeys": "Показать ключи {name}",
   "collapseVendorKeys": "Скрыть ключи {name}",
   "vendorKeyToggleLabel": "Включить ключ #{id} для {name}"

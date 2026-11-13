@@ -120,6 +120,9 @@
   },
   "vendorEnabledKeys": "{count} keys enabled",
   "manageVendorKeys": "Manage keys",
+  "vendorListKeyLabel": "Key {index}",
+  "vendorFilteredKeys": "Showing {visible} / {total} keys",
+  "vendorSelectKeys": "Select all visible keys for {name}",
   "expandVendorKeys": "Expand keys for {name}",
   "collapseVendorKeys": "Collapse keys for {name}",
   "vendorKeyToggleLabel": "Enable key #{id} for {name}"

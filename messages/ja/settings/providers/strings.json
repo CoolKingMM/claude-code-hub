@@ -120,6 +120,9 @@
   },
   "vendorEnabledKeys": "{count} 個のキーが有効",
   "manageVendorKeys": "キーを管理",
+  "vendorListKeyLabel": "キー {index}",
+  "vendorFilteredKeys": "{total} 個のキーのうち {visible} 個を表示",
+  "vendorSelectKeys": "{name} の表示中のキーをすべて選択",
   "expandVendorKeys": "{name} のキーを展開",
   "collapseVendorKeys": "{name} のキーを折りたたむ",
   "vendorKeyToggleLabel": "{name} のキー #{id} を有効にする"
