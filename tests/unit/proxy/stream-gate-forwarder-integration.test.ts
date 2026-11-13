@@ -572,6 +572,7 @@ function attachAttemptRuntime(
 
 describe("F1 stream content gate x ProxyForwarder paths", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     mocks.categorizeErrorAsync.mockResolvedValue(ProxyErrorCategory.PROVIDER_ERROR);
   });
@@ -667,10 +668,10 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
         dispatch.mockImplementation(async (...args) => {
           await (args[9] as (streaming: boolean) => Promise<void>)(true);
           upstreamDispatch();
-          (args[7] as () => void)();
           const body = new ReadableStream<Uint8Array>({
             start(controller) {
               setTimeout(() => {
+                (args[7] as () => void)();
                 controller.enqueue(
                   new TextEncoder().encode(CONTENT_DELTA_FRAME + MESSAGE_STOP_FRAME)
                 );
@@ -754,6 +755,7 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
       const session = createSession();
       session.setProvider(provider1);
 
+      mocks.pickRandomProviderWithExclusion.mockReset();
       mocks.pickRandomProviderWithExclusion.mockResolvedValueOnce(provider2);
 
       const clearResponseTimeout1 = vi.fn();
