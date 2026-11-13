@@ -637,10 +637,11 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
 
     test("赢家出现后立即取消仍在等待本地容量的候选", async () => {
       vi.useFakeTimers();
+      const abortController = new AbortController();
       try {
         const first = createProvider({ id: 1, name: "first", firstByteTimeoutStreamingMs: 1000 });
         const second = createProvider({ id: 2, name: "queued", firstByteTimeoutStreamingMs: 1000 });
-        const session = createSession();
+        const session = createSession(abortController.signal);
         session.setProvider(first);
         mocks.pickRandomProviderWithExclusion.mockResolvedValueOnce(second);
         const free = new MemoryGovernor({
@@ -665,13 +666,15 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
           "doForwardPrepared"
         );
         const upstreamDispatch = vi.fn();
+        const dispatched = Promise.withResolvers<void>();
         dispatch.mockImplementation(async (...args) => {
           await (args[9] as (streaming: boolean) => Promise<void>)(true);
+          (args[7] as () => void)();
           upstreamDispatch();
+          dispatched.resolve();
           const body = new ReadableStream<Uint8Array>({
             start(controller) {
               setTimeout(() => {
-                (args[7] as () => void)();
                 controller.enqueue(
                   new TextEncoder().encode(CONTENT_DELTA_FRAME + MESSAGE_STOP_FRAME)
                 );
@@ -682,8 +685,15 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
           return new Response(body, { headers: { "content-type": "text/event-stream" } });
         });
         const sent = ProxyForwarder.send(session);
+        await dispatched.promise;
         await vi.advanceTimersByTimeAsync(1500);
-        expect(occupied.snapshot().waiting).toBe(1);
+        expect(
+          occupied.snapshot().waiting,
+          JSON.stringify({
+            dispatches: dispatch.mock.calls.map((args) => (args[1] as Provider).id),
+            trace: session.getProviderChain(),
+          })
+        ).toBe(1);
         await vi.advanceTimersByTimeAsync(500);
         const response = await sent;
         expect(await response.text()).toBe(CONTENT_DELTA_FRAME + MESSAGE_STOP_FRAME);
@@ -692,6 +702,7 @@ describe("F1 stream content gate x ProxyForwarder paths", () => {
         expect(upstreamDispatch).toHaveBeenCalledOnce();
         expect(mocks.recordFailure).not.toHaveBeenCalled();
       } finally {
+        abortController.abort();
         vi.useRealTimers();
       }
     });

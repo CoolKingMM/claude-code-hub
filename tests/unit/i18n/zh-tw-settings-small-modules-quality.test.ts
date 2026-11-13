@@ -18,12 +18,10 @@ const flattenStrings = (value: unknown): string[] => {
 describe("zh-TW settings small modules", () => {
   test("do not contain placeholder markers, emoji, or halfwidth parentheses", () => {
     const files = [
-      "messages/zh-TW/settings/clientVersions.json",
       "messages/zh-TW/settings/common.json",
       "messages/zh-TW/settings/requestFilters.json",
       "messages/zh-TW/settings/prices.json",
       "messages/zh-TW/settings/errorRules.json",
-      "messages/zh-TW/settings/notifications.json",
     ] as const;
 
     for (const file of files) {

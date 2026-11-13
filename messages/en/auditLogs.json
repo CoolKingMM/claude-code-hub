@@ -62,9 +62,6 @@
       "delete": "Delete key",
       "key_reveal": "Reveal user key"
     },
-    "notification": {
-      "update": "Update notification"
-    },
     "sensitive_word": {
       "create": "Create sensitive word",
       "update": "Update sensitive word",

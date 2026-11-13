@@ -1,3 +1,5 @@
+import type { CacheTtlPreference } from "./cache";
+
 /**
  * 用户数据库实体类型
  */
@@ -141,6 +143,7 @@ export interface UserKeyDisplay {
   costResetAt?: string | null; // 软重置时间
   // Provider group override (null = inherit from user)
   providerGroup?: string | null;
+  cacheTtlPreference?: CacheTtlPreference;
 }
 
 /**

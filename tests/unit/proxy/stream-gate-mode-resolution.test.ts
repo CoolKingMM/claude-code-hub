@@ -73,14 +73,14 @@ describe("getProxyRuntimeSettings / getCachedProxyRuntimeSettings", () => {
       affinityIgnoreClientSessionId: false,
       replayEnabled: false,
       replayCacheTtlMinutes: 30,
-      cacheEffectivenessEnabled: true,
+      cacheEffectivenessEnabled: false,
     });
     expect(getCachedProxyRuntimeSettings()).toEqual({
       streamGateMode: "shadow",
       affinityIgnoreClientSessionId: false,
       replayEnabled: false,
       replayCacheTtlMinutes: 30,
-      cacheEffectivenessEnabled: true,
+      cacheEffectivenessEnabled: false,
     });
   });
 
@@ -99,7 +99,7 @@ describe("getProxyRuntimeSettings / getCachedProxyRuntimeSettings", () => {
       affinityIgnoreClientSessionId: true,
       replayEnabled: false,
       replayCacheTtlMinutes: 30,
-      cacheEffectivenessEnabled: true,
+      cacheEffectivenessEnabled: false,
     });
   });
 
@@ -115,7 +115,7 @@ describe("getProxyRuntimeSettings / getCachedProxyRuntimeSettings", () => {
       affinityIgnoreClientSessionId: true,
       replayEnabled: false,
       replayCacheTtlMinutes: 30,
-      cacheEffectivenessEnabled: true,
+      cacheEffectivenessEnabled: false,
     });
   });
 });

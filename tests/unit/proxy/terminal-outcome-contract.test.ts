@@ -47,13 +47,12 @@ describe("terminal outcome contract", () => {
     vi.doUnmock("@/lib/redis");
   });
 
-  it("waits for one committed top-level error outcome before returning and rolling up", async () => {
+  it("waits for one committed top-level error outcome before returning", async () => {
     vi.resetModules();
 
     const messageRequestId = 92_001;
     const releaseCommit = createDeferred<void>();
     const executedSql: Array<{ sql: string; params: unknown[] }> = [];
-    const rollupPipelines: Array<Array<{ command: string; args: unknown[] }>> = [];
     const execute = vi.fn(async (query: SqlQuery) => {
       executedSql.push(toSqlText(query));
       await releaseCommit.promise;
@@ -126,57 +125,8 @@ describe("terminal outcome contract", () => {
       },
     }));
 
-    const configSnapshot = JSON.stringify({
-      configVersion: "cfg-terminal-outcome",
-      generatedAt: "2026-07-14T23:59:00.000Z",
-      siteTitle: "Status",
-      siteDescription: "Status",
-      timeZone: "UTC",
-      defaultIntervalMinutes: 5,
-      defaultRangeHours: 24,
-      groups: [
-        {
-          sourceGroupId: 42,
-          sourceGroupName: "openai",
-          slug: "openai",
-          displayName: "OpenAI",
-          sortOrder: 1,
-          description: null,
-          models: [
-            {
-              publicModelKey: "gpt-4.1",
-              label: "GPT-4.1",
-              vendorIconKey: "openai",
-              requestTypeBadge: "openaiCompatible",
-            },
-          ],
-        },
-      ],
-    });
-    const redis = {
-      status: "ready",
-      hincrbyfloat: vi.fn(),
-      get: vi.fn(async (key: string) => {
-        if (key === "public-status:v2:config-version:current") return "cfg-terminal-outcome";
-        if (key === "public-status:v2:config-internal:cfg-terminal-outcome") {
-          return configSnapshot;
-        }
-        return null;
-      }),
-      pipeline: vi.fn(() => {
-        const operations: Array<{ command: string; args: unknown[] }> = [];
-        return {
-          hincrbyfloat: (...args: unknown[]) => operations.push({ command: "hincrbyfloat", args }),
-          set: (...args: unknown[]) => operations.push({ command: "set", args }),
-          expire: (...args: unknown[]) => operations.push({ command: "expire", args }),
-          exec: async () => {
-            rollupPipelines.push(operations);
-            return operations.map(() => [null, 1] as [null, number]);
-          },
-        };
-      }),
-    };
-    vi.doMock("@/lib/redis", () => ({ getRedisClient: vi.fn(() => redis) }));
+    const getRedisClient = vi.fn(() => null);
+    vi.doMock("@/lib/redis", () => ({ getRedisClient }));
     vi.doMock("@/app/v1/_lib/proxy/errors", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/app/v1/_lib/proxy/errors")>();
       return { ...actual, getErrorOverrideAsync: vi.fn(async () => undefined) };
@@ -241,7 +191,7 @@ describe("terminal outcome contract", () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(settled).toBe(false);
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(rollupPipelines).toEqual([]);
+    expect(getRedisClient).not.toHaveBeenCalled();
     expect(executedSql[0]?.sql).toContain("duration_ms");
     expect(executedSql[0]?.sql).toContain("status_code");
     expect(executedSql[0]?.sql).toContain("error_message");
@@ -254,7 +204,7 @@ describe("terminal outcome contract", () => {
 
     expect(response.status).toBe(500);
     expect(execute).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(rollupPipelines).toHaveLength(1));
+    expect(getRedisClient).not.toHaveBeenCalled();
     await stopMessageRequestWriteBuffer();
   });
 });

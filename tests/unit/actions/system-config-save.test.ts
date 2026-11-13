@@ -7,8 +7,6 @@ const revalidatePathMock = vi.fn();
 const invalidateSystemSettingsCacheMock = vi.fn();
 const updateSystemSettingsMock = vi.fn();
 const getSystemSettingsMock = vi.fn();
-const publishCurrentPublicStatusConfigProjectionMock = vi.fn();
-const schedulePublicStatusRebuildMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   getSession: () => getSessionMock(),
@@ -98,16 +96,6 @@ describe("saveSystemSettings", () => {
       publicStatusAggregationIntervalMinutes: 5,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
-    publishCurrentPublicStatusConfigProjectionMock.mockResolvedValue({
-      configVersion: "cfg-1",
-      key: "public-status:v1:config:cfg-1",
-      written: true,
-      groupCount: 0,
-    });
-    schedulePublicStatusRebuildMock.mockResolvedValue({
-      accepted: true,
-      rebuildState: "rebuilding",
     });
   });
 
@@ -210,13 +198,6 @@ describe("saveSystemSettings", () => {
     expect(invalidateSystemSettingsCacheMock).toHaveBeenCalled();
   });
 
-  it("should skip public-status projection updates for unrelated system settings", async () => {
-    await saveSystemSettings({ verboseProviderError: true });
-
-    expect(publishCurrentPublicStatusConfigProjectionMock).not.toHaveBeenCalled();
-    expect(schedulePublicStatusRebuildMock).not.toHaveBeenCalled();
-  });
-
   it("should preserve omission of passThroughUpstreamErrorMessage on partial updates", async () => {
     await saveSystemSettings({ siteTitle: "No Toggle Change" });
 
@@ -242,38 +223,6 @@ describe("saveSystemSettings", () => {
         providerOutputSafetyFilterRules: rules,
       })
     );
-  });
-
-  it("should surface a warning when the public-status projection publish fails", async () => {
-    publishCurrentPublicStatusConfigProjectionMock.mockResolvedValueOnce({
-      configVersion: "cfg-2",
-      key: "public-status:v1:config:cfg-2",
-      written: false,
-      groupCount: 0,
-    });
-
-    const result = await saveSystemSettings({ siteTitle: "New Title" });
-
-    expect(result).toMatchObject({
-      ok: true,
-      data: {
-        publicStatusProjectionWarningCode: "PUBLIC_STATUS_PROJECTION_PUBLISH_FAILED",
-      },
-    });
-    expect(schedulePublicStatusRebuildMock).not.toHaveBeenCalled();
-  });
-
-  it("should surface a warning when rebuild hint scheduling fails", async () => {
-    schedulePublicStatusRebuildMock.mockRejectedValueOnce(new Error("redis unavailable"));
-
-    const result = await saveSystemSettings({ siteTitle: "New Title" });
-
-    expect(result).toMatchObject({
-      ok: true,
-      data: {
-        publicStatusProjectionWarningCode: "PUBLIC_STATUS_BACKGROUND_REFRESH_PENDING",
-      },
-    });
   });
 
   describe("revalidatePath locale coverage", () => {

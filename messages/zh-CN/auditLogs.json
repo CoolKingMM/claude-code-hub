@@ -62,9 +62,6 @@
       "delete": "删除密钥",
       "key_reveal": "查看用户密钥"
     },
-    "notification": {
-      "update": "更新通知"
-    },
     "sensitive_word": {
       "create": "创建敏感词",
       "update": "更新敏感词",

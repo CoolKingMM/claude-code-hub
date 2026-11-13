@@ -30,7 +30,7 @@ const sharedBillingConsumerSources = [
   "src/repository/statistics.ts",
   "src/repository/usage-ledger.ts",
   "src/repository/overview.ts",
-  "src/repository/leaderboard.ts",
+  "src/repository/personal-keys.ts",
   "src/actions/my-usage.ts",
 ].map((relativePath) => ({
   relativePath,
@@ -69,7 +69,7 @@ describe("non-chat endpoint non-billing parity", () => {
     expect(migrationSource).toContain("actual_response_model");
   });
 
-  it("overview leaderboard and my-usage consumers exclude target endpoints from billable views", () => {
+  it("usage summary and my-usage consumers exclude target endpoints from billable views", () => {
     for (const { relativePath, source } of sharedBillingConsumerSources) {
       expect(source, `${relativePath} should continue using shared billing predicate`).toContain(
         "LEDGER_BILLING_CONDITION"

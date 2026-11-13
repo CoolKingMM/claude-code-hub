@@ -5,6 +5,8 @@ import { getSession } from "@/lib/auth";
 import { DashboardHeader } from "./_components/dashboard-header";
 import { DashboardMain } from "./_components/dashboard-main";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children,
   params,

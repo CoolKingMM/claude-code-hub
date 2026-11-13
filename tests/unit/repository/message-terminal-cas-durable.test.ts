@@ -66,51 +66,7 @@ function installAsyncDurableBoundaries(execute: (query: SqlQuery) => Promise<unk
       })),
     })),
   }));
-  const redisGet = vi.fn(async (key: string) => {
-    if (key === "public-status:v2:config-version:current") return "cfg-terminal";
-    if (key !== "public-status:v2:config-internal:cfg-terminal") return null;
-    return JSON.stringify({
-      configVersion: "cfg-terminal",
-      generatedAt: "2026-07-15T08:59:00.000Z",
-      siteTitle: "Status",
-      siteDescription: "Status",
-      timeZone: "UTC",
-      defaultIntervalMinutes: 5,
-      defaultRangeHours: 24,
-      groups: [
-        {
-          sourceGroupId: 8,
-          sourceGroupName: "openai",
-          slug: "openai",
-          displayName: "OpenAI",
-          sortOrder: 1,
-          description: null,
-          models: [
-            {
-              publicModelKey: "gpt-4.1",
-              label: "GPT-4.1",
-              vendorIconKey: "openai",
-              requestTypeBadge: "openaiCompatible",
-            },
-          ],
-        },
-      ],
-    });
-  });
-  const operations: string[] = [];
-  const pipelineExec = vi.fn(async () => operations.map(() => [null, 1] as const));
-  const pipeline = {
-    hincrbyfloat: vi.fn((_key: string, field: string, _value: number) => operations.push(field)),
-    set: vi.fn((_key: string) => operations.push("coverage")),
-    expire: vi.fn((_key: string) => operations.push("expiry")),
-    exec: pipelineExec,
-  };
-  const redis = {
-    status: "ready",
-    get: redisGet,
-    hincrbyfloat: vi.fn(),
-    pipeline: vi.fn(() => pipeline),
-  };
+  const getRedisClient = vi.fn(() => null);
 
   vi.doMock("@/drizzle/db", () => ({
     db: { select, update: vi.fn(), execute: vi.fn() },
@@ -125,9 +81,9 @@ function installAsyncDurableBoundaries(execute: (query: SqlQuery) => Promise<unk
     })),
     isDevelopment: vi.fn(() => false),
   }));
-  vi.doMock("@/lib/redis", () => ({ getRedisClient: vi.fn(() => redis) }));
+  vi.doMock("@/lib/redis", () => ({ getRedisClient }));
 
-  return { pipelineExec, redisGet };
+  return { getRedisClient };
 }
 
 function installSyncDurableBoundaries(
@@ -195,18 +151,23 @@ describe("message terminal CAS and durable acknowledgement", () => {
     vi.resetModules();
     const databaseCommit = createDeferred<unknown[]>();
     const execute = vi.fn(async (_query: SqlQuery) => databaseCommit.promise);
-    const { pipelineExec, redisGet } = installAsyncDurableBoundaries(execute);
+    const { getRedisClient } = installAsyncDurableBoundaries(execute);
+    const onCommitted = vi.fn();
     const { updateMessageRequestDetailsDurably } = await import("@/repository/message");
 
-    const completion = updateMessageRequestDetailsDurably(803, {
-      durationMs: 1_250,
-      statusCode: 200,
-      outputTokens: 50,
-      providerChain: [
-        { id: 8, name: "winner", groupTag: "openai", reason: "request_success", statusCode: 200 },
-      ],
-      model: "gpt-4.1",
-    });
+    const completion = updateMessageRequestDetailsDurably(
+      803,
+      {
+        durationMs: 1_250,
+        statusCode: 200,
+        outputTokens: 50,
+        providerChain: [
+          { id: 8, name: "winner", groupTag: "openai", reason: "request_success", statusCode: 200 },
+        ],
+        model: "gpt-4.1",
+      },
+      { onCommitted }
+    );
 
     let settled = false;
     void completion.then(
@@ -220,14 +181,18 @@ describe("message terminal CAS and durable acknowledgement", () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     expect(settled).toBe(false);
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(redisGet).not.toHaveBeenCalled();
+    expect(onCommitted).not.toHaveBeenCalled();
+    expect(getRedisClient).not.toHaveBeenCalled();
 
     databaseCommit.resolve([{ id: 803 }]);
     await completion;
     await flushMicrotasks();
 
-    expect(redisGet).toHaveBeenCalled();
-    expect(pipelineExec).toHaveBeenCalledTimes(1);
+    expect(onCommitted).toHaveBeenCalledOnce();
+    expect(onCommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 200, outputTokens: 50 })
+    );
+    expect(getRedisClient).not.toHaveBeenCalled();
   });
 
   it("uses the direct DB update path when durable mode is synchronous", async () => {

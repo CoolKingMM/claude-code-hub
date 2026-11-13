@@ -61,6 +61,7 @@ export async function getPersonalKeyList(userId: number): Promise<ActionResult<U
       limitConcurrentSessions: key.limitConcurrentSessions,
       costResetAt: key.costResetAt?.toISOString() ?? null,
       providerGroup: key.providerGroup,
+      cacheTtlPreference: key.cacheTtlPreference ?? "inherit",
     })),
   };
 }

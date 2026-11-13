@@ -399,6 +399,8 @@ keysRouter.openapi(
     middleware: requireAuth("read"),
     tags: ["Keys"],
     summary: "List personal API keys",
+    description:
+      "Lists masked keys and usage summaries for one owner. Admins may access any owner; regular sessions may access only their own keys.",
     "x-required-access": "read",
     security,
     request: { query: z.object({ ownerId: z.coerce.number().int().positive() }) },
@@ -419,6 +421,8 @@ keysRouter.openapi(
     middleware: requireAuth("read"),
     tags: ["Keys"],
     summary: "Get key model statistics",
+    description:
+      "Loads today's model statistics on demand for one key. Admins may access any key; regular sessions may access only their own keys.",
     "x-required-access": "read",
     security,
     request: { params: KeyIdParamSchema },

@@ -7,54 +7,12 @@ import {
 type LegacySecretBearingRecord = {
   apiKey?: string | null;
   customHeaders?: Record<string, string> | null;
-  dingtalkSecret?: string | null;
   mcpPassthroughUrl?: string | null;
   providerUrl?: string | null;
   proxyUrl?: string | null;
-  telegramBotToken?: string | null;
   url?: string | null;
-  webhookUrl?: string | null;
   websiteUrl?: string | null;
 };
-
-type LegacyNotificationSettingsRecord = {
-  cacheHitRateAlertWebhook?: string | null;
-  circuitBreakerWebhook?: string | null;
-  costAlertWebhook?: string | null;
-  dailyLeaderboardWebhook?: string | null;
-};
-
-function redactWebhookField(value: string | null | undefined): string | null | undefined {
-  if (value === undefined) return undefined;
-  return value ? "[REDACTED]" : value;
-}
-
-export function sanitizeLegacyNotificationSettingsResponse<
-  T extends LegacyNotificationSettingsRecord,
->(settings: T): T {
-  return {
-    ...settings,
-    cacheHitRateAlertWebhook: redactWebhookField(settings.cacheHitRateAlertWebhook),
-    circuitBreakerWebhook: redactWebhookField(settings.circuitBreakerWebhook),
-    costAlertWebhook: redactWebhookField(settings.costAlertWebhook),
-    dailyLeaderboardWebhook: redactWebhookField(settings.dailyLeaderboardWebhook),
-  } as T;
-}
-
-export function preserveLegacyNotificationSettingsUpdateInput<T extends object>(input: T): T {
-  const next: Record<string, unknown> = { ...(input as Record<string, unknown>) };
-  for (const field of [
-    "cacheHitRateAlertWebhook",
-    "circuitBreakerWebhook",
-    "costAlertWebhook",
-    "dailyLeaderboardWebhook",
-  ] as const) {
-    if (next[field] === "[REDACTED]") {
-      delete next[field];
-    }
-  }
-  return next as T;
-}
 
 export function sanitizeLegacyProviderResponse<T extends LegacySecretBearingRecord>(
   provider: T
@@ -81,43 +39,6 @@ export function sanitizeLegacyProviderResponse<T extends LegacySecretBearingReco
       provider.websiteUrl === undefined
         ? provider.websiteUrl
         : redactUrlCredentials(provider.websiteUrl),
-  };
-}
-
-export function sanitizeLegacyWebhookTargetResponse<T extends LegacySecretBearingRecord>(
-  target: T
-): T {
-  return {
-    ...target,
-    customHeaders:
-      target.customHeaders === undefined
-        ? target.customHeaders
-        : redactHeaderRecord(target.customHeaders),
-    dingtalkSecret:
-      target.dingtalkSecret === undefined
-        ? target.dingtalkSecret
-        : redactSecret(target.dingtalkSecret),
-    webhookUrl:
-      target.webhookUrl === undefined
-        ? target.webhookUrl
-        : target.webhookUrl
-          ? "[REDACTED]"
-          : target.webhookUrl,
-    proxyUrl:
-      target.proxyUrl === undefined ? target.proxyUrl : redactUrlCredentials(target.proxyUrl),
-    telegramBotToken:
-      target.telegramBotToken === undefined
-        ? target.telegramBotToken
-        : redactSecret(target.telegramBotToken),
-  };
-}
-
-export function sanitizeLegacyNotificationBindingResponse<
-  T extends { target?: LegacySecretBearingRecord | null },
->(binding: T): T {
-  return {
-    ...binding,
-    target: binding.target ? sanitizeLegacyWebhookTargetResponse(binding.target) : binding.target,
   };
 }
 
@@ -153,45 +74,6 @@ export function preserveLegacyProviderUpdateInput<
   return next as T;
 }
 
-export function preserveLegacyWebhookTargetUpdateInput<
-  T extends Record<string, unknown>,
-  W extends LegacySecretBearingRecord & {
-    providerType?: string | null;
-    telegramChatId?: string | null;
-  },
->(input: T, existing: W): T {
-  const next: Record<string, unknown> = { ...input };
-  const providerType = String(next.providerType ?? existing.providerType ?? "");
-
-  if (next.webhookUrl === "[REDACTED]" && existing.webhookUrl) {
-    delete next.webhookUrl;
-  }
-
-  if (isRedactedUrlEcho(next.proxyUrl, existing.proxyUrl)) {
-    delete next.proxyUrl;
-  }
-
-  if (
-    providerType === "telegram" &&
-    isRedactedSecretEcho(next.telegramBotToken, existing.telegramBotToken)
-  ) {
-    delete next.telegramBotToken;
-  }
-
-  if (
-    providerType === "dingtalk" &&
-    isRedactedSecretEcho(next.dingtalkSecret, existing.dingtalkSecret)
-  ) {
-    delete next.dingtalkSecret;
-  }
-
-  if (isHeaderRecord(next.customHeaders) && existing.customHeaders) {
-    next.customHeaders = restoreRedactedHeaderValues(next.customHeaders, existing.customHeaders);
-  }
-
-  return next as T;
-}
-
 export function hasLegacyRedactedWritePlaceholders(value: unknown): boolean {
   if (typeof value === "string") {
     return value.includes("[REDACTED]") || value.includes("REDACTED:REDACTED@");
@@ -199,11 +81,6 @@ export function hasLegacyRedactedWritePlaceholders(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(hasLegacyRedactedWritePlaceholders);
   if (!value || typeof value !== "object") return false;
   return Object.values(value).some(hasLegacyRedactedWritePlaceholders);
-}
-
-function isRedactedSecretEcho(value: unknown, existing: string | null | undefined): boolean {
-  if (!existing) return false;
-  return value === null || value === "" || value === redactSecret(existing);
 }
 
 function isRedactedUrlEcho(value: unknown, existing: string | null | undefined): boolean {

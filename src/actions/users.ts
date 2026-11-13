@@ -280,6 +280,7 @@ async function buildUserDisplays(
             limitConcurrentSessions: key.limitConcurrentSessions || 0,
             costResetAt: key.costResetAt?.toISOString() ?? null,
             providerGroup: key.providerGroup,
+            cacheTtlPreference: key.cacheTtlPreference ?? "inherit",
           };
         }),
       };
@@ -811,6 +812,7 @@ export async function getUsersBatch(
               limitConcurrentSessions: key.limitConcurrentSessions || 0,
               costResetAt: key.costResetAt?.toISOString() ?? null,
               providerGroup: key.providerGroup,
+              cacheTtlPreference: key.cacheTtlPreference ?? "inherit",
             };
           }),
         };
@@ -956,6 +958,7 @@ export async function getUsersBatchCore(
           limitConcurrentSessions: key.limitConcurrentSessions || 0,
           costResetAt: key.costResetAt?.toISOString() ?? null,
           providerGroup: key.providerGroup,
+          cacheTtlPreference: key.cacheTtlPreference ?? "inherit",
         })),
       };
     });
