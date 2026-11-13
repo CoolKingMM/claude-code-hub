@@ -110,6 +110,7 @@ describe("v1 action migration matrix", () => {
       "session-response",
       "session-origin-chain",
       "statistics",
+      "dashboard-usage",
       "overview",
       "sensitive-words",
       "system-config",
