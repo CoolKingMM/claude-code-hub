@@ -152,6 +152,8 @@ describe("resetUserLimitsOnly", () => {
         limit5hCostResetAt: expect.any(Date),
       })
     );
+    const markers = updateUserCostResetMarkersMock.mock.lastCall?.[1];
+    expect(markers.limit5hCostResetAt.getTime()).toBe(markers.costResetAt.getTime());
     // Redis cost keys scanned and deleted
     expect(scanPatternMock).toHaveBeenCalled();
     expect(redisMock.pipeline).toHaveBeenCalled();
