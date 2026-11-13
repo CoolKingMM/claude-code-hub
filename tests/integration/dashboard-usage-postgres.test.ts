@@ -3,8 +3,20 @@ import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import * as schema from "@/drizzle/schema";
 import type { DashboardUsageQuery } from "@/types/dashboard-usage";
-const m = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("@/drizzle/db", () => ({ db: { execute: (...args: unknown[]) => m.execute(...args) } }));
+vi.mock("@/drizzle/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/drizzle/db")>();
+  return {
+    ...actual,
+    db: new Proxy(actual.db, {
+      get(target, property) {
+        if (property === "execute") {
+          return (query: Parameters<typeof actual.db.execute>[0]) => testDb.execute(query);
+        }
+        return Reflect.get(target, property);
+      },
+    }),
+  };
+});
 import { findDashboardUsage } from "@/repository/dashboard-usage";
 let client: ReturnType<typeof postgres>;
 let testDb: PostgresJsDatabase<typeof schema>;
@@ -36,7 +48,6 @@ describe.skipIf(!process.env.DSN)("dashboard usage real PostgreSQL", () => {
     // Temporary tables isolate fixtures from all existing data and disappear on disconnect.
     for (const table of ["usage_ledger", "keys", "providers"])
       await client.unsafe(`CREATE TEMP TABLE ${table} (LIKE public.${table} INCLUDING DEFAULTS)`);
-    m.execute.mockImplementation((query) => testDb.execute(query));
     await testDb.insert(schema.providers).values([
       {
         id: 11,

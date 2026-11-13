@@ -152,7 +152,7 @@ export function LogsDateRangePicker({
     if (startDate === endDate) {
       return startDate;
     }
-    return `${startDate} ${t("leaderboard.dateRange.to")} ${endDate}`;
+    return `${startDate} ${t("logs.dateRange.to")} ${endDate}`;
   }, [startDate, endDate, t]);
 
   const getQuickPeriodLabel = (period: QuickPeriod): string => {
@@ -195,7 +195,7 @@ export function LogsDateRangePicker({
           size="icon-sm"
           onClick={() => handleNavigate("prev")}
           disabled={!hasDateRange}
-          title={t("leaderboard.dateRange.prevPeriod")}
+          title={t("logs.dateRange.prevPeriod")}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -238,7 +238,7 @@ export function LogsDateRangePicker({
           size="icon-sm"
           onClick={() => handleNavigate("next")}
           disabled={!hasDateRange || (endDate !== undefined && endDate >= today)}
-          title={t("leaderboard.dateRange.nextPeriod")}
+          title={t("logs.dateRange.nextPeriod")}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>

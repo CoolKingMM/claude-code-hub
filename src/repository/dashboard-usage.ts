@@ -36,7 +36,7 @@ export async function findDashboardUsage(
       : query.scope === "providerKey"
         ? sql`'provider:' || ${usageLedger.finalProviderId}::text`
         : keyScope
-          ? sql`COALESCE('key:' || ${keys.id}::text, 'deleted-key:' || md5(${usageLedger.key}))`
+          ? sql`COALESCE('key:' || key_owner.id::text, 'deleted-key:' || md5(${usageLedger.key}))`
           : query.scope === "day"
             ? sql`to_char(${usageLedger.createdAt} AT TIME ZONE ${timezone}, 'YYYY-MM-DD')`
             : billingModelSource === "original"
@@ -45,12 +45,16 @@ export async function findDashboardUsage(
   const representative = providerScope
     ? sql`${usageLedger.finalProviderId}`
     : keyScope
-      ? sql`${keys.id}`
+      ? sql`key_owner.id`
       : sql`NULL::int`;
   const sourceJoin = providerScope
     ? sql`LEFT JOIN ${providers} ON ${providers.id} = ${usageLedger.finalProviderId}`
     : keyScope
-      ? sql`LEFT JOIN ${keys} ON ${keys.key} = ${usageLedger.key}`
+      ? sql`LEFT JOIN LATERAL (
+          SELECT k.id FROM keys k
+          WHERE k.key = ${usageLedger.key} AND k.user_id = ${usageLedger.userId}
+          ORDER BY k.deleted_at IS NULL DESC, k.id DESC LIMIT 1
+        ) key_owner ON true`
       : sql``;
   const labelJoin =
     query.scope === "channel"

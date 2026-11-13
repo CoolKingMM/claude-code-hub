@@ -1292,6 +1292,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dashboard/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get usage costs for a selected date range
+         * @description Returns recorded ledger costs grouped by channel, model, API key or day. Admins see all usage; regular callers see only their own owner's usage. Custom dates include both calendar days in the system timezone. Provider credentials are never returned.
+         */
+        get: operations["getDashboardUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/overview": {
         parameters: {
             query?: never;
@@ -18205,6 +18225,203 @@ export interface operations {
             };
             /** @description Model price not found. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** @description Stable problem type URI or URN. */
+                        type: string;
+                        /** @description Short problem title. */
+                        title: string;
+                        /** @description HTTP status code. */
+                        status: number;
+                        /** @description Human-readable error detail. */
+                        detail: string;
+                        /** @description Request path that produced the problem. */
+                        instance: string;
+                        /** @description Application error code for frontend i18n. */
+                        errorCode: string;
+                        /** @description Optional i18n parameters. */
+                        errorParams?: {
+                            [key: string]: unknown;
+                        };
+                        /** @description Optional request trace identifier. */
+                        traceId?: string;
+                        /** @description Validation failure details. */
+                        invalidParams?: {
+                            /** @description Path to the invalid input field. */
+                            path: (string | number)[];
+                            /** @description Machine-readable validation error code. */
+                            code: string;
+                            /** @description Validation error message. */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    getDashboardUsage: {
+        parameters: {
+            query?: {
+                /** @description Usage window in the system timezone. */
+                period?: "today" | "yesterday" | "last24h" | "7days" | "30days" | "custom";
+                /** @description Usage grouping. */
+                scope?: "channel" | "model" | "key" | "day" | "providerKey";
+                /** @description Inclusive start date, required for a custom window. */
+                startDate?: string;
+                /** @description Inclusive end date, required for a custom window. */
+                endDate?: string;
+                /** @description Channel to expand into individual provider credentials. */
+                channelId?: string;
+                /** @description Result page. */
+                page?: number;
+                /** @description Maximum rows per page. */
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated usage groups and full-range totals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Metrics for the complete selected range. */
+                        summary: {
+                            /** @description Billable request count. */
+                            requests: number;
+                            /** @description Recorded cost in USD, without repricing historical usage. */
+                            cost: number;
+                            /** @description Input tokens. */
+                            inputTokens: number;
+                            /** @description Output tokens. */
+                            outputTokens: number;
+                            /** @description Cache creation tokens. */
+                            cacheCreationTokens: number;
+                            /** @description Cache read tokens. */
+                            cacheReadTokens: number;
+                        };
+                        /** @description Selected grouping page. */
+                        items: {
+                            /** @description Billable request count. */
+                            requests: number;
+                            /** @description Recorded cost in USD, without repricing historical usage. */
+                            cost: number;
+                            /** @description Input tokens. */
+                            inputTokens: number;
+                            /** @description Output tokens. */
+                            outputTokens: number;
+                            /** @description Cache creation tokens. */
+                            cacheCreationTokens: number;
+                            /** @description Cache read tokens. */
+                            cacheReadTokens: number;
+                            /** @description Grouping identifier; never a credential. */
+                            id: string;
+                            /** @description Display name; null for a removed entity. */
+                            name: string | null;
+                            /** @description Channel protocol type. */
+                            providerType: string | null;
+                        }[];
+                        /** @description Total grouped rows. */
+                        totalCount: number;
+                        /** @description Current page. */
+                        page: number;
+                        /** @description Maximum page size. */
+                        pageSize: number;
+                        /** @description Inclusive range start. */
+                        startTime: string;
+                        /** @description Exclusive range end. */
+                        endTime: string;
+                        /** @description System timezone used for calendar dates. */
+                        timezone: string;
+                        /** @description Time of the cached aggregation. */
+                        generatedAt: string;
+                    };
+                };
+            };
+            /** @description Invalid request. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** @description Stable problem type URI or URN. */
+                        type: string;
+                        /** @description Short problem title. */
+                        title: string;
+                        /** @description HTTP status code. */
+                        status: number;
+                        /** @description Human-readable error detail. */
+                        detail: string;
+                        /** @description Request path that produced the problem. */
+                        instance: string;
+                        /** @description Application error code for frontend i18n. */
+                        errorCode: string;
+                        /** @description Optional i18n parameters. */
+                        errorParams?: {
+                            [key: string]: unknown;
+                        };
+                        /** @description Optional request trace identifier. */
+                        traceId?: string;
+                        /** @description Validation failure details. */
+                        invalidParams?: {
+                            /** @description Path to the invalid input field. */
+                            path: (string | number)[];
+                            /** @description Machine-readable validation error code. */
+                            code: string;
+                            /** @description Validation error message. */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** @description Stable problem type URI or URN. */
+                        type: string;
+                        /** @description Short problem title. */
+                        title: string;
+                        /** @description HTTP status code. */
+                        status: number;
+                        /** @description Human-readable error detail. */
+                        detail: string;
+                        /** @description Request path that produced the problem. */
+                        instance: string;
+                        /** @description Application error code for frontend i18n. */
+                        errorCode: string;
+                        /** @description Optional i18n parameters. */
+                        errorParams?: {
+                            [key: string]: unknown;
+                        };
+                        /** @description Optional request trace identifier. */
+                        traceId?: string;
+                        /** @description Validation failure details. */
+                        invalidParams?: {
+                            /** @description Path to the invalid input field. */
+                            path: (string | number)[];
+                            /** @description Machine-readable validation error code. */
+                            code: string;
+                            /** @description Validation error message. */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Access denied. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

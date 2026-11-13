@@ -666,6 +666,11 @@
       "unit": {
         "tokens": "tokens"
       }
+    },
+    "dateRange": {
+      "to": "到",
+      "prevPeriod": "上一週期",
+      "nextPeriod": "下一週期"
     }
   },
   "sessions": {
