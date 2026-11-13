@@ -67,9 +67,6 @@ vi.mock("@/lib/security/api-key-auth-cache", () => ({
 }));
 
 const enqueueUserStatisticsResetMock = vi.fn();
-vi.mock("@/lib/user-statistics-reset/reset-queue", () => ({
-  enqueueUserStatisticsReset: enqueueUserStatisticsResetMock,
-}));
 
 const txDeleteWhereMock = vi.fn();
 const txDeleteMock = vi.fn(() => ({ where: txDeleteWhereMock }));
@@ -315,66 +312,5 @@ describe("full reset compatibility with user 5h marker", () => {
     expect(markers.limit5hCostResetAt).toBeInstanceOf(Date);
     expect(markers.limit5hCostResetAt.getTime()).toBe(markers.costResetAt.getTime());
     expect(clearUserCostCacheMock).toHaveBeenCalled();
-  });
-
-  test("full statistics reset queues marker cleanup in the background worker", async () => {
-    const { resetUserAllStatistics } = await import("@/actions/users");
-    const result = await resetUserAllStatistics(123);
-
-    expect(result.ok).toBe(true);
-    expect(enqueueUserStatisticsResetMock).toHaveBeenCalledWith(123, {
-      fixed5hKeyIds: [11],
-    });
-    expect(txUpdateSetMock).not.toHaveBeenCalled();
-    expect(invalidateCachedUserMock).not.toHaveBeenCalled();
-  });
-
-  test("full statistics reset delegates fixed user 5h readiness to the background queue", async () => {
-    findUserByIdMock.mockResolvedValue({
-      id: 123,
-      name: "Test User",
-      limit5hUsd: 5,
-      limit5hResetMode: "fixed",
-    });
-    findKeyListMock.mockResolvedValue([]);
-    redisMock.status = "connecting";
-
-    const { resetUserAllStatistics } = await import("@/actions/users");
-    const result = await resetUserAllStatistics(123);
-
-    expect(result.ok).toBe(true);
-    expect(getRedisClientMock).not.toHaveBeenCalled();
-    expect(enqueueUserStatisticsResetMock).toHaveBeenCalledWith(123, {
-      fixed5hKeyIds: [],
-    });
-    expect(txUpdateSetMock).not.toHaveBeenCalled();
-  });
-
-  test("full statistics reset delegates fixed child-key 5h readiness to the background queue", async () => {
-    findUserByIdMock.mockResolvedValue({
-      id: 123,
-      name: "Test User",
-      limit5hUsd: null,
-      limit5hResetMode: "rolling",
-    });
-    findKeyListMock.mockResolvedValue([
-      {
-        id: 11,
-        key: "sk-child-11",
-        limit5hUsd: 2,
-        limit5hResetMode: "fixed",
-      },
-    ]);
-    redisMock.status = "connecting";
-
-    const { resetUserAllStatistics } = await import("@/actions/users");
-    const result = await resetUserAllStatistics(123);
-
-    expect(result.ok).toBe(true);
-    expect(getRedisClientMock).not.toHaveBeenCalled();
-    expect(enqueueUserStatisticsResetMock).toHaveBeenCalledWith(123, {
-      fixed5hKeyIds: [11],
-    });
-    expect(txUpdateSetMock).not.toHaveBeenCalled();
   });
 });

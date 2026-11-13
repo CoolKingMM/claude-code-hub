@@ -260,9 +260,6 @@ describe("registerOrchestratedShutdown", { concurrent: false }, () => {
     vi.doMock("@/lib/provider-endpoints/probe-scheduler", () => ({
       stopEndpointProbeScheduler: () => {},
     }));
-    vi.doMock("@/lib/public-status/scheduler", () => ({
-      stopPublicStatusRebuildScheduler: async () => {},
-    }));
     vi.doMock("@/lib/availability/projection-worker", () => ({
       stopAvailabilityProjectionWorker: async () => {},
     }));

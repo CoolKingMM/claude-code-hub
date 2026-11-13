@@ -166,25 +166,18 @@ afterAll(async () => {
 
 const actionCompatMocks: Record<string, string> = {
   "active-sessions": "@/actions/active-sessions",
-  "admin-user-insights": "@/actions/admin-user-insights",
   "audit-logs": "@/actions/audit-logs",
-  "client-versions": "@/actions/client-versions",
   "concurrent-sessions": "@/actions/concurrent-sessions",
-  "dashboard-realtime": "@/actions/dashboard-realtime",
   "dispatch-simulator": "@/actions/dispatch-simulator",
   "error-rules": "@/actions/error-rules",
   "key-quota": "@/actions/key-quota",
   keys: "@/actions/keys",
   "model-prices": "@/actions/model-prices",
   "my-usage": "@/actions/my-usage",
-  "notification-bindings": "@/actions/notification-bindings",
-  notifications: "@/actions/notifications",
   overview: "@/actions/overview",
   "provider-endpoints": "@/actions/provider-endpoints",
   "provider-groups": "@/actions/provider-groups",
-  "provider-slots": "@/actions/provider-slots",
   "proxy-status": "@/actions/proxy-status",
-  "public-status": "@/actions/public-status",
   "rate-limit-stats": "@/actions/rate-limit-stats",
   "request-filters": "@/actions/request-filters",
   "sensitive-words": "@/actions/sensitive-words",
@@ -194,7 +187,6 @@ const actionCompatMocks: Record<string, string> = {
   "system-config": "@/actions/system-config",
   "usage-logs": "@/actions/usage-logs",
   users: "@/actions/users",
-  "webhook-targets": "@/actions/webhook-targets",
 };
 
 const actionCompatSpecialMocks = new Set([

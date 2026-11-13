@@ -72,6 +72,15 @@ type FormSettings = Pick<
 >;
 
 const baseSettings: FormSettings = {
+  legacyHedgeMaxInFlight: 2,
+  discoveryEnabled: false,
+  discoveryConcurrency: 2,
+  maxDiscoveryRounds: 2,
+  discoverySlaMs: 8000,
+  stickySlaMs: 10000,
+  racingTotalTimeoutMs: 30000,
+  stickyTimeoutCooldownMs: 60000,
+  enableMemoryAdmission: false,
   siteTitle: "Claude Code Hub",
   allowGlobalUsageView: true,
   currencyDisplay: "USD",

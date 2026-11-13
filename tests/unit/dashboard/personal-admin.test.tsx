@@ -25,6 +25,9 @@ vi.mock("@/i18n/routing", () => ({
     <a href={href}>{children}</a>
   ),
 }));
+vi.mock("@/lib/api-client/v1/actions/personal-keys", () => ({
+  getPersonalKeyList: vi.fn(async () => ({ ok: true, data: [] })),
+}));
 vi.mock("sonner", () => ({ toast: { error: mocks.toast } }));
 vi.mock("@/lib/api-client/v1/actions/users", () => ({ createUserOnly: mocks.createUser }));
 vi.mock("@/lib/api-client/v1/actions/overview", () => ({ getOverviewData: mocks.overview }));

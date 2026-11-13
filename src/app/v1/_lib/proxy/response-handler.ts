@@ -5,7 +5,6 @@ import {
 import { ResponseFixer } from "@/app/v1/_lib/proxy/response-fixer";
 import { findSafeDatabaseError } from "@/drizzle/admitted-client";
 import { AsyncTaskManager } from "@/lib/async-task-manager";
-import { computeCacheScoreFields } from "@/lib/cache-effectiveness/gate";
 import { getEnvConfig } from "@/lib/config/env.schema";
 import { getCachedSystemSettings } from "@/lib/config/system-settings-cache";
 import { emitProxyLangfuseTrace } from "@/lib/langfuse/emit-proxy-trace";
@@ -19,7 +18,6 @@ import type { SessionBindingSnapshot } from "@/lib/redis/session-binding";
 import { SessionManager } from "@/lib/session-manager";
 import { SessionTracker } from "@/lib/session-tracker";
 import { CODEX_1M_CONTEXT_TOKEN_THRESHOLD } from "@/lib/special-attributes";
-import { isCacheEffectivenessEnabled } from "@/lib/system-settings/proxy-runtime";
 import type {
   CostBreakdown,
   RequestCostCalculationOptions,
@@ -5387,16 +5385,6 @@ export class ProxyResponseHandler {
         latestStreamCommitSideEffects = postTerminalSideEffects;
 
         // F3b 缓存模拟列：仅开关开启时派生（关闭时保持 undefined，不落值）
-        const cacheScoreFields = isCacheEffectivenessEnabled()
-          ? computeCacheScoreFields({
-              affinity: session.affinity,
-              succeeded: finalized.isSuccessfulCompletion,
-              usageObservable: usageForCost?.input_tokens != null,
-              streamTruncated: !streamEndedNormally,
-              cacheTtl: usageForCost?.cache_ttl ?? null,
-            })
-          : undefined;
-
         // 保存扩展信息（status code, tokens, provider chain）
         terminalDetailsPersisted = await awaitFinalization(
           updateMessageRequestDetailsDurably(
@@ -5425,7 +5413,6 @@ export class ProxyResponseHandler {
               context1mApplied: session.getContext1mApplied(),
               swapCacheTtlApplied: effectiveProvider.swapCacheTtlBilling ?? false,
               specialSettings: session.getSpecialSettings() ?? undefined,
-              ...(cacheScoreFields ?? {}),
             },
             {
               onCommitted: scheduleStreamCommitSideEffects,

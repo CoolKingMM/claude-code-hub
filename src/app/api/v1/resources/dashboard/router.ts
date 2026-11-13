@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/api/v1/_shared/auth-middleware";
 import { fromZodError } from "@/lib/api/v1/_shared/error-envelope";
 import { ProblemJsonSchema } from "@/lib/api/v1/schemas/_common";
 import {
-  DashboardArrayResponseSchema,
   DashboardConcurrentSessionsResponseSchema,
   DashboardGenericObjectSchema,
   DashboardOverviewResponseSchema,
@@ -12,13 +11,10 @@ import {
   DispatchSimulatorInputSchema,
 } from "@/lib/api/v1/schemas/dashboard";
 import {
-  getDashboardClientVersions,
   getDashboardConcurrentSessions,
   getDashboardOverview,
-  getDashboardProviderSlots,
   getDashboardProxyStatus,
   getDashboardRateLimitStats,
-  getDashboardRealtime,
   getDashboardStatistics,
   simulateDispatch,
 } from "./handlers";
@@ -118,48 +114,6 @@ dashboardRouter.openapi(
 dashboardRouter.openapi(
   createRoute({
     method: "get",
-    path: "/dashboard/realtime",
-    middleware: requireAuth("admin"),
-    tags: ["Dashboard"],
-    summary: "Get realtime dashboard",
-    description: "Returns realtime dashboard data for admin operators.",
-    "x-required-access": "admin",
-    security,
-    responses: {
-      200: {
-        description: "Realtime dashboard data.",
-        content: { "application/json": { schema: DashboardGenericObjectSchema } },
-      },
-      ...problemResponses,
-    },
-  }),
-  getDashboardRealtime as never
-);
-
-dashboardRouter.openapi(
-  createRoute({
-    method: "get",
-    path: "/dashboard/provider-slots",
-    middleware: requireAuth("admin"),
-    tags: ["Dashboard"],
-    summary: "Get provider slots",
-    description: "Returns provider concurrency slot data.",
-    "x-required-access": "admin",
-    security,
-    responses: {
-      200: {
-        description: "Provider slots.",
-        content: { "application/json": { schema: DashboardArrayResponseSchema } },
-      },
-      ...problemResponses,
-    },
-  }),
-  getDashboardProviderSlots as never
-);
-
-dashboardRouter.openapi(
-  createRoute({
-    method: "get",
     path: "/dashboard/rate-limit-stats",
     middleware: requireAuth("admin"),
     tags: ["Dashboard"],
@@ -198,27 +152,6 @@ dashboardRouter.openapi(
     },
   }),
   getDashboardProxyStatus as never
-);
-
-dashboardRouter.openapi(
-  createRoute({
-    method: "get",
-    path: "/dashboard/client-versions",
-    middleware: requireAuth("admin"),
-    tags: ["Dashboard"],
-    summary: "Get client version statistics",
-    description: "Returns aggregated client version statistics.",
-    "x-required-access": "admin",
-    security,
-    responses: {
-      200: {
-        description: "Client version statistics.",
-        content: { "application/json": { schema: DashboardArrayResponseSchema } },
-      },
-      ...problemResponses,
-    },
-  }),
-  getDashboardClientVersions as never
 );
 
 dashboardRouter.openapi(

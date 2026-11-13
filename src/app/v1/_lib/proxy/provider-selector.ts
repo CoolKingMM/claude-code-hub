@@ -6,10 +6,7 @@ import { logger } from "@/lib/logger";
 import { RateLimitService } from "@/lib/rate-limit";
 import { buildPublicSessionIdentity, buildScopeTag } from "@/lib/request-identity";
 import { SessionManager } from "@/lib/session-manager";
-import {
-  getProxyRuntimeSettings,
-  isCacheEffectivenessEnabled,
-} from "@/lib/system-settings/proxy-runtime";
+import { getProxyRuntimeSettings } from "@/lib/system-settings/proxy-runtime";
 import {
   parseProviderGroups,
   resolveBillingProviderGroups,
@@ -588,7 +585,7 @@ export class ProxyProviderResolver {
     if (!keyId) return false;
 
     const env = getEnvConfig();
-    if (!affinityRoutingEnabled && !isCacheEffectivenessEnabled()) return false;
+    if (!affinityRoutingEnabled) return false;
 
     const chain = computeFingerprintChain(
       session.request.message,

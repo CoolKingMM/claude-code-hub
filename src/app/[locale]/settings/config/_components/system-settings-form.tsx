@@ -8,7 +8,6 @@ import {
   Coins,
   FileCode,
   Filter,
-  Gauge,
   Globe,
   MapPin,
   MemoryStick,
@@ -266,7 +265,7 @@ export function SystemSettingsForm({
   const [replayCacheTtlMinutes, setReplayCacheTtlMinutes] = useState(
     String(initialSettings.replayCacheTtlMinutes)
   );
-  const [cacheEffectivenessEnabled, setCacheEffectivenessEnabled] = useState<boolean | null>(
+  const [cacheEffectivenessEnabled] = useState<boolean | null>(
     initialSettings.cacheEffectivenessEnabled
   );
   const [enableThinkingBudgetRectifier, setEnableThinkingBudgetRectifier] = useState(
@@ -573,7 +572,6 @@ export function SystemSettingsForm({
         setAffinityIgnoreClientSessionId(result.data.affinityIgnoreClientSessionId);
         setReplayEnabled(result.data.replayEnabled ?? null);
         setReplayCacheTtlMinutes(String(result.data.replayCacheTtlMinutes));
-        setCacheEffectivenessEnabled(result.data.cacheEffectivenessEnabled ?? null);
         setEnableThinkingBudgetRectifier(result.data.enableThinkingBudgetRectifier);
         setEnableThinkingEffortConflictRectifier(result.data.enableThinkingEffortConflictRectifier);
         setEnableGeminiFunctionIdRectifier(result.data.enableGeminiFunctionIdRectifier);
@@ -1367,30 +1365,6 @@ export function SystemSettingsForm({
               </p>
             </div>
           </div>
-        </div>
-
-        {/* F3b Cache Effectiveness Simulation */}
-        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between hover:bg-white/[0.04] transition-colors">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-500/10 text-amber-400 shrink-0">
-              <Gauge className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {t("cacheEffectivenessEnabled")}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {t("cacheEffectivenessEnabledDesc")}
-              </p>
-            </div>
-          </div>
-          <Switch
-            id="cache-effectiveness-enabled"
-            aria-label={t("cacheEffectivenessEnabled")}
-            checked={cacheEffectivenessEnabled ?? true}
-            onCheckedChange={(checked) => setCacheEffectivenessEnabled(checked)}
-            disabled={isPending}
-          />
         </div>
 
         {/* Enable Codex Session ID Completion */}

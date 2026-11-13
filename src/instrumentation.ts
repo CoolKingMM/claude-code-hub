@@ -259,45 +259,6 @@ async function startRoutingTraceOutboxRecovery(): Promise<void> {
   }
 }
 
-/**
- * F3b：缓存效果窗口聚合定时任务（每 5 分钟，ENABLE_CACHE_EFFECTIVENESS 开启时）。
- * 服务内部有 advisory lock 防多副本重复跑；tick 失败仅记日志。
- */
-async function startCacheEffectivenessScheduler(): Promise<void> {
-  if (instrumentationState.__CCH_CACHE_EFFECTIVENESS_STARTED__) {
-    return;
-  }
-
-  try {
-    // 开关支持系统设置运行时覆写：调度器常驻，每 tick 异步刷新有效开关——
-    // 低流量实例没有请求路径保鲜快照，只读同步快照会一直陈旧
-    const { getProxyRuntimeSettings } = await import("@/lib/system-settings/proxy-runtime");
-    const { aggregateCacheEffectiveness } = await import("@/lib/cache-effectiveness/service");
-    const intervalMs = 5 * 60 * 1000;
-
-    instrumentationState.__CCH_CACHE_EFFECTIVENESS_INTERVAL_ID__ = setInterval(() => {
-      void (async () => {
-        const settings = await getProxyRuntimeSettings();
-        if (!settings.cacheEffectivenessEnabled) return;
-        await aggregateCacheEffectiveness();
-      })().catch((error) => {
-        logger.warn("[Instrumentation] Cache effectiveness aggregation tick failed", {
-          ...describeSchedulerError(error),
-        });
-      });
-    }, intervalMs);
-
-    instrumentationState.__CCH_CACHE_EFFECTIVENESS_STARTED__ = true;
-    logger.info("[Instrumentation] Cache effectiveness scheduler started", {
-      intervalSeconds: intervalMs / 1000,
-    });
-  } catch (error) {
-    logger.warn("[Instrumentation] Cache effectiveness scheduler init failed", {
-      ...describeSchedulerError(error),
-    });
-  }
-}
-
 export function describeSchedulerError(error: unknown): {
   error: string;
   errorName?: string;
@@ -748,7 +709,6 @@ export async function register() {
         });
       }
 
-      await startCacheEffectivenessScheduler();
       await startReplayCleanupScheduler();
 
       // F1/F3a：预热代理运行时设置快照（stream gate / affinity 的同步读取路径）
@@ -894,7 +854,6 @@ export async function register() {
           });
         }
 
-        await startCacheEffectivenessScheduler();
         await startReplayCleanupScheduler();
 
         // F1/F3a：预热代理运行时设置快照（stream gate / affinity 的同步读取路径）

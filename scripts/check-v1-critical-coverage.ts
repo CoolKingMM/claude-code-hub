@@ -18,8 +18,6 @@ const threshold = 80;
 const criticalFiles = [
   "src/app/api/v1/resources/system/handlers.ts",
   "src/app/api/v1/resources/public/handlers.ts",
-  "src/app/api/v1/resources/notifications/handlers.ts",
-  "src/app/api/v1/resources/webhook-targets/handlers.ts",
   "src/lib/api/v1/_shared/action-bridge.ts",
 ];
 

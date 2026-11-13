@@ -52,10 +52,6 @@ vi.mock("@/actions/users", () => ({
   batchUpdateUsers: batchUpdateUsersMock,
 }));
 
-vi.mock("@/lib/user-statistics-reset/reset-queue", () => ({
-  findUserStatisticsReset: findUserStatisticsResetMock,
-}));
-
 const { callV1Route } = await import("../test-utils");
 
 const adminSession = {
@@ -376,34 +372,15 @@ describe("v1 users endpoints", () => {
       headers,
     });
     expect(resetStats.response.status).toBe(202);
-    expect(resetStats.response.headers.get("location")).toBe(
-      "/api/v1/users/1/statistics-resets/00000000-0000-4000-8000-000000000001"
-    );
+    expect(resetStats.response.headers.get("location")).toBe();
     expect(resetStats.json).toMatchObject({ status: "queued" });
 
     const resetStatus = await callV1Route({
       method: "GET",
-      pathname: "/api/v1/users/1/statistics-resets/00000000-0000-4000-8000-000000000001",
       headers,
     });
     expect(resetStatus.response.status).toBe(200);
     expect(resetStatus.json).toMatchObject({ status: "running", deletedMessageRequests: 1000 });
-  });
-
-  test("uses the standard public detail when a statistics reset is not found", async () => {
-    findUserStatisticsResetMock.mockResolvedValueOnce(null);
-
-    const result = await callV1Route({
-      method: "GET",
-      pathname: "/api/v1/users/1/statistics-resets/00000000-0000-4000-8000-000000000001",
-      headers,
-    });
-
-    expect(result.response.status).toBe(404);
-    expect(result.json).toMatchObject({
-      errorCode: "user.statistics_reset_not_found",
-      detail: "Not found",
-    });
   });
 
   test("maps structured authorization action errors to HTTP status codes", async () => {
@@ -557,7 +534,6 @@ describe("v1 users endpoints", () => {
     expect(doc.paths).toHaveProperty("/api/v1/users/{id}/limit-usage:all");
     expect(doc.paths).toHaveProperty("/api/v1/users/{id}/limits:reset");
     expect(doc.paths).toHaveProperty("/api/v1/users/{id}/statistics:reset");
-    expect(doc.paths).toHaveProperty("/api/v1/users/{id}/statistics-resets/{resetId}");
     expect(doc.paths).toHaveProperty("/api/v1/users:batchUpdate");
     expect(doc.paths).toHaveProperty("/api/v1/users:usageBatch");
     expect(doc.paths).toHaveProperty("/api/v1/users:filter-search");
@@ -567,9 +543,5 @@ describe("v1 users endpoints", () => {
     expect(JSON.stringify(userDetail.get?.responses?.["200"])).toContain("createdAt");
     expect(userDetail.get?.responses).toHaveProperty("500");
     expect(userDetail.get?.responses).toHaveProperty("503");
-    const resetStatistics = doc.paths["/api/v1/users/{id}/statistics:reset"] as {
-      post?: { responses?: Record<string, { headers?: Record<string, unknown> }> };
-    };
-    expect(resetStatistics.post?.responses?.["202"]?.headers).toHaveProperty("Location");
   });
 });

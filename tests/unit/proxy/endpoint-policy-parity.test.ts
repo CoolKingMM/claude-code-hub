@@ -139,6 +139,7 @@ describe("T12: bypass completeness (spy-based zero-call assertions)", () => {
       const session = {
         getEndpointPolicy: () => resolveEndpointPolicy(pathname),
         provider: { id: 1 },
+        captureProviderAttemptBaseline: vi.fn(),
       } as any;
 
       await ProxyProviderRequestFilter.ensure(session);
@@ -172,6 +173,7 @@ describe("T12: bypass completeness (spy-based zero-call assertions)", () => {
       const session = {
         getEndpointPolicy: () => resolveEndpointPolicy(pathname),
         provider: { id: 1 },
+        captureProviderAttemptBaseline: vi.fn(),
       } as any;
 
       await ProxyProviderRequestFilter.ensure(session);

@@ -22,15 +22,8 @@ vi.mock("@/actions/statistics", () => ({ getUserStatistics: getUserStatisticsMoc
 vi.mock("@/actions/concurrent-sessions", () => ({
   getConcurrentSessions: getConcurrentSessionsMock,
 }));
-vi.mock("@/actions/dashboard-realtime", () => ({
-  getDashboardRealtimeData: getDashboardRealtimeDataMock,
-}));
-vi.mock("@/actions/provider-slots", () => ({ getProviderSlots: getProviderSlotsMock }));
 vi.mock("@/actions/rate-limit-stats", () => ({ getRateLimitStats: getRateLimitStatsMock }));
 vi.mock("@/actions/proxy-status", () => ({ getProxyStatus: getProxyStatusMock }));
-vi.mock("@/actions/client-versions", () => ({
-  fetchClientVersionStats: fetchClientVersionStatsMock,
-}));
 vi.mock("@/actions/dispatch-simulator", () => ({
   simulateDispatchAction: simulateDispatchActionMock,
 }));
@@ -130,53 +123,6 @@ describe("v1 dashboard endpoints", () => {
     expect(allowed.json).toEqual({ count: 2 });
   });
 
-  test("reads admin dashboard operational endpoints", async () => {
-    const headers = { Authorization: "Bearer admin-token" };
-    const realtime = await callV1Route({
-      method: "GET",
-      pathname: "/api/v1/dashboard/realtime",
-      headers,
-    });
-    expect(realtime.response.status).toBe(200);
-
-    const slots = await callV1Route({
-      method: "GET",
-      pathname: "/api/v1/dashboard/provider-slots",
-      headers,
-    });
-    expect(slots.json).toMatchObject({ items: [{ providerId: 1 }] });
-
-    const rateLimit = await callV1Route({
-      method: "GET",
-      pathname:
-        "/api/v1/dashboard/rate-limit-stats?userId=1&providerId=2&keyId=3&limitType=rpm&startTime=2026-04-28T00:00:00.000Z&endTime=2026-04-30T00:00:00.000Z",
-      headers,
-    });
-    expect(rateLimit.response.status).toBe(200);
-    expect(getRateLimitStatsMock).toHaveBeenCalledWith({
-      user_id: 1,
-      provider_id: 2,
-      key_id: 3,
-      limit_type: "rpm",
-      start_time: new Date("2026-04-28T00:00:00.000Z"),
-      end_time: new Date("2026-04-30T00:00:00.000Z"),
-    });
-
-    const proxy = await callV1Route({
-      method: "GET",
-      pathname: "/api/v1/dashboard/proxy-status",
-      headers,
-    });
-    expect(proxy.response.status).toBe(200);
-
-    const versions = await callV1Route({
-      method: "GET",
-      pathname: "/api/v1/dashboard/client-versions",
-      headers,
-    });
-    expect(versions.json).toMatchObject({ items: [{ client: "claude-code" }] });
-  });
-
   test("runs dispatch simulator and returns problem+json on invalid input", async () => {
     const headers = { Authorization: "Bearer admin-token" };
     const simulated = await callV1Route({
@@ -209,11 +155,8 @@ describe("v1 dashboard endpoints", () => {
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/overview");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/statistics");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/concurrent-sessions");
-    expect(doc.paths).toHaveProperty("/api/v1/dashboard/realtime");
-    expect(doc.paths).toHaveProperty("/api/v1/dashboard/provider-slots");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/rate-limit-stats");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/proxy-status");
-    expect(doc.paths).toHaveProperty("/api/v1/dashboard/client-versions");
     expect(doc.paths).toHaveProperty("/api/v1/dashboard/dispatch-simulator:simulate");
   });
 });

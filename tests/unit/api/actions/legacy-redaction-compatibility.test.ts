@@ -1,5 +1,4 @@
 import type { AuthSession } from "@/lib/auth";
-import type { WebhookTarget } from "@/repository/webhook-targets";
 import type { ProviderDisplay } from "@/types/provider";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -35,28 +34,6 @@ const provider = {
   },
 } as ProviderDisplay;
 
-const webhookTarget = {
-  id: 10,
-  name: "Ops",
-  providerType: "telegram",
-  webhookUrl: "https://token:secret@example.com/webhook",
-  telegramBotToken: "telegram-secret-token",
-  telegramChatId: "chat-id",
-  dingtalkSecret: null,
-  customTemplate: null,
-  customHeaders: {
-    "Cf-Aig-Authorization": "Bearer webhook-secret",
-    "X-Trace": "trace-id",
-  },
-  proxyUrl: "https://proxy-user:proxy-pass@proxy.example.com",
-  proxyFallbackToDirect: false,
-  isEnabled: true,
-  lastTestAt: null,
-  lastTestResult: null,
-  createdAt: new Date("2026-04-29T00:00:00.000Z"),
-  updatedAt: new Date("2026-04-29T00:00:00.000Z"),
-} satisfies WebhookTarget;
-
 async function postLegacyAction(moduleName: string, actionName: string, body: unknown) {
   const route = await import("@/app/api/actions/[...route]/route");
   const response = await route.POST(
@@ -77,171 +54,8 @@ describe("legacy actions API redaction compatibility", () => {
     vi.clearAllMocks();
     vi.doUnmock("@/lib/auth");
     vi.doUnmock("@/actions/providers");
-    vi.doUnmock("@/actions/webhook-targets");
-    vi.doUnmock("@/actions/notification-bindings");
-    vi.doUnmock("@/actions/notifications");
     vi.resetModules();
   });
-
-  test("redacts legacy notification settings webhook URLs on the legacy API", async () => {
-    vi.resetModules();
-    validateAuthTokenMock.mockResolvedValue(adminSession);
-    getNotificationSettingsActionMock.mockResolvedValue({
-      id: 1,
-      enabled: true,
-      useLegacyMode: true,
-      circuitBreakerEnabled: true,
-      circuitBreakerWebhook: "https://circuit-token:circuit-secret@example.com/circuit",
-      dailyLeaderboardEnabled: true,
-      dailyLeaderboardWebhook: "https://leaderboard.example.com/hook?token=leaderboard-secret",
-      dailyLeaderboardTime: "09:00",
-      dailyLeaderboardTopN: 10,
-      costAlertEnabled: true,
-      costAlertWebhook: "https://cost.example.com/hook?token=cost-secret",
-      costAlertThreshold: "10",
-      costAlertCheckInterval: 30,
-      cacheHitRateAlertEnabled: true,
-      cacheHitRateAlertWebhook: "https://cache.example.com/hook?token=cache-secret",
-      cacheHitRateAlertWindowMode: null,
-      cacheHitRateAlertCheckInterval: null,
-      cacheHitRateAlertHistoricalLookbackDays: null,
-      cacheHitRateAlertMinEligibleRequests: null,
-      cacheHitRateAlertMinEligibleTokens: null,
-      cacheHitRateAlertAbsMin: null,
-      cacheHitRateAlertDropRel: null,
-      cacheHitRateAlertDropAbs: null,
-      cacheHitRateAlertCooldownMinutes: null,
-      cacheHitRateAlertTopN: null,
-      createdAt: new Date("2026-04-29T00:00:00.000Z"),
-      updatedAt: new Date("2026-04-29T00:00:00.000Z"),
-    });
-
-    vi.doMock("@/lib/auth", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/lib/auth")>();
-      return { ...actual, validateAuthToken: validateAuthTokenMock };
-    });
-    vi.doMock("@/actions/notifications", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/actions/notifications")>();
-      return {
-        ...actual,
-        getNotificationSettingsAction: getNotificationSettingsActionMock,
-      };
-    });
-
-    const { response, body } = await postLegacyAction(
-      "notifications",
-      "getNotificationSettingsAction",
-      {}
-    );
-
-    expect(response.status).toBe(200);
-    expect(body.data).toMatchObject({
-      circuitBreakerWebhook: "[REDACTED]",
-      dailyLeaderboardWebhook: "[REDACTED]",
-      costAlertWebhook: "[REDACTED]",
-      cacheHitRateAlertWebhook: "[REDACTED]",
-    });
-    expect(JSON.stringify(body)).not.toContain("circuit-secret");
-    expect(JSON.stringify(body)).not.toContain("leaderboard-secret");
-    expect(JSON.stringify(body)).not.toContain("cost-secret");
-    expect(JSON.stringify(body)).not.toContain("cache-secret");
-  }, 20_000);
-
-  test("redacts legacy notification settings webhook URLs after updates", async () => {
-    vi.resetModules();
-    validateAuthTokenMock.mockResolvedValue(adminSession);
-    updateNotificationSettingsActionMock.mockResolvedValue({
-      ok: true,
-      data: {
-        id: 1,
-        enabled: true,
-        useLegacyMode: true,
-        circuitBreakerEnabled: true,
-        circuitBreakerWebhook: "https://circuit.example.com/hook?token=circuit-secret",
-        dailyLeaderboardEnabled: false,
-        dailyLeaderboardWebhook: null,
-        dailyLeaderboardTime: null,
-        dailyLeaderboardTopN: null,
-        costAlertEnabled: false,
-        costAlertWebhook: null,
-        costAlertThreshold: null,
-        costAlertCheckInterval: null,
-        cacheHitRateAlertEnabled: false,
-        cacheHitRateAlertWebhook: null,
-        cacheHitRateAlertWindowMode: null,
-        cacheHitRateAlertCheckInterval: null,
-        cacheHitRateAlertHistoricalLookbackDays: null,
-        cacheHitRateAlertMinEligibleRequests: null,
-        cacheHitRateAlertMinEligibleTokens: null,
-        cacheHitRateAlertAbsMin: null,
-        cacheHitRateAlertDropRel: null,
-        cacheHitRateAlertDropAbs: null,
-        cacheHitRateAlertCooldownMinutes: null,
-        cacheHitRateAlertTopN: null,
-        createdAt: new Date("2026-04-29T00:00:00.000Z"),
-        updatedAt: new Date("2026-04-29T00:00:00.000Z"),
-      },
-    });
-
-    vi.doMock("@/lib/auth", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/lib/auth")>();
-      return { ...actual, validateAuthToken: validateAuthTokenMock };
-    });
-    vi.doMock("@/actions/notifications", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/actions/notifications")>();
-      return {
-        ...actual,
-        updateNotificationSettingsAction: updateNotificationSettingsActionMock,
-      };
-    });
-
-    const { response, body } = await postLegacyAction(
-      "notifications",
-      "updateNotificationSettingsAction",
-      { circuitBreakerWebhook: "https://circuit.example.com/hook?token=circuit-secret" }
-    );
-
-    expect(response.status).toBe(200);
-    expect(body.data).toMatchObject({ circuitBreakerWebhook: "[REDACTED]" });
-    expect(JSON.stringify(body)).not.toContain("circuit-secret");
-  }, 20_000);
-
-  test("redacts nested notification binding targets on the legacy API", async () => {
-    vi.resetModules();
-    validateAuthTokenMock.mockResolvedValue(adminSession);
-    getBindingsForTypeActionMock.mockResolvedValue({
-      ok: true,
-      data: [{ id: 1, target: webhookTarget }],
-    });
-
-    vi.doMock("@/lib/auth", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/lib/auth")>();
-      return { ...actual, validateAuthToken: validateAuthTokenMock };
-    });
-    vi.doMock("@/actions/notification-bindings", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/actions/notification-bindings")>();
-      return { ...actual, getBindingsForTypeAction: getBindingsForTypeActionMock };
-    });
-
-    const { response, body } = await postLegacyAction(
-      "notification-bindings",
-      "getBindingsForTypeAction",
-      { type: "cost_alert" }
-    );
-
-    expect(response.status).toBe(200);
-    expect(body.data[0].target).toMatchObject({
-      webhookUrl: "[REDACTED]",
-      telegramBotToken: "tele...[REDACTED]...oken",
-      customHeaders: {
-        "Cf-Aig-Authorization": "[REDACTED]",
-        "X-Trace": "trace-id",
-      },
-      proxyUrl: "https://REDACTED:REDACTED@proxy.example.com/",
-    });
-    expect(JSON.stringify(body)).not.toContain("webhook-secret");
-    expect(JSON.stringify(body)).not.toContain("proxy-pass");
-  }, 20_000);
 
   test("preserves legacy provider secrets when redacted values are echoed into editProvider", async () => {
     vi.resetModules();
@@ -312,53 +126,5 @@ describe("legacy actions API redaction compatibility", () => {
     expect(response.status).toBe(400);
     expect(body).toMatchObject({ ok: false });
     expect(addProviderMock).not.toHaveBeenCalled();
-  }, 20_000);
-
-  test("preserves legacy webhook target secrets when redacted values are echoed into update", async () => {
-    vi.resetModules();
-    validateAuthTokenMock.mockResolvedValue(adminSession);
-    getWebhookTargetsActionMock.mockResolvedValue({ ok: true, data: [webhookTarget] });
-    updateWebhookTargetActionMock.mockResolvedValue({
-      ok: true,
-      data: { ...webhookTarget, name: "Ops 2" },
-    });
-
-    vi.doMock("@/lib/auth", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/lib/auth")>();
-      return { ...actual, validateAuthToken: validateAuthTokenMock };
-    });
-    vi.doMock("@/actions/webhook-targets", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("@/actions/webhook-targets")>();
-      return {
-        ...actual,
-        getWebhookTargetsAction: getWebhookTargetsActionMock,
-        updateWebhookTargetAction: updateWebhookTargetActionMock,
-      };
-    });
-
-    const { response } = await postLegacyAction("webhook-targets", "updateWebhookTargetAction", {
-      id: 10,
-      input: {
-        name: "Ops 2",
-        providerType: "telegram",
-        webhookUrl: "[REDACTED]",
-        telegramBotToken: "tele...[REDACTED]...oken",
-        customHeaders: {
-          "cf-aig-authorization": "[REDACTED]",
-          "X-Trace": "changed",
-        },
-        proxyUrl: "https://REDACTED:REDACTED@proxy.example.com/",
-      },
-    });
-
-    expect(response.status).toBe(200);
-    expect(updateWebhookTargetActionMock).toHaveBeenCalledWith(10, {
-      name: "Ops 2",
-      providerType: "telegram",
-      customHeaders: {
-        "cf-aig-authorization": "Bearer webhook-secret",
-        "X-Trace": "changed",
-      },
-    });
   }, 20_000);
 });

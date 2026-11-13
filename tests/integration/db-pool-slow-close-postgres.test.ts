@@ -113,9 +113,6 @@ run("PostgreSQL slow pool close integration", { concurrent: false }, () => {
       vi.doMock("@/lib/provider-endpoints/probe-scheduler", () => ({
         stopEndpointProbeScheduler: vi.fn(),
       }));
-      vi.doMock("@/lib/public-status/scheduler", () => ({
-        stopPublicStatusRebuildScheduler: vi.fn(async () => {}),
-      }));
       vi.doMock("@/lib/provider-endpoints/probe-log-cleanup", () => ({
         stopEndpointProbeLogCleanup: vi.fn(),
       }));

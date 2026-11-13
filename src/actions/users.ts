@@ -14,7 +14,6 @@ import { getUnauthorizedFields } from "@/lib/permissions/user-field-permissions"
 import { clipStartByResetAt, resolveUser5hCostResetAt } from "@/lib/rate-limit/cost-reset-utils";
 import { getRedisClient } from "@/lib/redis";
 import { invalidateCachedUser } from "@/lib/security/api-key-auth-cache";
-import type { UserStatisticsResetRecord } from "@/lib/user-statistics-reset/types";
 import { parseDateInputAsTimezone } from "@/lib/utils/date-input";
 import { ERROR_CODES } from "@/lib/utils/error-messages";
 import { normalizeProviderGroup, parseProviderGroups } from "@/lib/utils/provider-group";
@@ -2344,46 +2343,3 @@ export async function resetUserLimitsOnly(userId: number): Promise<ActionResult>
  *
  * Admin only.
  */
-export async function resetUserAllStatistics(
-  userId: number
-): Promise<ActionResult<UserStatisticsResetRecord>> {
-  let enqueueStarted = false;
-  try {
-    const tError = await getTranslations("errors");
-
-    const session = await getSession();
-    if (session?.user.role !== "admin") {
-      return {
-        ok: false,
-        error: tError("PERMISSION_DENIED"),
-        errorCode: ERROR_CODES.PERMISSION_DENIED,
-      };
-    }
-
-    const user = await findUserById(userId);
-    if (!user) {
-      return { ok: false, error: tError("USER_NOT_FOUND"), errorCode: ERROR_CODES.NOT_FOUND };
-    }
-
-    const keys = await findKeyList(userId);
-    const { enqueueUserStatisticsReset } = await import("@/lib/user-statistics-reset/reset-queue");
-    enqueueStarted = true;
-    const reset = await enqueueUserStatisticsReset(userId, {
-      fixed5hKeyIds: keys.map((key) => key.id),
-    });
-    logger.info("Queued user statistics reset", {
-      userId,
-      resetId: reset.resetId,
-      status: reset.status,
-    });
-    return { ok: true, data: reset };
-  } catch (error) {
-    logger.error("Failed to reset all user statistics:", error);
-    const tError = await getTranslations("errors");
-    return {
-      ok: false,
-      error: tError(enqueueStarted ? "CONNECTION_FAILED" : "OPERATION_FAILED"),
-      errorCode: enqueueStarted ? ERROR_CODES.CONNECTION_FAILED : ERROR_CODES.OPERATION_FAILED,
-    };
-  }
-}

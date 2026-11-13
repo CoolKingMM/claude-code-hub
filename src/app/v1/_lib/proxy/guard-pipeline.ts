@@ -30,7 +30,6 @@ export type GuardStepKey =
   | "auth"
   | "client"
   | "model"
-  | "version"
   | "probe"
   | "session"
   | "warmup"
@@ -68,13 +67,6 @@ const Steps: Record<GuardStepKey, GuardStep> = {
     name: "model",
     async execute(session) {
       return ProxyModelGuard.ensure(session);
-    },
-  },
-  version: {
-    name: "version",
-    async execute(session) {
-      const { ProxyVersionGuard } = await import("./version-guard");
-      return ProxyVersionGuard.ensure(session);
     },
   },
   probe: {

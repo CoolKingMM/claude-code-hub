@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { requireAuth } from "@/lib/api/v1/_shared/auth-middleware";
 import { fromZodError } from "@/lib/api/v1/_shared/error-envelope";
 import { ProblemJsonSchema } from "@/lib/api/v1/schemas/_common";
@@ -26,6 +26,8 @@ import {
   getKey,
   getKeyLimitUsage,
   getKeyQuotaUsage,
+  getPersonalKeyModels,
+  listPersonalKeys,
   listUserKeys,
   patchKeyLimit,
   renewKey,
@@ -388,4 +390,45 @@ keysRouter.openapi(
     },
   }),
   batchUpdateKeys as never
+);
+
+keysRouter.openapi(
+  createRoute({
+    method: "get",
+    path: "/keys",
+    middleware: requireAuth("read"),
+    tags: ["Keys"],
+    summary: "List personal API keys",
+    "x-required-access": "read",
+    security,
+    request: { query: z.object({ ownerId: z.coerce.number().int().positive() }) },
+    responses: {
+      200: {
+        description: "Masked API keys with usage summaries.",
+        content: { "application/json": { schema: KeyListResponseSchema } },
+      },
+      ...problemResponses,
+    },
+  }),
+  listPersonalKeys as never
+);
+keysRouter.openapi(
+  createRoute({
+    method: "get",
+    path: "/keys/{keyId}/model-stats",
+    middleware: requireAuth("read"),
+    tags: ["Keys"],
+    summary: "Get key model statistics",
+    "x-required-access": "read",
+    security,
+    request: { params: KeyIdParamSchema },
+    responses: {
+      200: {
+        description: "Today's model statistics for one key.",
+        content: { "application/json": { schema: z.object({ items: z.array(z.unknown()) }) } },
+      },
+      ...problemResponses,
+    },
+  }),
+  getPersonalKeyModels as never
 );

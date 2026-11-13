@@ -1,6 +1,3 @@
-import { createBullBoard } from "@bull-board/api";
-import { BullAdapter } from "@bull-board/api/bullAdapter";
-import { ExpressAdapter } from "@bull-board/express";
 import type { Job } from "bull";
 import Queue from "bull";
 import { logger } from "@/lib/logger";
@@ -176,22 +173,6 @@ export async function scheduleAutoCleanup() {
 
     // Fail Open: 调度失败不影响应用启动
   }
-}
-
-/**
- * Bull Board 监控面板
- */
-export function createCleanupMonitor() {
-  const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath("/admin/queues");
-
-  const queue = getCleanupQueue();
-  createBullBoard({
-    queues: [new BullAdapter(queue)],
-    serverAdapter,
-  });
-
-  return serverAdapter.getRouter();
 }
 
 /**

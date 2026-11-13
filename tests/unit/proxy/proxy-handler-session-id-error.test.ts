@@ -140,10 +140,6 @@ vi.mock("@/app/v1/_lib/proxy/error-handler", () => ({
   },
 }));
 
-vi.mock("@/lib/config", () => ({
-  getCachedSystemSettings: async () => h.systemSettings,
-}));
-
 vi.mock("@/lib/session-tracker", () => ({
   SessionTracker: {
     incrementConcurrentCount: async () => {

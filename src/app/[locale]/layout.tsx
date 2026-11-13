@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "../globals.css";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
@@ -12,10 +11,6 @@ import {
   resolveDefaultSiteMetadataSource,
 } from "@/lib/layout-site-metadata";
 import { logger } from "@/lib/logger";
-import {
-  resolveLayoutTimeZone,
-  resolveSiteMetadataSource,
-} from "@/lib/public-status/layout-metadata";
 import { DEFAULT_SITE_TITLE } from "@/lib/site-title";
 import { AppProviders } from "../providers";
 
@@ -25,13 +20,9 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const headersStore = await headers();
-  const isPublicStatusRequest = headersStore.get("x-cch-public-status") === "1";
 
   try {
-    const metadata = isPublicStatusRequest
-      ? await resolveSiteMetadataSource()
-      : await resolveDefaultSiteMetadataSource();
+    const metadata = await resolveDefaultSiteMetadataSource();
     const title = metadata?.siteTitle?.trim() || DEFAULT_SITE_TITLE;
     const description = metadata?.siteDescription?.trim() || title;
 
@@ -74,8 +65,6 @@ export default async function RootLayout({
   params: Promise<{ locale: string }>;
 }>) {
   const { locale } = await params;
-  const headersStore = await headers();
-  const isPublicStatusRequest = headersStore.get("x-cch-public-status") === "1";
 
   // Validate locale
   if (!locales.includes(locale as Locale)) {
@@ -87,9 +76,7 @@ export default async function RootLayout({
 
   // Load translation messages
   const messages = await getMessages({ locale });
-  const timeZone = isPublicStatusRequest
-    ? await resolveLayoutTimeZone()
-    : await resolveDefaultLayoutTimeZone();
+  const timeZone = await resolveDefaultLayoutTimeZone();
   // Create a stable `now` timestamp to avoid SSR/CSR hydration mismatch for relative time
   const now = new Date();
 

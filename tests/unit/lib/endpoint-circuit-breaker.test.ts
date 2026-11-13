@@ -47,10 +47,6 @@ describe("endpoint-circuit-breaker", () => {
       getEnvConfig: () => ({ ENABLE_ENDPOINT_CIRCUIT_BREAKER: true }),
     }));
     vi.doMock("@/lib/logger", () => ({ logger: createLoggerMock() }));
-    const sendAlertMock = vi.fn(async () => {});
-    vi.doMock("@/lib/notification/notifier", () => ({
-      sendCircuitBreakerAlert: sendAlertMock,
-    }));
     vi.doMock("@/repository", () => ({
       findProviderEndpointById: vi.fn(async () => null),
     }));
@@ -111,8 +107,6 @@ describe("endpoint-circuit-breaker", () => {
     const deleteCallsAfterSuccess = deleteMock.mock.calls.length;
     await resetEndpointCircuit(1);
     expect(deleteMock.mock.calls.length).toBeGreaterThan(deleteCallsAfterSuccess);
-
-    expect(sendAlertMock).not.toHaveBeenCalled();
   });
 
   test("recordEndpointSuccess: closed 且 failureCount>0 时应清零", async () => {
@@ -268,117 +262,6 @@ describe("endpoint-circuit-breaker", () => {
     expect(loadManyMock).toHaveBeenCalledTimes(1);
   });
 
-  test("triggerEndpointCircuitBreakerAlert should call sendCircuitBreakerAlert", async () => {
-    vi.resetModules();
-
-    vi.doMock("@/lib/config/env.schema", () => ({
-      getEnvConfig: () => ({ ENABLE_ENDPOINT_CIRCUIT_BREAKER: true }),
-    }));
-    vi.doMock("@/lib/logger", () => ({ logger: createLoggerMock() }));
-    vi.doMock("@/lib/notification/notifier", () => ({
-      sendCircuitBreakerAlert: vi.fn(async () => {}),
-    }));
-    vi.doMock("@/repository", () => ({
-      findProviderEndpointById: vi.fn(async () => null),
-    }));
-
-    // recordEndpointFailure 会 non-blocking 触发告警；先让 event-loop 跑完再清空计数，避免串台导致误判
-    await flushPromises();
-
-    // Prime module cache for dynamic import() consumers
-    await import("@/lib/config/env.schema");
-    const notifierModule = await import("@/lib/notification/notifier");
-    const sendAlertSpy = vi
-      .spyOn(notifierModule, "sendCircuitBreakerAlert")
-      .mockResolvedValue(undefined);
-    sendAlertSpy.mockClear();
-
-    const { triggerEndpointCircuitBreakerAlert } = await import("@/lib/endpoint-circuit-breaker");
-
-    await triggerEndpointCircuitBreakerAlert(
-      5,
-      3,
-      "2026-01-01T00:05:00.000Z",
-      "connection refused"
-    );
-
-    const endpoint5Calls = sendAlertSpy.mock.calls
-      .map((call) => call[0] as Record<string, unknown>)
-      .filter((payload) => payload.endpointId === 5);
-    expect(endpoint5Calls).toHaveLength(1);
-    expect(endpoint5Calls[0]).toEqual({
-      providerId: 0,
-      providerName: "endpoint:5",
-      failureCount: 3,
-      retryAt: "2026-01-01T00:05:00.000Z",
-      lastError: "connection refused",
-      incidentSource: "endpoint",
-      endpointId: 5,
-      endpointUrl: undefined,
-    });
-  });
-
-  test("triggerEndpointCircuitBreakerAlert should include endpointUrl when available", async () => {
-    vi.resetModules();
-
-    vi.doMock("@/lib/config/env.schema", () => ({
-      getEnvConfig: () => ({ ENABLE_ENDPOINT_CIRCUIT_BREAKER: true }),
-    }));
-    vi.doMock("@/lib/notification/notifier", () => ({
-      sendCircuitBreakerAlert: vi.fn(async () => {}),
-    }));
-    vi.doMock("@/repository", () => ({
-      findProviderEndpointById: vi.fn(async () => ({
-        id: 10,
-        url: "https://custom.example.com/v1/chat/completions",
-        vendorId: 1,
-        providerType: "openai",
-        label: "Custom Endpoint",
-        sortOrder: 0,
-        isEnabled: true,
-        lastProbedAt: null,
-        lastProbeOk: null,
-        lastProbeStatusCode: null,
-        lastProbeLatencyMs: null,
-        lastProbeErrorType: null,
-        lastProbeErrorMessage: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        deletedAt: null,
-      })),
-    }));
-
-    // recordEndpointFailure 会 non-blocking 触发告警；先让 event-loop 跑完再清空计数，避免串台导致误判
-    await flushPromises();
-
-    // Prime module cache for dynamic import() consumers
-    await import("@/lib/config/env.schema");
-    const notifierModule = await import("@/lib/notification/notifier");
-    const sendAlertSpy = vi
-      .spyOn(notifierModule, "sendCircuitBreakerAlert")
-      .mockResolvedValue(undefined);
-    sendAlertSpy.mockClear();
-
-    const { triggerEndpointCircuitBreakerAlert } = await import("@/lib/endpoint-circuit-breaker");
-
-    await triggerEndpointCircuitBreakerAlert(10, 3, "2026-01-01T00:05:00.000Z", "timeout");
-
-    const endpoint10Calls = sendAlertSpy.mock.calls
-      .map((call) => call[0] as Record<string, unknown>)
-      .filter((payload) => payload.endpointId === 10);
-    expect(endpoint10Calls).toHaveLength(1);
-    expect(endpoint10Calls[0]).toEqual({
-      providerId: 1,
-      providerName: "Custom Endpoint",
-      failureCount: 3,
-      retryAt: "2026-01-01T00:05:00.000Z",
-      lastError: "timeout",
-      incidentSource: "endpoint",
-      endpointId: 10,
-      endpointUrl: "https://custom.example.com/v1/chat/completions",
-    });
-  });
-
   test("recordEndpointFailure should NOT reset circuitOpenUntil when already open", async () => {
     vi.resetModules();
 
@@ -391,10 +274,6 @@ describe("endpoint-circuit-breaker", () => {
       getEnvConfig: () => ({ ENABLE_ENDPOINT_CIRCUIT_BREAKER: true }),
     }));
     vi.doMock("@/lib/logger", () => ({ logger: createLoggerMock() }));
-    const sendAlertMock = vi.fn(async () => {});
-    vi.doMock("@/lib/notification/notifier", () => ({
-      sendCircuitBreakerAlert: sendAlertMock,
-    }));
     vi.doMock("@/repository", () => ({
       findProviderEndpointById: vi.fn(async () => null),
     }));
@@ -436,8 +315,6 @@ describe("endpoint-circuit-breaker", () => {
     expect(redisState!.circuitState).toBe("open");
     expect(redisState!.circuitOpenUntil).toBe(originalOpenUntil); // unchanged!
     expect(redisState!.failureCount).toBe(4);
-
-    expect(sendAlertMock).not.toHaveBeenCalled();
   });
 
   test("getEndpointCircuitStateSync returns correct state for known and unknown endpoints", async () => {
@@ -447,10 +324,6 @@ describe("endpoint-circuit-breaker", () => {
       getEnvConfig: () => ({ ENABLE_ENDPOINT_CIRCUIT_BREAKER: true }),
     }));
     vi.doMock("@/lib/logger", () => ({ logger: createLoggerMock() }));
-    const sendAlertMock = vi.fn(async () => {});
-    vi.doMock("@/lib/notification/notifier", () => ({
-      sendCircuitBreakerAlert: sendAlertMock,
-    }));
     vi.doMock("@/repository", () => ({
       findProviderEndpointById: vi.fn(async () => null),
     }));
@@ -472,8 +345,6 @@ describe("endpoint-circuit-breaker", () => {
     await recordEndpointFailure(200, new Error("b"));
     await recordEndpointFailure(200, new Error("c"));
     expect(getEndpointCircuitStateSync(200)).toBe("open");
-
-    expect(sendAlertMock).not.toHaveBeenCalled();
   });
 
   describe("ENABLE_ENDPOINT_CIRCUIT_BREAKER disabled", () => {
@@ -540,36 +411,6 @@ describe("endpoint-circuit-breaker", () => {
       await recordEndpointSuccess(1);
 
       expect(saveMock).not.toHaveBeenCalled();
-    });
-
-    test("triggerEndpointCircuitBreakerAlert is no-op when disabled", async () => {
-      vi.resetModules();
-
-      const sendAlertMock = vi.fn(async () => {});
-
-      vi.doMock("@/lib/config/env.schema", () => ({
-        getEnvConfig: () => ({ ENABLE_ENDPOINT_CIRCUIT_BREAKER: false }),
-      }));
-      vi.doMock("@/lib/logger", () => ({ logger: createLoggerMock() }));
-      vi.doMock("@/lib/notification/notifier", () => ({
-        sendCircuitBreakerAlert: sendAlertMock,
-      }));
-      vi.doMock("@/lib/redis/endpoint-circuit-breaker-state", () => ({
-        loadEndpointCircuitState: vi.fn(async () => null),
-        saveEndpointCircuitState: vi.fn(async () => {}),
-        deleteEndpointCircuitState: vi.fn(async () => {}),
-      }));
-
-      const { triggerEndpointCircuitBreakerAlert } = await import("@/lib/endpoint-circuit-breaker");
-
-      await triggerEndpointCircuitBreakerAlert(
-        5,
-        3,
-        "2026-01-01T00:05:00.000Z",
-        "connection refused"
-      );
-
-      expect(sendAlertMock).not.toHaveBeenCalled();
     });
 
     test("initEndpointCircuitBreaker clears in-memory state and Redis keys when disabled", async () => {

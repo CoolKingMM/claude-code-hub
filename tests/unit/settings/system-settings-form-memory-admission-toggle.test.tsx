@@ -15,12 +15,12 @@ vi.mock("next/navigation", () => ({
 const systemConfigActionMocks = vi.hoisted(() => ({
   saveSystemSettings: vi.fn(async (): Promise<unknown> => ({ ok: true })),
 }));
-vi.mock("@/actions/system-config", () => systemConfigActionMocks);
+vi.mock("@/lib/api-client/v1/actions/system-config", () => systemConfigActionMocks);
 
 const requestFiltersActionMocks = vi.hoisted(() => ({
   getDistinctProviderGroupsAction: vi.fn(async () => ({ ok: true, data: [] })),
 }));
-vi.mock("@/actions/request-filters", () => requestFiltersActionMocks);
+vi.mock("@/lib/api-client/v1/actions/request-filters", () => requestFiltersActionMocks);
 
 const sonnerMocks = vi.hoisted(() => ({
   toast: {
@@ -32,6 +32,15 @@ const sonnerMocks = vi.hoisted(() => ({
 vi.mock("sonner", () => sonnerMocks);
 
 const baseSettings = {
+  legacyHedgeMaxInFlight: 2,
+  discoveryEnabled: false,
+  discoveryConcurrency: 2,
+  maxDiscoveryRounds: 2,
+  discoverySlaMs: 8000,
+  stickySlaMs: 10000,
+  racingTotalTimeoutMs: 30000,
+  stickyTimeoutCooldownMs: 60000,
+  enableMemoryAdmission: false,
   siteTitle: "CC Hub",
   allowGlobalUsageView: true,
   currencyDisplay: "USD",
@@ -42,7 +51,6 @@ const baseSettings = {
   passThroughUpstreamErrorMessage: true,
   enableHttp2: true,
   enableHighConcurrencyMode: false,
-  enableMemoryAdmission: false,
   interceptAnthropicWarmupRequests: false,
   enableThinkingSignatureRectifier: true,
   enableThinkingBudgetRectifier: true,

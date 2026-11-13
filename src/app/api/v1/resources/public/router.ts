@@ -6,11 +6,8 @@ import {
   IpGeoLookupResponseSchema,
   IpGeoParamSchema,
   IpGeoQuerySchema,
-  PublicStatusResponseSchema,
-  PublicStatusSettingsUpdateResponseSchema,
-  PublicStatusSettingsUpdateSchema,
 } from "@/lib/api/v1/schemas/public";
-import { getPublicStatus, lookupIpGeo, updatePublicStatusSettings } from "./handlers";
+import { lookupIpGeo } from "./handlers";
 
 export const publicRouter = new OpenAPIHono({
   defaultHook: (result, c) => {
@@ -42,57 +39,6 @@ const problemResponses = {
     content: { "application/problem+json": { schema: ProblemJsonSchema } },
   },
 } as const;
-
-publicRouter.openapi(
-  createRoute({
-    method: "get",
-    path: "/public/status",
-    middleware: requireAuth("public"),
-    tags: ["Public Status"],
-    summary: "Get public status",
-    description: "Returns the public status payload without authentication.",
-    "x-required-access": "public",
-    responses: {
-      200: {
-        description: "Public status payload.",
-        content: { "application/json": { schema: PublicStatusResponseSchema } },
-      },
-      400: problemResponses[400],
-      503: {
-        description: "Public status projection is rebuilding.",
-        content: { "application/json": { schema: PublicStatusResponseSchema } },
-      },
-    },
-  }),
-  getPublicStatus as never
-);
-
-publicRouter.openapi(
-  createRoute({
-    method: "put",
-    path: "/public/status/settings",
-    middleware: requireAuth("admin"),
-    tags: ["Public Status"],
-    summary: "Update public status settings",
-    description: "Updates public status group publishing settings.",
-    "x-required-access": "admin",
-    security,
-    request: {
-      body: {
-        required: true,
-        content: { "application/json": { schema: PublicStatusSettingsUpdateSchema } },
-      },
-    },
-    responses: {
-      200: {
-        description: "Updated public status settings.",
-        content: { "application/json": { schema: PublicStatusSettingsUpdateResponseSchema } },
-      },
-      ...problemResponses,
-    },
-  }),
-  updatePublicStatusSettings as never
-);
 
 publicRouter.openapi(
   createRoute({

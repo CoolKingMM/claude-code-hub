@@ -8,6 +8,7 @@ type ProxySettingsFixture = {
   readonly allowNonConversationEndpointProviderFallback: boolean;
   readonly enableResponseFixer: boolean;
   readonly enableResponseInputRectifier: boolean;
+  readonly fakeStreamingProviderIds: number[] | null;
   readonly fakeStreamingWhitelist: FakeStreamingWhitelistEntry[];
 };
 
@@ -88,6 +89,7 @@ const defaultSettings: ProxySettingsFixture = {
   allowNonConversationEndpointProviderFallback: true,
   enableResponseFixer: true,
   enableResponseInputRectifier: true,
+  fakeStreamingProviderIds: null,
   fakeStreamingWhitelist: [],
 };
 

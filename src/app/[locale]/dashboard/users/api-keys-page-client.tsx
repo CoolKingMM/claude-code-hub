@@ -1,9 +1,10 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getPersonalKeyList } from "@/lib/api-client/v1/actions/personal-keys";
 import { createUserOnly } from "@/lib/api-client/v1/actions/users";
 import type { CurrencyCode } from "@/lib/utils/currency";
 import type { User, UserDisplay } from "@/types/user";
@@ -47,12 +49,28 @@ export function ApiKeysPageClient({ owners, currentUser, currencyCode }: ApiKeys
   const tAdd = useTranslations("dashboard.addKeyForm");
   const tCommon = useTranslations("common");
   const router = useRouter();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (owners.length > 0)
+      void queryClient.invalidateQueries({ queryKey: ["personal-owner-keys"] });
+  }, [owners, queryClient]);
   const [openAdd, setOpenAdd] = useState(false);
   const [ownerId, setOwnerId] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const visibleOwners =
     currentUser.role === "admin" ? owners : owners.filter((owner) => owner.id === currentUser.id);
   const activeOwner = visibleOwners.find((owner) => owner.id === ownerId) ?? visibleOwners[0];
+
+  const { data: ownerKeys } = useQuery({
+    queryKey: ["personal-owner-keys", activeOwner?.id],
+    queryFn: async () => {
+      const result = await getPersonalKeyList(activeOwner!.id);
+      if (!result.ok) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: Boolean(activeOwner) && activeOwner?.id !== visibleOwners[0]?.id,
+    staleTime: 30_000,
+  });
 
   const handleAdd = () => {
     if (activeOwner) {
@@ -118,7 +136,9 @@ export function ApiKeysPageClient({ owners, currentUser, currencyCode }: ApiKeys
       )}
       <div className="rounded-xl border bg-card p-4">
         <KeyList
-          keys={activeOwner?.keys ?? []}
+          keys={
+            activeOwner?.id === visibleOwners[0]?.id ? (activeOwner?.keys ?? []) : (ownerKeys ?? [])
+          }
           currentUser={currentUser}
           keyOwnerUserId={activeOwner?.id ?? 0}
           keyOwnerUser={activeOwner ? toKeyOwner(activeOwner) : undefined}

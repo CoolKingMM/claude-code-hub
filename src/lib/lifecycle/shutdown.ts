@@ -128,16 +128,6 @@ export async function runApplicationCleanup(
       "stopEndpointProbeScheduler"
     );
 
-    // 3. 公共状态重建调度器
-    await awaitQuiescenceBestEffort(
-      (async () => {
-        const { stopPublicStatusRebuildScheduler } = await import("@/lib/public-status/scheduler");
-        await stopPublicStatusRebuildScheduler();
-      })(),
-      stepMs,
-      "stopPublicStatusRebuildScheduler"
-    );
-
     // 4. 端点探测日志清理
     await awaitQuiescenceBestEffort(
       (async () => {

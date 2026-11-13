@@ -349,3 +349,37 @@ function sanitizeKey(item: unknown): unknown {
     ...(typeof key === "string" ? { maskedKey: maskKey(key) } : {}),
   };
 }
+
+export async function listPersonalKeys(c: Context): Promise<Response> {
+  const ownerId = Number(c.req.query("ownerId"));
+  if (!Number.isSafeInteger(ownerId) || ownerId < 1)
+    return createProblemResponse({
+      status: 400,
+      instance: new URL(c.req.url).pathname,
+      errorCode: "key.invalid_owner",
+      detail: "A positive ownerId is required.",
+    });
+  const actions = await import("@/actions/personal-keys");
+  const result = await callAction(
+    c,
+    actions.getPersonalKeyList,
+    [ownerId] as never[],
+    c.get("auth")
+  );
+  if (!result.ok) return actionError(c, result);
+  return jsonResponse({ items: result.data });
+}
+
+export async function getPersonalKeyModels(c: Context): Promise<Response> {
+  const params = parseKeyParams(c);
+  if (params instanceof Response) return params;
+  const actions = await import("@/actions/personal-keys");
+  const result = await callAction(
+    c,
+    actions.getPersonalKeyModelStats,
+    [params.keyId] as never[],
+    c.get("auth")
+  );
+  if (!result.ok) return actionError(c, result);
+  return jsonResponse({ items: result.data });
+}

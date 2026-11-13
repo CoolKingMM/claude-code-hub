@@ -8,8 +8,6 @@ import { getSession } from "@/lib/auth";
 import { invalidateSystemSettingsCache } from "@/lib/config";
 import { DEFAULT_SETTINGS } from "@/lib/config/system-settings-cache";
 import { logger } from "@/lib/logger";
-import { publishCurrentPublicStatusConfigProjection } from "@/lib/public-status/config-publisher";
-import { schedulePublicStatusRebuild } from "@/lib/public-status/rebuild-hints";
 import {
   invalidateAllLeaderboardCaches,
   invalidateAllOverviewCaches,
@@ -252,50 +250,6 @@ export async function saveSystemSettings(formData: {
       });
     }
 
-    const shouldRepublishPublicStatusProjection =
-      validated.siteTitle !== undefined ||
-      validated.timezone !== undefined ||
-      validated.publicStatusWindowHours !== undefined ||
-      validated.publicStatusAggregationIntervalMinutes !== undefined;
-
-    let publicStatusProjectionWarningCode: string | null = null;
-    if (shouldRepublishPublicStatusProjection) {
-      try {
-        const publishResult = await publishCurrentPublicStatusConfigProjection({
-          reason: "save-system-settings",
-        });
-
-        if (!publishResult.written) {
-          logger.warn(
-            "[SystemSettings] Saved DB truth but failed to publish public-status Redis projection"
-          );
-          publicStatusProjectionWarningCode = "PUBLIC_STATUS_PROJECTION_PUBLISH_FAILED";
-        } else {
-          try {
-            await schedulePublicStatusRebuild({
-              intervalMinutes:
-                validated.publicStatusAggregationIntervalMinutes ??
-                updated.publicStatusAggregationIntervalMinutes,
-              rangeHours: validated.publicStatusWindowHours ?? updated.publicStatusWindowHours,
-              reason: "system-settings-updated",
-            });
-          } catch (error) {
-            logger.warn(
-              "[SystemSettings] Saved DB truth but failed to schedule public-status rebuild",
-              error
-            );
-            publicStatusProjectionWarningCode = "PUBLIC_STATUS_BACKGROUND_REFRESH_PENDING";
-          }
-        }
-      } catch (error) {
-        logger.warn(
-          "[SystemSettings] Saved DB truth but failed to publish public-status Redis projection",
-          error
-        );
-        publicStatusProjectionWarningCode = "PUBLIC_STATUS_PROJECTION_PUBLISH_FAILED";
-      }
-    }
-
     // Revalidate paths for all locales to ensure cache invalidation across i18n routes
     for (const locale of locales) {
       revalidatePath(`/${locale}/settings/config`);
@@ -314,7 +268,7 @@ export async function saveSystemSettings(formData: {
       success: true,
     });
 
-    return { ok: true, data: { ...updated, publicStatusProjectionWarningCode } };
+    return { ok: true, data: { ...updated, publicStatusProjectionWarningCode: null } };
   } catch (error) {
     logger.error("更新系统设置失败:", error);
     const validationErrorCode = systemSettingsValidationErrorCode(error);

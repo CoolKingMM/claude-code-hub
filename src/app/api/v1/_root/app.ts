@@ -4,14 +4,12 @@ import { withNoStoreHeaders } from "@/lib/api/v1/_shared/cache-control";
 import { API_VERSION_HEADER, MANAGEMENT_API_VERSION } from "@/lib/api/v1/_shared/constants";
 import { createProblemResponse, fromZodError } from "@/lib/api/v1/_shared/error-envelope";
 import { jsonResponse } from "@/lib/api/v1/_shared/response-helpers";
-import { adminUserInsightsRouter } from "../resources/admin-user-insights/router";
 import { auditLogsRouter } from "../resources/audit-logs/router";
 import { dashboardRouter } from "../resources/dashboard/router";
 import { errorRulesRouter } from "../resources/error-rules/router";
 import { keysRouter } from "../resources/keys/router";
 import { meRouter } from "../resources/me/router";
 import { modelPricesRouter } from "../resources/model-prices/router";
-import { notificationsRouter } from "../resources/notifications/router";
 import { providerEndpointsRouter } from "../resources/provider-endpoints/router";
 import { providerGroupsRouter } from "../resources/provider-groups/router";
 import { providersRouter } from "../resources/providers/router";
@@ -22,7 +20,6 @@ import { sessionsRouter } from "../resources/sessions/router";
 import { systemRouter } from "../resources/system/router";
 import { usageLogsRouter } from "../resources/usage-logs/router";
 import { usersRouter } from "../resources/users/router";
-import { webhookTargetsRouter } from "../resources/webhook-targets/router";
 import { registerDocs } from "./docs";
 
 export const app = new OpenAPIHono({
@@ -136,16 +133,13 @@ app.openapi(csrfRoute, async (c) => {
   );
 });
 
-app.route("/", webhookTargetsRouter);
 app.route("/", providersRouter);
-app.route("/", notificationsRouter);
 app.route("/", systemRouter);
 app.route("/", sensitiveWordsRouter);
 app.route("/", errorRulesRouter);
 app.route("/", requestFiltersRouter);
 app.route("/", publicRouter);
 app.route("/", providerGroupsRouter);
-app.route("/", adminUserInsightsRouter);
 app.route("/", auditLogsRouter);
 app.route("/", modelPricesRouter);
 app.route("/", dashboardRouter);

@@ -42,15 +42,6 @@ vi.mock("@/repository/system-config", () => ({
   updateSystemSettings: (...args: unknown[]) => updateSystemSettingsMock(...args),
 }));
 
-vi.mock("@/lib/public-status/config-publisher", () => ({
-  publishCurrentPublicStatusConfigProjection: (...args: unknown[]) =>
-    publishCurrentPublicStatusConfigProjectionMock(...args),
-}));
-
-vi.mock("@/lib/public-status/rebuild-hints", () => ({
-  schedulePublicStatusRebuild: (...args: unknown[]) => schedulePublicStatusRebuildMock(...args),
-}));
-
 // Import the action after mocks are set up
 import { saveSystemSettings } from "@/actions/system-config";
 
@@ -217,22 +208,6 @@ describe("saveSystemSettings", () => {
     await saveSystemSettings({ siteTitle: "New Title" });
 
     expect(invalidateSystemSettingsCacheMock).toHaveBeenCalled();
-  });
-
-  it("should republish the public-status projection and queue a rebuild for relevant config changes", async () => {
-    await saveSystemSettings({
-      siteTitle: "New Title",
-      timezone: "UTC",
-    });
-
-    expect(publishCurrentPublicStatusConfigProjectionMock).toHaveBeenCalledWith({
-      reason: "save-system-settings",
-    });
-    expect(schedulePublicStatusRebuildMock).toHaveBeenCalledWith({
-      intervalMinutes: 5,
-      rangeHours: 24,
-      reason: "system-settings-updated",
-    });
   });
 
   it("should skip public-status projection updates for unrelated system settings", async () => {

@@ -25,9 +25,6 @@ describe("数据库连接池 shutdown", { concurrent: false }, () => {
     vi.doMock("@/lib/provider-endpoints/probe-scheduler", () => ({
       stopEndpointProbeScheduler: () => {},
     }));
-    vi.doMock("@/lib/public-status/scheduler", () => ({
-      stopPublicStatusRebuildScheduler: async () => {},
-    }));
     vi.doMock("@/lib/provider-endpoints/probe-log-cleanup", () => ({
       stopEndpointProbeLogCleanup: () => {},
     }));
@@ -60,9 +57,6 @@ describe("数据库连接池 shutdown", { concurrent: false }, () => {
     vi.doMock("@/lib/cache/session-cache", () => ({ stopCacheCleanup: () => {} }));
     vi.doMock("@/lib/provider-endpoints/probe-scheduler", () => ({
       stopEndpointProbeScheduler: () => {},
-    }));
-    vi.doMock("@/lib/public-status/scheduler", () => ({
-      stopPublicStatusRebuildScheduler: async () => {},
     }));
     vi.doMock("@/lib/provider-endpoints/probe-log-cleanup", () => ({
       stopEndpointProbeLogCleanup: () => {},
@@ -123,9 +117,6 @@ describe("数据库连接池 shutdown", { concurrent: false }, () => {
     vi.doMock("@/lib/provider-endpoints/probe-scheduler", () => ({
       stopEndpointProbeScheduler: () => {},
     }));
-    vi.doMock("@/lib/public-status/scheduler", () => ({
-      stopPublicStatusRebuildScheduler: async () => {},
-    }));
     vi.doMock("@/lib/provider-endpoints/probe-log-cleanup", () => ({
       stopEndpointProbeLogCleanup: () => {},
     }));
@@ -183,9 +174,6 @@ describe("数据库连接池 shutdown", { concurrent: false }, () => {
     vi.doMock("@/lib/provider-endpoints/probe-scheduler", () => ({
       stopEndpointProbeScheduler: () => {},
     }));
-    vi.doMock("@/lib/public-status/scheduler", () => ({
-      stopPublicStatusRebuildScheduler: async () => {},
-    }));
     vi.doMock("@/lib/provider-endpoints/probe-log-cleanup", () => ({
       stopEndpointProbeLogCleanup: () => {},
     }));
@@ -237,9 +225,6 @@ describe("数据库连接池 shutdown", { concurrent: false }, () => {
     vi.doMock("@/lib/cache/session-cache", () => ({ stopCacheCleanup: () => {} }));
     vi.doMock("@/lib/provider-endpoints/probe-scheduler", () => ({
       stopEndpointProbeScheduler: () => {},
-    }));
-    vi.doMock("@/lib/public-status/scheduler", () => ({
-      stopPublicStatusRebuildScheduler: async () => {},
     }));
     vi.doMock("@/lib/provider-endpoints/probe-log-cleanup", () => ({
       stopEndpointProbeLogCleanup: () => {},

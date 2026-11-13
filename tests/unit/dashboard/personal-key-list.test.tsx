@@ -19,6 +19,9 @@ vi.mock("@/lib/api-client/v1/actions/keys", () => ({
   toggleKeyEnabled: mocks.toggle,
   getUnmaskedKey: vi.fn(),
 }));
+vi.mock("@/lib/api-client/v1/actions/personal-keys", () => ({
+  getPersonalKeyModelStats: vi.fn(async () => ({ ok: true, data: [] })),
+}));
 vi.mock("sonner", () => ({ toast: { error: mocks.error } }));
 vi.mock("@/i18n/routing", () => ({
   Link: ({ children }: { children: ReactNode }) => <span>{children}</span>,
@@ -159,6 +162,7 @@ describe("key controls and limits", () => {
     expect(button).toBeTruthy();
     await act(async () => {
       button?.click();
+      await new Promise((resolve) => setTimeout(resolve, 10));
     });
     expect(mocks.limit).toHaveBeenCalledWith(10);
   });

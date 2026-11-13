@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/routing";
 import { getUnmaskedKey, toggleKeyEnabled } from "@/lib/api-client/v1/actions/keys";
+import { getPersonalKeyModelStats } from "@/lib/api-client/v1/actions/personal-keys";
 import { copyToClipboard, isClipboardSupported } from "@/lib/utils/clipboard";
 import { type CurrencyCode, formatCurrency } from "@/lib/utils/currency";
 import type { User, UserKeyDisplay } from "@/types/user";
@@ -45,6 +46,7 @@ export function KeyList({
   const tKeys = useTranslations("dashboard.apiKeys");
   const router = useRouter();
   const [togglingKeyIds, setTogglingKeyIds] = useState<Set<number>>(new Set());
+  const [modelStats, setModelStats] = useState<Record<number, UserKeyDisplay["modelStats"]>>({});
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set());
   const [visibleKeyIds, setVisibleKeyIds] = useState<Set<number>>(new Set());
@@ -80,7 +82,17 @@ export function KeyList({
     });
   }, [keys]);
 
-  const toggleExpanded = (keyId: number) => {
+  const toggleExpanded = async (keyId: number) => {
+    if (!expandedKeys.has(keyId) && !modelStats[keyId]) {
+      try {
+        const result = await getPersonalKeyModelStats(keyId);
+        if (result.ok) setModelStats((prev) => ({ ...prev, [keyId]: result.data }));
+        else toast.error(result.error || tCommon("error"));
+      } catch {
+        toast.error(tCommon("error"));
+      }
+    }
+
     setExpandedKeys((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(keyId)) {
@@ -163,8 +175,9 @@ export function KeyList({
             (record.limitConcurrentSessions && record.limitConcurrentSessions > 0)
         );
 
-        const hasModelStats = record.modelStats.length > 0;
-        const showDetails = hasModelStats || hasLimitConfig;
+        const stats = modelStats[record.id] ?? record.modelStats;
+        const hasModelStats = stats.length > 0;
+        const showDetails = true;
 
         return (
           <div className="space-y-1">
@@ -189,7 +202,7 @@ export function KeyList({
                   {hasModelStats && (
                     <div>
                       <div className="text-xs font-medium text-muted-foreground mb-1.5">
-                        {t("modelStats")} ({record.modelStats.length})
+                        {t("modelStats")} ({stats.length})
                       </div>
                       <div className="border rounded-md">
                         <Table>
@@ -207,7 +220,7 @@ export function KeyList({
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {record.modelStats.map((stat) => (
+                            {stats.map((stat) => (
                               <TableRow key={stat.model}>
                                 <TableCell className="text-xs py-1.5 font-mono">
                                   {stat.model}

@@ -92,12 +92,12 @@ describe("v1 action migration matrix", () => {
 
   test("has stable entries for modules called out by the migration plan", () => {
     const expectedModules = [
+      "personal-keys",
       "users",
       "keys",
       "key-quota",
       "providers",
       "provider-balance",
-      "provider-cache-effectiveness",
       "provider-endpoints",
       "provider-groups",
       "model-prices",
@@ -111,21 +111,13 @@ describe("v1 action migration matrix", () => {
       "session-origin-chain",
       "statistics",
       "overview",
-      "dashboard-realtime",
-      "admin-user-insights",
       "sensitive-words",
-      "notifications",
-      "notification-bindings",
-      "webhook-targets",
       "system-config",
       "request-filters",
       "error-rules",
       "rate-limit-stats",
       "proxy-status",
       "dispatch-simulator",
-      "public-status",
-      "provider-slots",
-      "client-versions",
     ];
 
     expect(ACTION_MIGRATION_MATRIX.map((entry) => entry.module).sort()).toEqual(

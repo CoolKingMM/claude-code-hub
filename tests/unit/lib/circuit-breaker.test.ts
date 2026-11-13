@@ -229,11 +229,6 @@ describe("circuit-breaker", () => {
       redisState = state;
     });
 
-    const sendAlertMock = vi.fn(async () => {});
-
-    vi.doMock("@/lib/notification/notifier", () => ({
-      sendCircuitBreakerAlert: sendAlertMock,
-    }));
     vi.doMock("@/drizzle/schema", () => ({
       providers: { id: "id", name: "name" },
     }));
@@ -277,8 +272,6 @@ describe("circuit-breaker", () => {
 
     await recordFailure(1, new Error("boom"));
     expect(redisState?.circuitOpenUntil).toBe(openUntil);
-
-    expect(sendAlertMock).not.toHaveBeenCalled();
   });
 
   test("配置加载失败时应缓存默认配置，避免重复请求配置存储", async () => {

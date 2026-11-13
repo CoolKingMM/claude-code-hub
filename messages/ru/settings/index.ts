@@ -1,4 +1,3 @@
-import clientVersions from "./clientVersions.json";
 import common from "./common.json";
 import config from "./config.json";
 import data from "./data.json";
@@ -6,11 +5,9 @@ import errorRules from "./errorRules.json";
 import errors from "./errors.json";
 import logs from "./logs.json";
 import nav from "./nav.json";
-import notifications from "./notifications.json";
 import prices from "./prices.json";
 import requestFilters from "./requestFilters.json";
 import sensitiveWords from "./sensitiveWords.json";
-import statusPage from "./statusPage.json";
 import strings from "./strings.json";
 
 import providersAutoSort from "./providers/autoSort.json";
@@ -116,9 +113,6 @@ export default {
   requestFilters,
   logs,
   data,
-  clientVersions,
-  notifications,
-  statusPage,
   errors,
   errorRules,
   ...strings,

@@ -1,54 +1,13 @@
-import { NextResponse } from "next/server";
-import { logger } from "@/lib/logger";
-import {
-  readCurrentPublicStatusConfigSnapshot,
-  resolvePublicStatusSiteDescription,
-} from "@/lib/public-status/config-snapshot";
+import { resolveDefaultLayoutTimeZone } from "@/lib/layout-site-metadata";
+import { readPublicSiteMeta } from "@/lib/public-site-meta";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-const PUBLIC_SITE_META_CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=60";
-
-export async function GET() {
-  try {
-    const snapshot = await readCurrentPublicStatusConfigSnapshot();
-    const responseBody = snapshot
-      ? {
-          available: true,
-          siteTitle: snapshot.siteTitle?.trim() || null,
-          siteDescription: resolvePublicStatusSiteDescription({
-            siteTitle: snapshot.siteTitle,
-            siteDescription: snapshot.siteDescription,
-          }),
-          timeZone: snapshot.timeZone ?? null,
-          source: "projection" as const,
-        }
-      : {
-          available: false,
-          siteTitle: null,
-          siteDescription: null,
-          timeZone: null,
-          source: "projection" as const,
-          reason: "projection_missing" as const,
-        };
-
-    return NextResponse.json(responseBody, {
-      headers: {
-        "Cache-Control": snapshot ? PUBLIC_SITE_META_CACHE_CONTROL : "no-store",
-      },
-    });
-  } catch (error) {
-    logger.error("GET /api/public-site-meta failed", { error });
-    return NextResponse.json(
-      {
-        error: "Public site metadata unavailable",
-      },
-      {
-        status: 503,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
-  }
+export async function GET(): Promise<Response> {
+  const [metadata, timeZone] = await Promise.all([
+    readPublicSiteMeta(),
+    resolveDefaultLayoutTimeZone(),
+  ]);
+  return Response.json(
+    { available: true, ...metadata, timeZone, source: "settings" },
+    { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" } }
+  );
 }

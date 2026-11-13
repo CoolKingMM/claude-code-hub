@@ -103,6 +103,19 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      - name: Generate management API types
+        if: steps.build_flag.outputs.should_build == 'true'
+        run: |
+          bun install
+          bun run openapi:generate
+
+      - name: Upload management API types
+        if: steps.build_flag.outputs.should_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: management-api-types
+          path: src/lib/api-client/v1/openapi-types.gen.ts
+
       - name: Validate provider key creation
         if: steps.build_flag.outputs.should_build == 'true'
         run: |

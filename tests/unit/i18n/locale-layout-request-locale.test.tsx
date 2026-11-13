@@ -41,11 +41,6 @@ vi.mock("@/lib/layout-site-metadata", () => ({
   resolveDefaultSiteMetadataSource: vi.fn(async () => null),
 }));
 
-vi.mock("@/lib/public-status/layout-metadata", () => ({
-  resolveLayoutTimeZone: vi.fn(async () => "UTC"),
-  resolveSiteMetadataSource: vi.fn(async () => null),
-}));
-
 vi.mock("@/lib/logger", () => ({
   logger: {
     error: vi.fn(),

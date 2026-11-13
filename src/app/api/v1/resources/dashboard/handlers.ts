@@ -50,18 +50,6 @@ export async function getDashboardConcurrentSessions(c: Context): Promise<Respon
   return jsonResponse({ count: result.data });
 }
 
-export async function getDashboardRealtime(c: Context): Promise<Response> {
-  const actions = await import("@/actions/dashboard-realtime");
-  return actionJson(c, await callAction(c, actions.getDashboardRealtimeData, [], c.get("auth")));
-}
-
-export async function getDashboardProviderSlots(c: Context): Promise<Response> {
-  const actions = await import("@/actions/provider-slots");
-  const result = await callAction(c, actions.getProviderSlots, [], c.get("auth"));
-  if (!result.ok) return actionError(c, result);
-  return jsonResponse({ items: result.data });
-}
-
 export async function getDashboardRateLimitStats(c: Context): Promise<Response> {
   const query = DashboardRateLimitStatsQuerySchema.safeParse({
     userId: c.req.query("userId"),
@@ -91,13 +79,6 @@ export async function getDashboardRateLimitStats(c: Context): Promise<Response> 
 export async function getDashboardProxyStatus(c: Context): Promise<Response> {
   const actions = await import("@/actions/proxy-status");
   return actionJson(c, await callAction(c, actions.getProxyStatus, [], c.get("auth")));
-}
-
-export async function getDashboardClientVersions(c: Context): Promise<Response> {
-  const actions = await import("@/actions/client-versions");
-  const result = await callAction(c, actions.fetchClientVersionStats, [], c.get("auth"));
-  if (!result.ok) return actionError(c, result);
-  return jsonResponse({ items: result.data });
 }
 
 export async function simulateDispatch(c: Context): Promise<Response> {

@@ -40,22 +40,6 @@ vi.mock("@/lib/config", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/public-status/config-publisher", () => ({
-  publishCurrentPublicStatusConfigProjection: vi.fn(async () => ({
-    configVersion: "cfg-1",
-    key: "public-status:v1:config:cfg-1",
-    written: true,
-    groupCount: 0,
-  })),
-}));
-
-vi.mock("@/lib/public-status/rebuild-hints", () => ({
-  schedulePublicStatusRebuild: vi.fn(async () => ({
-    accepted: true,
-    rebuildState: "rebuilding",
-  })),
-}));
-
 vi.mock("@/lib/utils/timezone", () => ({
   resolveSystemTimezone: vi.fn(async () => "UTC"),
   isValidIANATimezone: vi.fn(() => true),

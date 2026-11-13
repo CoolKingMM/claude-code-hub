@@ -1,9 +1,6 @@
-import { BarChart3 } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { getProviders } from "@/actions/providers";
 import { Section } from "@/components/section";
-import { Button } from "@/components/ui/button";
-import { Link } from "@/i18n/routing";
 import { getSession } from "@/lib/auth";
 import { SettingsPageHeader } from "../_components/settings-page-header";
 import { AutoSortPriorityDialog } from "./_components/auto-sort-priority-dialog";
@@ -33,12 +30,6 @@ export default async function SettingsProvidersPage({
         description={t("providers.section.description")}
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/leaderboard?scope=provider">
-                <BarChart3 className="h-4 w-4" />
-                {t("providers.section.leaderboard")}
-              </Link>
-            </Button>
             <AutoSortPriorityDialog />
             <ReclusterVendorsDialog />
             <SchedulingRulesDialog />
