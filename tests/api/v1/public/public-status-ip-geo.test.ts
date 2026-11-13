@@ -7,6 +7,7 @@ const lookupIpMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/config/system-settings-cache", () => ({
   getCachedSystemSettings: getCachedSystemSettingsMock,
+  getCachedSystemSettingsOnlyCache: () => null,
 }));
 
 vi.mock("@/lib/ip-geo/client", () => ({
