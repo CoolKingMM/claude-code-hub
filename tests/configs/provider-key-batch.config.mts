@@ -9,6 +9,7 @@ export default createCoverageConfig({
     "tests/unit/settings/providers/provider-vendor-view-circuit-ui.test.tsx",
     "tests/unit/settings/providers/vendor-keys-compact-list-ui.test.tsx",
     "tests/unit/settings/provider-channel-picker.test.tsx",
+    "tests/unit/i18n/settings-split-guards.test.ts",
     "tests/unit/providers/provider-key-batch.test.ts",
     "tests/unit/settings/providers/provider-keys-input.test.tsx",
     "tests/unit/settings/providers/provider-form-base-url-guidance.test.tsx",
