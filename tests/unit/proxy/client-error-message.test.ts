@@ -97,6 +97,7 @@ describe("business-error diagnostics", () => {
     [400, "invalid_request_error", "Codex previous_response_id is invalid"],
     [429, "rate_limit_exceeded", "Quota exceeded; retry after 30 seconds"],
     [503, "insufficient_quota", "余额不足，请充值"],
+    [503, "UNAVAILABLE", "No capacity available for model gemini-3.8-flash-high on the server"],
   ])("retains the business explanation and code for HTTP %i", (statusCode, code, message) => {
     const result = deriveUpstreamBusinessErrorMessage({
       statusCode,
@@ -155,6 +156,21 @@ describe("business-error diagnostics", () => {
       })
     ).toBeNull();
     expect(isUpstreamTransportError({ cause: new Error("ECONNREFUSED") })).toBe(true);
+  });
+  test("Gemini status and short provider names preserve the client explanation", () => {
+    expect(
+      deriveUpstreamBusinessErrorMessage({
+        statusCode: 503,
+        providerName: "CLI",
+        rawText: JSON.stringify({
+          error: {
+            code: 503,
+            status: "UNAVAILABLE",
+            message: "No capacity available for model gemini-3.8-flash-high; client must retry",
+          },
+        }),
+      })
+    ).toContain("client must retry (UNAVAILABLE)");
   });
   test("handles nested relays, plain text and strips a carried HTTP prefix", () => {
     expect(

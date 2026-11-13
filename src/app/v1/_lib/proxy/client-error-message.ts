@@ -199,7 +199,7 @@ export function deriveClientSafeUpstreamErrorMessage(
 const TRANSPORT_ERROR_RE =
   /\b(?:ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EPIPE|UND_ERR_[A-Z_]+|ERR_(?:TLS|SSL)_[A-Z_]+|fetch failed|socket hang up|network error|connection (?:reset|refused|closed|timed out)|(?:connect|connection|read|headers|body|gateway|upstream|request) timeout|timed out|certificate (?:expired|invalid)|SSL handshake|TLS handshake)\b/i;
 const BUSINESS_ERROR_RE =
-  /(?:insufficient|balance|credit|quota|billing|payment|subscription|subscribed|plan|rate.?limit|too many requests|invalid.?request|invalid.?argument|invalid.?parameter|invalid.?api.?key|context.?length|not.?supported|not.?found|not.?allowed|permission|access.?denied|余额|额度|套餐|订阅|充值|限流|参数|鉴权|权限|不支持)/i;
+  /(?:insufficient|balance|credit|quota|billing|payment|subscription|subscribed|plan|rate.?limit|too many requests|invalid.?request|invalid.?argument|invalid.?parameter|invalid.?api.?key|context.?length|not.?supported|not.?found|not.?allowed|permission|access.?denied|(?:model.{0,80}capacity|capacity.{0,80}model)|余额|额度|套餐|订阅|充值|限流|参数|鉴权|权限|不支持)/i;
 
 /** Only response-backed business errors opt into richer diagnostics; transport errors keep defaults. */
 export function isUpstreamTransportError(error: unknown): boolean {
@@ -254,6 +254,7 @@ export function deriveUpstreamBusinessErrorMessage(
         if (typeof detail.message === "string") message = detail.message;
         if (typeof detail.code === "string") code = detail.code;
         else if (typeof detail.type === "string") code = detail.type;
+        else if (typeof detail.status === "string") code = detail.status;
         // Relays sometimes nest the actual provider business error.
         const nested = detail.upstream_error;
         if (!message && nested && typeof nested === "object") {
@@ -287,8 +288,11 @@ export function deriveUpstreamBusinessErrorMessage(
     .replace(/\b(?:sk|rk|pk)-[A-Za-z0-9_-]{8,}\b/giu, "[REDACTED_KEY]")
     .replace(/\s+/g, " ")
     .trim();
-  if (input.providerName)
-    safe = safe.replace(new RegExp(escapeRegExp(input.providerName), "giu"), "upstream");
+  if (input.providerName) {
+    const label = input.providerName;
+    const pattern = /^[\w.-]+$/.test(label) ? `\\b${escapeRegExp(label)}\\b` : escapeRegExp(label);
+    safe = safe.replace(new RegExp(pattern, "giu"), "upstream");
+  }
   if (!safe || containsRawJsonBlob(safe) || isUpstreamTransportError({ message: safe }))
     return null;
   if (code && /^[A-Za-z][A-Za-z0-9_.-]{1,79}$/.test(code) && !safe.includes(code))
