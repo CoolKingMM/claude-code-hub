@@ -6,8 +6,8 @@ export async function resolveDefaultSiteMetadataSource(): Promise<{
   siteDescription: string;
 }> {
   try {
-    const { getSystemSettings } = await import("@/repository/system-config");
-    const settings = await getSystemSettings();
+    const { getCachedSystemSettings } = await import("@/lib/config/system-settings-cache");
+    const settings = await getCachedSystemSettings();
     const title = settings.siteTitle?.trim() || FALLBACK_SITE_TITLE;
 
     return {

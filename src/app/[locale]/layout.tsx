@@ -14,6 +14,8 @@ import { logger } from "@/lib/logger";
 import { DEFAULT_SITE_TITLE } from "@/lib/site-title";
 import { AppProviders } from "../providers";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {

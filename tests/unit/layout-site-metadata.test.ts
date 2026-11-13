@@ -4,8 +4,8 @@ const mockGetSystemSettings = vi.hoisted(() => vi.fn());
 const mockResolveSystemTimezone = vi.hoisted(() => vi.fn());
 const mockLoggerWarn = vi.hoisted(() => vi.fn());
 
-vi.mock("@/repository/system-config", () => ({
-  getSystemSettings: mockGetSystemSettings,
+vi.mock("@/lib/config/system-settings-cache", () => ({
+  getCachedSystemSettings: mockGetSystemSettings,
 }));
 
 vi.mock("@/lib/utils/timezone", () => ({

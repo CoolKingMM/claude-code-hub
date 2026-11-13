@@ -126,9 +126,9 @@ describe("v1 OpenAPI live auth sweep", () => {
       }
     }
 
-    // Public endpoints currently expected: /health and /public/status. If the
+    // Public endpoint currently expected: /health. If the
     // count changes we want the contract test below to surface it explicitly.
-    expect(publicOps.length).toBeGreaterThanOrEqual(2);
+    expect(publicOps).toHaveLength(1);
 
     for (const op of publicOps) {
       const result = await exerciseWithoutAuth(op.method, op.path);
@@ -160,6 +160,6 @@ describe("v1 OpenAPI live auth sweep", () => {
     // Only health and public status are intentionally public. Any new public
     // endpoint must be added here explicitly so the security boundary is
     // reviewed.
-    expect(publicOps.sort()).toEqual(["GET /api/v1/health", "GET /api/v1/public/status"].sort());
+    expect(publicOps.sort()).toEqual(["GET /api/v1/health"]);
   });
 });

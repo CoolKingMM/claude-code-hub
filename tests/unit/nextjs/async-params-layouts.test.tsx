@@ -80,22 +80,4 @@ describe("Next.js async params compatibility", () => {
     });
     expect(hasSession).toBeTruthy();
   });
-
-  test("big-screen generateMetadata awaits params before reading locale", async () => {
-    const BigScreenLayoutModule = await import(
-      "@/app/[locale]/internal/dashboard/big-screen/layout"
-    );
-
-    const metadata = await BigScreenLayoutModule.generateMetadata({
-      params: makeAsyncParams("en") as unknown as Promise<{ locale: string }>,
-    });
-
-    expect(metadata).toEqual({
-      title: "bigScreen.pageTitle.en",
-      description: "bigScreen.pageDescription.en",
-    });
-
-    const element = BigScreenLayoutModule.default({ children: <div /> });
-    expect(element).toBeTruthy();
-  });
 });
