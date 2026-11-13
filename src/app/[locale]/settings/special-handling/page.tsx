@@ -15,8 +15,8 @@ export default async function SpecialHandlingPage({
 }: {
   params: Promise<{ locale: string }>;
 }) {
-  await params;
-  const t = await getTranslations({ locale: "zh-CN", namespace: "settings" });
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "settings" });
   const settings = await getSystemSettings();
   const providers = await getProviders();
   const labels: SpecialHandlingFormLabels = {

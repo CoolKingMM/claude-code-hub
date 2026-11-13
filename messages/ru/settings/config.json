@@ -196,11 +196,21 @@
     "codexHistoryFilter": {
       "title": "Фильтр истории Codex (исправление 400 на мультиресурсных каналах)",
       "description": "Включается по провайдерам: для выбранных codex-провайдеров перед проксированием удаляется история Responses, привязанная к создавшему её upstream-ресурсу (reasoning, item_reference, серверные item id), чтобы избежать 400 \"The requested item was created under a different OpenAI resource\" на мультиаккаунтных релеях. Без выбранных провайдеров функция выключена.",
-      "providerLabel": "Провайдеры (только тип codex)",
+      "providerLabel": "Провайдеры / каналы (показаны все; включение доступно для Codex)",
       "selectedCount": "Включено провайдеров: {count}",
       "emptyState": "Провайдеры не выбраны, фильтр истории Codex выключен.",
       "noProviders": "Нет провайдеров типа codex. Сначала добавьте провайдера.",
       "providerToggleLabel": "Включить фильтр истории Codex для {name}"
+    },
+    "channelPicker": {
+      "selection": "Выбрано {selected} / Всего {total} каналов",
+      "search": "Поиск по имени, ID, типу или группе",
+      "group": "Фильтр по группе каналов",
+      "allGroups": "Все группы",
+      "defaultGroup": "Группа по умолчанию",
+      "results": "Показано {count} / {total} каналов",
+      "noResults": "Нет подходящих каналов",
+      "codexOnly": "Фильтрация истории доступна только для каналов Codex"
     }
   },
   "ipLogging": {

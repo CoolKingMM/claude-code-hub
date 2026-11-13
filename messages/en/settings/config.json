@@ -196,11 +196,21 @@
     "codexHistoryFilter": {
       "title": "Codex history filter (multi-resource 400 fix)",
       "description": "Enable per provider: for the selected codex providers, strips Responses history that is bound to the upstream resource that created it (reasoning, item_reference, server item ids) before forwarding, avoiding 400 \"The requested item was created under a different OpenAI resource\" on multi-account relays. No provider selected means disabled.",
-      "providerLabel": "Providers (codex type only)",
+      "providerLabel": "Providers / channels (all shown; Codex channels can be enabled)",
       "selectedCount": "{count} provider(s) enabled",
       "emptyState": "No provider selected, Codex history filter is disabled.",
       "noProviders": "No codex providers yet. Add a provider first.",
       "providerToggleLabel": "Enable Codex history filter for {name}"
+    },
+    "channelPicker": {
+      "selection": "Selected {selected} / All {total} channels",
+      "search": "Search channel name, ID, type, or group",
+      "group": "Filter channel group",
+      "allGroups": "All groups",
+      "defaultGroup": "Default group",
+      "results": "Showing {count} / {total} channels",
+      "noResults": "No matching channels",
+      "codexOnly": "History filtering is available for Codex channels only"
     }
   },
   "ipLogging": {

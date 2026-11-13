@@ -4,6 +4,7 @@ export default createCoverageConfig({
   name: "provider-key-batch",
   environment: "happy-dom",
   testFiles: [
+    "tests/unit/settings/provider-channel-picker.test.tsx",
     "tests/unit/providers/provider-key-batch.test.ts",
     "tests/unit/settings/providers/provider-keys-input.test.tsx",
     "tests/unit/settings/providers/provider-form-base-url-guidance.test.tsx",
@@ -20,6 +21,7 @@ export default createCoverageConfig({
     "tests/unit/repository/system-config-update-missing-columns.test.ts",
   ],
   sourceFiles: [
+    "src/app/[locale]/settings/special-handling/_components/provider-channel-picker.tsx",
     "src/lib/provider-key-batch.ts",
     "src/lib/provider-key-clone.ts",
     "src/lib/validation/provider-keys.ts",

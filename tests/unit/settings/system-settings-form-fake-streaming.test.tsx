@@ -254,9 +254,12 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
       "fakeStreamingWhitelist"
     );
     expect(document.body.textContent).toContain("供应商 / 渠道");
+    act(() =>
+      (document.querySelector('[data-testid="fake-streaming-picker"]') as HTMLElement).click()
+    );
     expect(document.body.textContent).toContain("Anyrouter-codex");
     expect(document.body.textContent).toContain("rawchat");
-    expect(document.body.textContent).not.toContain("default-channel");
+    expect(document.body.textContent).toContain("default-channel");
     expect(document.body.textContent).toContain("渠道投毒命令过滤");
 
     unmount();
@@ -275,12 +278,16 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
       />
     );
 
+    act(() =>
+      (document.querySelector('[data-testid="fake-streaming-picker"]') as HTMLElement).click()
+    );
+
     const switches = [
       document.body.querySelector(
-        'button[aria-label="为 Anyrouter-codex 启用避免长请求 499/CLIENT_ABORTED 中断"]'
+        'button[aria-label="为 Anyrouter-codex (#101) 启用避免长请求 499/CLIENT_ABORTED 中断"]'
       ),
       document.body.querySelector(
-        'button[aria-label="为 rawchat 启用避免长请求 499/CLIENT_ABORTED 中断"]'
+        'button[aria-label="为 rawchat (#202) 启用避免长请求 499/CLIENT_ABORTED 中断"]'
       ),
     ];
     if (switches.some((switchButton) => switchButton === null)) {
@@ -303,7 +310,7 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
     unmount();
   });
 
-  test("special handling form shows codex group providers sorted by priority", () => {
+  test("special handling form shows all groups by default and can filter codex by priority", () => {
     const { unmount } = render(
       <SpecialHandlingForm
         initialSettings={{
@@ -317,6 +324,16 @@ describe("SystemSettingsForm fake streaming provider handling", () => {
         labels={getSpecialHandlingLabels()}
       />
     );
+
+    act(() =>
+      (document.querySelector('[data-testid="fake-streaming-picker"]') as HTMLElement).click()
+    );
+    expect(document.body.textContent).toContain("default-channel");
+    const groupSelect = document.querySelector("select") as HTMLSelectElement;
+    act(() => {
+      groupSelect.value = "codex";
+      groupSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
 
     const rawchatIndex = document.body.textContent?.indexOf("rawchat") ?? -1;
     const anyrouterIndex = document.body.textContent?.indexOf("Anyrouter-codex") ?? -1;

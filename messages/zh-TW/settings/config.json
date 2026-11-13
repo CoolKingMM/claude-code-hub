@@ -196,11 +196,21 @@
     "codexHistoryFilter": {
       "title": "Codex 歷史過濾（多資源渠道 400 修復）",
       "description": "按供應商 / 渠道啟用：命中的 codex 渠道在轉發前剝離跨上游資源綁定的 Responses 歷史（reasoning、item_reference、服務端 item id），避免多帳號中轉返回 400 \"The requested item was created under a different OpenAI resource\"。未選擇供應商表示關閉。",
-      "providerLabel": "供應商 / 渠道（僅 codex 類型）",
+      "providerLabel": "供應商 / 渠道（全部顯示，僅 Codex 類型可啟用）",
       "selectedCount": "已啟用 {count} 個渠道",
       "emptyState": "尚未選擇任何供應商，Codex 歷史過濾處於關閉狀態。",
       "noProviders": "目前沒有 codex 類型的供應商。請先在供應商管理中加入渠道。",
       "providerToggleLabel": "為 {name} 啟用 Codex 歷史過濾"
+    },
+    "channelPicker": {
+      "selection": "已選取 {selected} 個 / 全部 {total} 個渠道",
+      "search": "搜尋渠道名稱、ID、類型或群組",
+      "group": "篩選渠道群組",
+      "allGroups": "全部群組",
+      "defaultGroup": "預設群組",
+      "results": "顯示 {count} / {total} 個渠道",
+      "noResults": "沒有符合的渠道",
+      "codexOnly": "僅 Codex 類型可啟用歷史過濾"
     }
   },
   "ipLogging": {

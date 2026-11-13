@@ -196,11 +196,21 @@
     "codexHistoryFilter": {
       "title": "Codex 履歴フィルター（マルチリソース 400 の修正）",
       "description": "プロバイダー / チャネル単位で有効化：対象の codex プロバイダーでは、転送前に上流リソースに紐づく Responses 履歴（reasoning、item_reference、サーバー発行 item id）を除去し、マルチアカウント中継での 400 \"The requested item was created under a different OpenAI resource\" を回避します。プロバイダー未選択の場合は無効です。",
-      "providerLabel": "プロバイダー / チャネル（codex タイプのみ）",
+      "providerLabel": "プロバイダー / チャネル（すべて表示、Codex のみ有効化可能）",
       "selectedCount": "{count} 件のプロバイダーで有効",
       "emptyState": "プロバイダーが未選択のため、Codex 履歴フィルターは無効です。",
       "noProviders": "codex タイプのプロバイダーがありません。先にプロバイダーを追加してください。",
       "providerToggleLabel": "{name} で Codex 履歴フィルターを有効化"
+    },
+    "channelPicker": {
+      "selection": "選択済み {selected} / 全 {total} チャネル",
+      "search": "チャネル名、ID、種類、グループで検索",
+      "group": "チャネルのグループを絞り込み",
+      "allGroups": "すべてのグループ",
+      "defaultGroup": "既定のグループ",
+      "results": "{total} 件中 {count} 件を表示",
+      "noResults": "一致するチャネルがありません",
+      "codexOnly": "履歴フィルターは Codex チャネルのみ有効にできます"
     }
   },
   "ipLogging": {

@@ -2,18 +2,11 @@
 
 import { ChevronDown, History, ShieldAlert, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { saveSystemSettings } from "@/lib/api-client/v1/actions/system-config";
@@ -21,15 +14,9 @@ import {
   DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES,
   validateProviderOutputSafetyFilterRule,
 } from "@/lib/provider-output-safety-rules";
-import { cn } from "@/lib/utils";
-import { resolveProviderGroupsWithDefault } from "@/lib/utils/provider-group";
-import type { ProviderDisplay } from "@/types/provider";
 import type { SystemSettings } from "@/types/system-config";
 
-type SpecialHandlingProvider = Pick<
-  ProviderDisplay,
-  "id" | "name" | "providerType" | "groupTag" | "priority" | "groupPriorities"
->;
+import { ProviderChannelPicker, type SpecialHandlingProvider } from "./provider-channel-picker";
 
 type SpecialHandlingFormProps = {
   initialSettings: Pick<
@@ -106,40 +93,6 @@ function sanitizeProviderIds(providerIds: readonly number[]): number[] {
   return result;
 }
 
-function formatGroupTag(groupTag: string | null, defaultGroup: string): string {
-  const trimmed = groupTag?.trim();
-  if (!trimmed || trimmed.length === 0 || trimmed === "default") return defaultGroup;
-  return trimmed;
-}
-
-function selectedCountLabel(template: string, count: number): string {
-  return template.replace("{count}", String(count));
-}
-
-function uniqueGroupsForProviders(providers: readonly SpecialHandlingProvider[]): string[] {
-  const groups = new Set<string>();
-  for (const provider of providers) {
-    for (const group of resolveProviderGroupsWithDefault(provider.groupTag)) {
-      groups.add(group);
-    }
-  }
-
-  return Array.from(groups).sort((a, b) => {
-    if (a === "codex") return -1;
-    if (b === "codex") return 1;
-    if (a === "default") return -1;
-    if (b === "default") return 1;
-    return a.localeCompare(b);
-  });
-}
-
-function effectivePriority(provider: SpecialHandlingProvider, group: string): number {
-  const groupPriority = provider.groupPriorities?.[group];
-  return typeof groupPriority === "number" && Number.isSafeInteger(groupPriority)
-    ? groupPriority
-    : provider.priority;
-}
-
 export function SpecialHandlingForm({
   initialSettings,
   providers,
@@ -165,39 +118,6 @@ export function SpecialHandlingForm({
     );
   const [providerOutputSafetyFilterOpen, setProviderOutputSafetyFilterOpen] = useState(false);
 
-  const selectedProviderIdSet = new Set(selectedProviderIds);
-  const codexHistoryProviderIdSet = new Set(codexHistoryFilterProviderIds);
-  const codexHistoryProviders = useMemo(
-    () =>
-      providers
-        .filter((provider) => provider.providerType === "codex")
-        .toSorted((left, right) => {
-          const nameDelta = left.name.localeCompare(right.name);
-          return nameDelta !== 0 ? nameDelta : left.id - right.id;
-        }),
-    [providers]
-  );
-  const providerGroups = useMemo(() => uniqueGroupsForProviders(providers), [providers]);
-  const initialGroup = providerGroups.includes("codex") ? "codex" : (providerGroups[0] ?? "");
-  const [selectedGroup, setSelectedGroup] = useState(initialGroup);
-  const visibleProviders = useMemo(
-    () =>
-      providers
-        .filter((provider) =>
-          resolveProviderGroupsWithDefault(provider.groupTag).includes(selectedGroup)
-        )
-        .toSorted((left, right) => {
-          const priorityDelta =
-            effectivePriority(left, selectedGroup) - effectivePriority(right, selectedGroup);
-          if (priorityDelta !== 0) return priorityDelta;
-          const nameDelta = left.name.localeCompare(right.name);
-          return nameDelta !== 0 ? nameDelta : left.id - right.id;
-        }),
-    [providers, selectedGroup]
-  );
-  const selectedVisibleProviderCount = visibleProviders.filter((provider) =>
-    selectedProviderIdSet.has(provider.id)
-  ).length;
   const inputClassName =
     "bg-muted/50 border border-border rounded-lg focus:border-primary focus:ring-1 focus:ring-primary";
 
@@ -287,89 +207,19 @@ export function SpecialHandlingForm({
           </div>
         </div>
 
-        <div className="space-y-3 pl-0 md:pl-11">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">
-                {labels.fakeStreaming.providerLabel}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {visibleProviders.length === 0
-                  ? labels.fakeStreaming.emptyState
-                  : selectedCountLabel(
-                      labels.fakeStreaming.selectedCount,
-                      selectedVisibleProviderCount
-                    )}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="fake-streaming-provider-group" className="sr-only">
-                {labels.fakeStreaming.groupSelectLabel}
-              </Label>
-              <Select
-                value={selectedGroup}
-                onValueChange={setSelectedGroup}
-                disabled={isPending || providerGroups.length === 0}
-              >
-                <SelectTrigger
-                  id="fake-streaming-provider-group"
-                  className="w-full min-w-40 bg-muted/50 sm:w-48"
-                  size="sm"
-                >
-                  <SelectValue placeholder={labels.fakeStreaming.groupSelectLabel} />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerGroups.map((group) => (
-                    <SelectItem key={group} value={group}>
-                      {formatGroupTag(group, labels.fakeStreaming.defaultGroup)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {providers.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              {labels.fakeStreaming.noProviders}
-            </p>
-          ) : visibleProviders.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              {labels.fakeStreaming.noProvidersInGroup}
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {visibleProviders.map((provider) => {
-                const selected = selectedProviderIdSet.has(provider.id);
-                return (
-                  <div
-                    key={provider.id}
-                    data-testid={`fake-streaming-provider-${provider.id}`}
-                    className={cn(
-                      "flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
-                      isPending ? "opacity-70" : "bg-muted/20 hover:bg-muted/35",
-                      selected
-                        ? "border-primary/60 bg-primary/10"
-                        : "border-white/5 hover:border-white/10"
-                    )}
-                  >
-                    <span className="min-w-0 truncate text-sm font-medium text-foreground">
-                      {provider.name}
-                    </span>
-                    <Switch
-                      checked={selected}
-                      onCheckedChange={() => toggleProvider(provider.id)}
-                      disabled={isPending}
-                      aria-label={labels.fakeStreaming.providerToggleLabel.replace(
-                        "{name}",
-                        provider.name
-                      )}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <div className="space-y-2 pl-0 md:pl-11">
+          <Label className="text-xs text-muted-foreground">
+            {labels.fakeStreaming.providerLabel}
+          </Label>
+          <ProviderChannelPicker
+            providers={providers}
+            selectedIds={selectedProviderIds}
+            onToggle={toggleProvider}
+            label={labels.fakeStreaming.providerLabel}
+            toggleLabel={labels.fakeStreaming.providerToggleLabel}
+            testId="fake-streaming"
+            disabled={isPending}
+          />
         </div>
       </div>
 
@@ -397,59 +247,19 @@ export function SpecialHandlingForm({
         </div>
 
         <div className="space-y-2 pl-0 md:pl-11">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">
-              {labels.codexHistoryFilter.providerLabel}
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              {codexHistoryProviders.length === 0
-                ? labels.codexHistoryFilter.emptyState
-                : selectedCountLabel(
-                    labels.codexHistoryFilter.selectedCount,
-                    codexHistoryProviders.filter((provider) =>
-                      codexHistoryProviderIdSet.has(provider.id)
-                    ).length
-                  )}
-            </p>
-          </div>
-
-          {codexHistoryProviders.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              {labels.codexHistoryFilter.noProviders}
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {codexHistoryProviders.map((provider) => {
-                const selected = codexHistoryProviderIdSet.has(provider.id);
-                return (
-                  <div
-                    key={provider.id}
-                    data-testid={`codex-history-filter-provider-${provider.id}`}
-                    className={cn(
-                      "flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
-                      isPending ? "opacity-70" : "bg-muted/20 hover:bg-muted/35",
-                      selected
-                        ? "border-primary/60 bg-primary/10"
-                        : "border-white/5 hover:border-white/10"
-                    )}
-                  >
-                    <span className="min-w-0 truncate text-sm font-medium text-foreground">
-                      {provider.name}
-                    </span>
-                    <Switch
-                      checked={selected}
-                      onCheckedChange={() => toggleCodexHistoryProvider(provider.id)}
-                      disabled={isPending}
-                      aria-label={labels.codexHistoryFilter.providerToggleLabel.replace(
-                        "{name}",
-                        provider.name
-                      )}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <Label className="text-xs text-muted-foreground">
+            {labels.codexHistoryFilter.providerLabel}
+          </Label>
+          <ProviderChannelPicker
+            providers={providers}
+            selectedIds={codexHistoryFilterProviderIds}
+            onToggle={toggleCodexHistoryProvider}
+            label={labels.codexHistoryFilter.providerLabel}
+            toggleLabel={labels.codexHistoryFilter.providerToggleLabel}
+            testId="codex-history-filter"
+            codexOnly
+            disabled={isPending}
+          />
         </div>
       </div>
 

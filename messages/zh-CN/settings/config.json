@@ -216,11 +216,21 @@
     "codexHistoryFilter": {
       "title": "Codex 历史过滤（多资源渠道 400 修复）",
       "description": "按供应商 / 渠道启用：命中的 codex 渠道在转发前剥离跨上游资源绑定的 Responses 历史（reasoning、item_reference、服务端 item id），避免多账号中转返回 400 \"The requested item was created under a different OpenAI resource\"。未选择供应商表示关闭。",
-      "providerLabel": "供应商 / 渠道（仅 codex 类型）",
+      "providerLabel": "供应商 / 渠道（全部显示，仅 Codex 类型可启用）",
       "selectedCount": "已启用 {count} 个渠道",
       "emptyState": "尚未选择任何供应商，Codex 历史过滤处于关闭状态。",
       "noProviders": "当前没有 codex 类型的供应商。请先在供应商管理中添加渠道。",
       "providerToggleLabel": "为 {name} 启用 Codex 历史过滤"
+    },
+    "channelPicker": {
+      "selection": "已选择 {selected} 个 / 全部 {total} 个渠道",
+      "search": "搜索渠道名称、ID、类型或分组",
+      "group": "筛选渠道分组",
+      "allGroups": "全部分组",
+      "defaultGroup": "默认分组",
+      "results": "显示 {count} / {total} 个渠道",
+      "noResults": "没有匹配的渠道",
+      "codexOnly": "仅 Codex 类型可启用历史过滤"
     }
   },
   "ipLogging": {
