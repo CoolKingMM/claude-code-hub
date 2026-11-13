@@ -323,7 +323,6 @@ describe("non-chat endpoint session context", () => {
         "auth",
         "client",
         "model",
-        "version",
         "probe",
         "session",
         "provider",
@@ -383,7 +382,7 @@ describe("non-chat endpoint session context", () => {
     const pipeline = GuardPipelineBuilder.fromSession(session);
     await pipeline.run(session);
 
-    expect(callOrder).toEqual(["auth", "client", "model", "version", "probe", "provider"]);
+    expect(callOrder).toEqual(["auth", "client", "model", "probe", "provider"]);
     expect(callOrder).not.toContain("session");
     expect(callOrder).not.toContain("messageContext");
   });

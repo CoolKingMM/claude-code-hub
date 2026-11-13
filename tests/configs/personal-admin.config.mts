@@ -13,6 +13,7 @@ export default createCoverageConfig({
     "tests/unit/lib/circuit-breaker.test.ts",
     "tests/unit/lib/endpoint-circuit-breaker.test.ts",
     "tests/unit/proxy/guard-pipeline-full-chain.test.ts",
+    "tests/unit/proxy/non-chat-endpoint-session-context.test.ts",
     "tests/unit/proxy/guard-pipeline-warmup.test.ts",
     "tests/unit/actions/keys-limit-validation.test.ts",
     "tests/unit/actions/keys-self-service-authz.test.ts",
