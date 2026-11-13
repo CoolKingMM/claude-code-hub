@@ -14,3 +14,20 @@ export function groupProvidersByVendor<T extends Pick<ProviderDisplay, "id" | "p
   }
   return Array.from(groups, ([vendorId, items]) => ({ vendorId, providers: items }));
 }
+
+// 同一供应商的不同接口类型仍是独立渠道。
+export function groupProvidersByChannel<
+  T extends Pick<ProviderDisplay, "id" | "providerVendorId" | "providerType">,
+>(providers: readonly T[]): Array<{ channelId: string; providers: T[] }> {
+  const groups = new Map<string, T[]>();
+  for (const provider of providers) {
+    const channelId =
+      provider.providerVendorId && provider.providerVendorId > 0
+        ? `${provider.providerVendorId}:${provider.providerType}`
+        : `provider:${provider.id}`;
+    const keys = groups.get(channelId) ?? [];
+    keys.push(provider);
+    groups.set(channelId, keys);
+  }
+  return Array.from(groups, ([channelId, keys]) => ({ channelId, providers: keys }));
+}

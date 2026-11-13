@@ -26,6 +26,9 @@
   "keyTooLong": "金鑰長度超出限制。",
   "duplicateKey": "金鑰不可重複。",
   "tooManyKeys": "每次最多新增 {max} 個金鑰。",
+  "existingTitle": "現有金鑰",
+  "existingDesc": "此渠道的所有現有金鑰。開關立即生效，無需點擊儲存。",
+  "loadFailed": "載入現有金鑰失敗，請重新開啟編輯視窗。",
   "additionalTitle": "新增其他金鑰",
   "additionalDesc": "原金鑰留空即可保留。新金鑰會使用儲存後的供應商設定，各自可獨立開啟或關閉。",
   "editSaved": "已儲存設定並新增 {count} 個金鑰"

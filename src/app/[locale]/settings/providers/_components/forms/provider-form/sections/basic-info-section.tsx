@@ -20,6 +20,7 @@ import { PROVIDER_KEY_BATCH_MAX } from "@/lib/provider-key-batch";
 import { detectApiKeyWarnings } from "@/lib/utils/validation/api-key-warnings";
 import type { ProviderType } from "@/types/provider";
 import { UrlPreview } from "../../url-preview";
+import { ExistingProviderKeys } from "../components/existing-provider-keys";
 import { ProviderKeysInput } from "../components/provider-keys-input";
 import { QuickPasteDialog } from "../components/quick-paste-dialog";
 import { SectionCard, SmartInputWrapper } from "../components/section-card";
@@ -329,6 +330,9 @@ export function BasicInfoSection({ autoUrlPending, endpointPool }: BasicInfoSect
           </SmartInputWrapper>
           {isEdit && (
             <div className="space-y-2 border-t pt-4">
+              {provider && (
+                <ExistingProviderKeys provider={provider} disabled={state.ui.isPending} />
+              )}
               <p className="text-sm font-medium">{t("key.additionalTitle")}</p>
               <p className="text-xs text-muted-foreground">{t("key.additionalDesc")}</p>
               <ProviderKeysInput

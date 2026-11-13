@@ -42,6 +42,7 @@ const providerEndpointsActionMocks = vi.hoisted(() => ({
 vi.mock("@/actions/provider-endpoints", () => providerEndpointsActionMocks);
 
 const providersActionMocks = vi.hoisted(() => ({
+  batchUpdateProviders: vi.fn(async () => ({ ok: true })),
   editProvider: vi.fn(async () => ({ ok: true })),
   removeProvider: vi.fn(async () => ({ ok: true })),
   getUnmaskedProviderKey: vi.fn(async () => ({ ok: true, data: { key: "sk-test" } })),
@@ -174,6 +175,38 @@ async function flushTicks(times = 3) {
 }
 
 describe("ProviderRichListItem Endpoint Display", () => {
+  test("渠道复用原完整行且总开关控制全部密钥，主密钥关闭时仍反映其他密钥状态", async () => {
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const provider = makeProviderDisplay({ id: 163, name: "Agentrouter", isEnabled: false });
+    const keys = [
+      provider,
+      makeProviderDisplay({ id: 164, isEnabled: true }),
+      makeProviderDisplay({ id: 165, isEnabled: false }),
+    ];
+    const { unmount } = renderWithProviders(
+      <ProviderRichListItem
+        provider={provider}
+        channelProviders={keys}
+        currentUser={ADMIN_USER}
+        enableMultiProviderTypes
+      />
+    );
+    await flushTicks(5);
+    const row = document.querySelector('[data-testid="provider-list-row-163"]');
+    expect(row?.className).toContain("md:flex-row");
+    expect(row?.className).toContain("md:border-l-[3px]");
+    const toggle = row?.querySelector('[role="switch"]') as HTMLElement;
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    await act(async () => {
+      toggle.click();
+    });
+    expect(providersActionMocks.batchUpdateProviders).toHaveBeenCalledWith({
+      providerIds: [163, 164, 165],
+      updates: { is_enabled: false },
+    });
+    expect(providersActionMocks.editProvider).not.toHaveBeenCalled();
+    unmount();
+  });
   beforeEach(() => {
     queryClient = new QueryClient({
       defaultOptions: {

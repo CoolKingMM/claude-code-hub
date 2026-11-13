@@ -26,6 +26,9 @@
   "keyTooLong": "密钥长度超出限制。",
   "duplicateKey": "密钥不能重复。",
   "tooManyKeys": "每次最多添加 {max} 个密钥。",
+  "existingTitle": "已有密钥",
+  "existingDesc": "此渠道的所有已有密钥。开关立即生效，无需点击保存。",
+  "loadFailed": "加载已有密钥失败，请重新打开编辑窗口。",
   "additionalTitle": "添加其他密钥",
   "additionalDesc": "原密钥留空即可保留。新密钥将使用保存后的服务商配置，各自可独立开启或关闭。",
   "editSaved": "已保存设置并添加 {count} 个密钥"

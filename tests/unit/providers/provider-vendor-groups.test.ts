@@ -1,7 +1,23 @@
 import { describe, expect, test } from "vitest";
-import { groupProvidersByVendor } from "@/lib/provider-vendor-groups";
+import { groupProvidersByChannel, groupProvidersByVendor } from "@/lib/provider-vendor-groups";
 
 describe("服务商密钥聚合", () => {
+  test("列表按渠道类型聚合密钥，不合并不同类型或没有供应商的渠道", () => {
+    const keys = [
+      { id: 1, providerVendorId: 11, providerType: "codex" },
+      { id: 2, providerVendorId: 11, providerType: "codex" },
+      { id: 3, providerVendorId: 11, providerType: "claude" },
+      { id: 4, providerVendorId: null, providerType: "codex" },
+      { id: 5, providerVendorId: 0, providerType: "codex" },
+    ];
+    const groups = groupProvidersByChannel(keys);
+    expect(groups).toHaveLength(4);
+    expect(groups[0].providers.map((key) => key.id)).toEqual([1, 2]);
+    expect(groups[1].channelId).toBe("11:claude");
+    expect(groups[2].channelId).toBe("provider:4");
+    expect(groups[3].channelId).toBe("provider:5");
+    expect(groupProvidersByChannel([])).toEqual([]);
+  });
   test("追加的密钥归入同一服务商，保留不同类型及独立开关", () => {
     const providers = [
       { id: 1, providerVendorId: 11, providerType: "codex", isEnabled: true },

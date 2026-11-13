@@ -50,6 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  batchUpdateProviders,
   editProvider,
   getUnmaskedProviderKey,
   removeProvider,
@@ -89,6 +90,8 @@ import { ProviderFormDialogContent } from "./provider-form-dialog-content";
 interface ProviderRichListItemProps {
   provider: ProviderDisplay;
   displayName?: string;
+  channelProviders?: ProviderDisplay[];
+  isSelectionIndeterminate?: boolean;
   vendor?: ProviderVendor;
   currentUser?: User;
   healthStatus?: ProviderCircuitHealth;
@@ -118,6 +121,8 @@ interface ProviderRichListItemProps {
 function ProviderRichListItemInner({
   provider,
   displayName = provider.name,
+  channelProviders,
+  isSelectionIndeterminate = false,
   vendor,
   currentUser,
   healthStatus,
@@ -190,6 +195,7 @@ function ProviderRichListItemInner({
   const [togglePending, startToggleTransition] = useTransition();
 
   const canEdit = currentUser?.role === "admin";
+  const isEnabled = channelProviders?.some((key) => key.isEnabled) ?? provider.isEnabled;
   const t = useTranslations("settings.providers");
   const tTypes = useTranslations("settings.providers.types");
   const tList = useTranslations("settings.providers.list");
@@ -402,11 +408,14 @@ function ProviderRichListItemInner({
   const handleToggle = () => {
     startToggleTransition(async () => {
       try {
-        const res = await editProvider(provider.id, {
-          is_enabled: !provider.isEnabled,
-        });
+        const res = channelProviders
+          ? await batchUpdateProviders({
+              providerIds: channelProviders.map((key) => key.id),
+              updates: { is_enabled: !isEnabled },
+            })
+          : await editProvider(provider.id, { is_enabled: !isEnabled });
         if (res.ok) {
-          const status = !provider.isEnabled ? tList("statusEnabled") : tList("statusDisabled");
+          const status = !isEnabled ? tList("statusEnabled") : tList("statusDisabled");
           toast.success(tList("toggleSuccess", { status }), {
             description: tList("toggleSuccessDesc", { name: provider.name }),
           });
@@ -500,13 +509,14 @@ function ProviderRichListItemInner({
     ? "border-l-red-500"
     : hasEndpointCircuitOpen
       ? "border-l-amber-500"
-      : provider.isEnabled
+      : isEnabled
         ? "border-l-emerald-500"
         : "border-l-gray-300 dark:border-l-gray-600";
 
   return (
     <>
       <div
+        data-testid={`provider-list-row-${provider.id}`}
         className={cn(
           "rounded-lg border border-l-[3px] bg-card shadow-sm p-4",
           "md:shadow-none md:rounded-none md:border-0 md:border-b md:border-l-[3px] md:bg-transparent md:p-0 md:py-3 md:px-4",
@@ -518,7 +528,7 @@ function ProviderRichListItemInner({
         {/* Checkbox: shared between mobile and desktop */}
         {isMultiSelectMode && (
           <Checkbox
-            checked={isSelected}
+            checked={isSelectionIndeterminate ? "indeterminate" : isSelected}
             onCheckedChange={(checked) => onSelectChange?.(Boolean(checked))}
             onClick={(e) => e.stopPropagation()}
             aria-label={tList("selectProvider", { name: displayName })}
@@ -529,7 +539,7 @@ function ProviderRichListItemInner({
         {/* Mobile: top row with name and switch */}
         <div className="flex items-center justify-between md:hidden">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            {provider.isEnabled ? (
+            {isEnabled ? (
               <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
             ) : (
               <XCircle className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -546,7 +556,7 @@ function ProviderRichListItemInner({
           {canEdit && (
             <Switch
               aria-label={t("vendorKeyToggleLabel", { name: displayName, id: provider.id })}
-              checked={provider.isEnabled}
+              checked={isEnabled}
               onCheckedChange={handleToggle}
               disabled={togglePending}
               className="data-[state=checked]:bg-green-500"
@@ -733,7 +743,7 @@ function ProviderRichListItemInner({
 
         {/* Desktop: original info section (hidden on mobile) */}
         <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-          {provider.isEnabled ? (
+          {isEnabled ? (
             <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
           ) : (
             <XCircle className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -978,7 +988,7 @@ function ProviderRichListItemInner({
           {canEdit && (
             <Switch
               aria-label={t("vendorKeyToggleLabel", { name: displayName, id: provider.id })}
-              checked={provider.isEnabled}
+              checked={isEnabled}
               onCheckedChange={handleToggle}
               disabled={togglePending}
               className="data-[state=checked]:bg-green-500"
@@ -988,6 +998,7 @@ function ProviderRichListItemInner({
             <Button
               size="icon"
               variant="ghost"
+              aria-label={t("editProvider")}
               onClick={(e) => {
                 e.stopPropagation();
                 handleEdit();
@@ -1162,6 +1173,9 @@ export const ProviderRichListItem = memo(ProviderRichListItemInner, (prev, next)
   return (
     prev.provider === next.provider &&
     prev.displayName === next.displayName &&
+    prev.channelProviders === next.channelProviders &&
+    prev.isSelectionIndeterminate === next.isSelectionIndeterminate &&
+    prev.onSelectChange === next.onSelectChange &&
     prev.vendor === next.vendor &&
     prev.currentUser === next.currentUser &&
     prev.healthStatus === next.healthStatus &&
