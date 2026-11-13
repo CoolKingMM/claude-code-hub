@@ -4,6 +4,7 @@ export default createCoverageConfig({
   name: "dashboard-usage",
   environment: "happy-dom",
   testFiles: [
+    "src/components/customs/thinking-effort-badge.test.ts",
     "tests/unit/dashboard/dashboard-usage-range.test.ts",
     "tests/unit/dashboard/dashboard-usage.test.tsx",
     "tests/unit/actions/dashboard-usage.test.ts",

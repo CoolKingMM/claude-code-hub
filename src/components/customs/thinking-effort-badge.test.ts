@@ -11,7 +11,7 @@ describe("getThinkingEffortBadgeClassName", () => {
   });
 
   test("Codex max 使用最高强度样式", () => {
-    expect(getThinkingEffortBadgeClassName("max")).toContain("red-300");
+    expect(getThinkingEffortBadgeClassName("max")).toContain("purple-300");
   });
 
   test("未知强度使用中性兜底样式", () => {
