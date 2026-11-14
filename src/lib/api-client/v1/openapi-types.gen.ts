@@ -2956,6 +2956,8 @@ export interface operations {
                             providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                             /** @description Provider vendor id. */
                             providerVendorId: number | null;
+                            /** @description First configuration id sharing this credential within the same channel and group. */
+                            keyGroupId?: number;
                             /** @description Whether client IP is preserved upstream. */
                             preserveClientIp: boolean;
                             /** @description Whether sticky session reuse is disabled. */
@@ -3435,6 +3437,8 @@ export interface operations {
                         providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                         /** @description Provider vendor id. */
                         providerVendorId: number | null;
+                        /** @description First configuration id sharing this credential within the same channel and group. */
+                        keyGroupId?: number;
                         /** @description Whether client IP is preserved upstream. */
                         preserveClientIp: boolean;
                         /** @description Whether sticky session reuse is disabled. */
@@ -3761,6 +3765,8 @@ export interface operations {
                         providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                         /** @description Provider vendor id. */
                         providerVendorId: number | null;
+                        /** @description First configuration id sharing this credential within the same channel and group. */
+                        keyGroupId?: number;
                         /** @description Whether client IP is preserved upstream. */
                         preserveClientIp: boolean;
                         /** @description Whether sticky session reuse is disabled. */
@@ -4421,6 +4427,8 @@ export interface operations {
                         providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                         /** @description Provider vendor id. */
                         providerVendorId: number | null;
+                        /** @description First configuration id sharing this credential within the same channel and group. */
+                        keyGroupId?: number;
                         /** @description Whether client IP is preserved upstream. */
                         preserveClientIp: boolean;
                         /** @description Whether sticky session reuse is disabled. */

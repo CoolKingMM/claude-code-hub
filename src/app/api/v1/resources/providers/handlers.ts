@@ -663,6 +663,7 @@ function sanitizeProvider(
     name: provider.name,
     url: redactUrlCredentials(provider.url) ?? provider.url,
     maskedKey: provider.maskedKey,
+    keyGroupId: provider.keyGroupId,
     maskedNewApiAccessToken: provider.maskedNewApiAccessToken,
     newApiUserId: provider.newApiUserId,
     isEnabled: provider.isEnabled,

@@ -193,6 +193,21 @@ describe("Provider Actions - Async Optimization", () => {
   });
 
   describe("getProviders", () => {
+    it("groups equal credentials without sending raw keys to the editor", async () => {
+      const [base] = await findAllProvidersFreshMock();
+      findAllProvidersFreshMock.mockResolvedValue([
+        { ...base, providerVendorId: 112, groupTag: "claude" },
+        { ...base, providerVendorId: 112, groupTag: "claude", id: 107, name: "Haiku" },
+        { ...base, providerVendorId: 112, groupTag: "glm", id: 108 },
+        { ...base, providerVendorId: 112, groupTag: "claude", id: 109, key: "other-key" },
+      ]);
+      const { getProviders } = await import("@/actions/providers");
+      const result = await getProviders();
+      expect(result.map((provider) => provider.keyGroupId)).toEqual([1, 1, 108, 109]);
+      expect(JSON.stringify(result)).not.toContain(base.key);
+      expect(result.every((provider) => !("key" in provider))).toBe(true);
+    });
+
     it("should return providers without blocking on statistics", async () => {
       getProviderStatisticsMock.mockImplementation(() => new Promise(() => {}));
 

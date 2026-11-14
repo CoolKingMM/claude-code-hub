@@ -14,10 +14,11 @@ type RequestFilterListResponse = { items: RequestFilterResponse[] };
 type ProviderOptionsResponse = { items: Array<{ id: number; name: string }> };
 type GroupOptionsResponse = { items: string[] };
 
-export function useRequestFilters() {
+export function useRequestFilters(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: v1Keys.requestFilters.list(),
     queryFn: () => apiClient.get<RequestFilterListResponse>("/api/v1/request-filters"),
+    enabled: options?.enabled,
   });
 }
 

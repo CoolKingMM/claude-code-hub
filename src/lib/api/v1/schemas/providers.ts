@@ -59,6 +59,14 @@ export const ProviderSummarySchema = z
     groupTag: NullableStringSchema.describe("Provider group tag."),
     providerType: ProviderTypeSchema,
     providerVendorId: z.number().int().nullable().describe("Provider vendor id."),
+    keyGroupId: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "First configuration id sharing this credential within the same channel and group."
+      ),
     preserveClientIp: z.boolean().describe("Whether client IP is preserved upstream."),
     disableSessionReuse: z.boolean().describe("Whether sticky session reuse is disabled."),
     modelRedirects: z.array(z.unknown()).nullable().describe("Model redirect rules."),

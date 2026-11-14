@@ -451,6 +451,8 @@ export interface ProviderDisplay {
   name: string;
   url: string;
   maskedKey: string;
+  // 相同渠道、分组和真实密钥的首条配置 ID，仅用于界面归组。
+  keyGroupId?: number;
   // 掩码后的 New API 系统访问令牌，未配置时为 null
   maskedNewApiAccessToken: string | null;
   newApiUserId: number | null;

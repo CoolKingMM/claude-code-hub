@@ -9,6 +9,12 @@ import type { ProviderDisplay } from "@/types/provider";
 import enMessages from "../../../../messages/en";
 
 const actions = vi.hoisted(() => ({ getProviders: vi.fn(), editProvider: vi.fn() }));
+const filters = vi.hoisted(() => ({
+  data: { items: [] as Array<Record<string, unknown>> },
+  isError: false,
+  isPending: false,
+}));
+vi.mock("@/lib/api-client/v1/request-filters/hooks", () => ({ useRequestFilters: () => filters }));
 vi.mock("@/actions/providers", () => actions);
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 const keys = [
@@ -49,6 +55,9 @@ const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
   vi.clearAllMocks();
+  filters.data = { items: [] };
+  filters.isError = false;
+  filters.isPending = false;
 });
 function render(provider = keys[0], disabled = false) {
   const container = document.createElement("div");
@@ -85,6 +94,89 @@ async function click(selector: string) {
   });
 }
 describe("编辑渠道中的已有密钥开关", () => {
+  test("同密钥归为一条，展开后展示通用和 Haiku 用途并单独切换配置", async () => {
+    const general = {
+      ...keys[0],
+      id: 3,
+      name: "Anyrouter-github",
+      providerType: "claude",
+      keyGroupId: 3,
+      groupTag: "claude",
+      maskedKey: "same-mask",
+      priority: 2,
+      allowedModels: null,
+      anthropicThinkingBudgetPreference: "inherit",
+    } as ProviderDisplay;
+    const haiku = {
+      ...general,
+      id: 107,
+      name: "Anyrouter-github-haiku",
+      priority: 0,
+      allowedModels: [{ matchType: "exact", pattern: "claude-haiku-4-5-20251001" }],
+      anthropicThinkingBudgetPreference: "10240",
+    } as ProviderDisplay;
+    const other = { ...general, id: 108, name: "Other key", keyGroupId: 108 };
+    actions.getProviders.mockResolvedValue([
+      general,
+      haiku,
+      other,
+      { ...haiku, id: 109, groupTag: "glm" },
+    ]);
+    actions.editProvider.mockResolvedValue({ ok: true });
+    filters.data = {
+      items: [
+        {
+          id: 6,
+          name: "haiku_1m_thinking",
+          target: "anthropic-beta",
+          isEnabled: true,
+          bindingType: "providers",
+          providerIds: [107],
+          groupTags: null,
+        },
+      ],
+    };
+    render(general);
+    await flush();
+    expect(document.querySelectorAll('[data-testid^="existing-provider-key-"]')).toHaveLength(2);
+    const details = document.querySelector("details") as HTMLDetailsElement;
+    expect(details.querySelector("summary")?.textContent).toContain("Same key · 2 configurations");
+    await click("details > summary");
+    expect(details.open).toBe(true);
+    const haikuConfig = document.querySelector('[data-testid="provider-key-configuration-107"]');
+    expect(haikuConfig?.textContent).toContain("Haiku configuration");
+    expect(haikuConfig?.textContent).toContain("10240 tokens");
+    expect(haikuConfig?.textContent).toContain("haiku_1m_thinking");
+    expect(haikuConfig?.textContent).toContain("anthropic-beta");
+    const generalConfig = document.querySelector('[data-testid="provider-key-configuration-3"]');
+    expect(generalConfig?.textContent).toContain("General configuration");
+    expect(generalConfig?.textContent).toContain("All models");
+    expect(generalConfig?.textContent).not.toContain("haiku_1m_thinking");
+    await click('[aria-label="Enable configuration Anyrouter-github-haiku"]');
+    expect(actions.editProvider).toHaveBeenCalledWith(107, { is_enabled: false });
+    expect(actions.editProvider).toHaveBeenCalledTimes(1);
+  });
+
+  test("用途信息加载失败或加载中仍可独立控制配置", async () => {
+    const provider = {
+      ...keys[0],
+      keyGroupId: 163,
+      allowedModels: [{ matchType: "prefix", pattern: "gpt-" }],
+    } as ProviderDisplay;
+    actions.getProviders.mockResolvedValue([provider, { ...provider, id: 164 }]);
+    filters.isError = true;
+    render(provider);
+    await flush();
+    expect(document.body.textContent).toContain("Configuration details are incomplete");
+    expect(document.body.textContent).toContain("Model configuration");
+    expect((document.querySelector('[role="switch"]') as HTMLButtonElement).disabled).toBe(false);
+    filters.isError = false;
+    filters.isPending = true;
+    actions.getProviders.mockResolvedValue([provider, { ...provider, id: 164 }]);
+    render(provider);
+    await flush();
+    expect(document.body.textContent).toContain("Loading request filters");
+  });
   test("显示同渠道的全部掩码密钥，独立切换只更新对应 ID 并刷新缓存", async () => {
     actions.getProviders.mockResolvedValue(keys);
     actions.editProvider.mockResolvedValue({ ok: true });

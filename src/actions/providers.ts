@@ -30,6 +30,7 @@ import {
   PROVIDER_BATCH_PATCH_ERROR_CODES,
   SENSITIVE_PROVIDER_BATCH_UNDO_KEYS,
 } from "@/lib/provider-batch-patch-error-codes";
+import { buildProviderKeyGroupIds } from "@/lib/provider-key-groups";
 import { PROVIDER_MODEL_REDIRECT_RULE_LIST_SCHEMA } from "@/lib/provider-model-redirect-schema";
 import { normalizeProviderModelRedirectRules } from "@/lib/provider-model-redirects";
 import {
@@ -275,6 +276,7 @@ export async function getProviders(): Promise<ProviderDisplay[]> {
 
     // 仅获取供应商列表，统计数据由前端异步获取
     const providers = await findAllProvidersFresh();
+    const keyGroupIds = buildProviderKeyGroupIds(providers);
     // 空统计数组，保持后续合并逻辑兼容
     const statistics: Awaited<ReturnType<typeof getProviderStatistics>> = [];
 
@@ -337,6 +339,7 @@ export async function getProviders(): Promise<ProviderDisplay[]> {
         name: provider.name,
         url: provider.url,
         maskedKey: maskKey(provider.key),
+        keyGroupId: keyGroupIds.get(provider.id),
         maskedNewApiAccessToken: provider.newApiAccessToken
           ? maskKey(provider.newApiAccessToken)
           : null,
