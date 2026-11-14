@@ -134,6 +134,60 @@ function SelectionHarness() {
 }
 
 describe("原列表样式的渠道密钥聚合", () => {
+  test("claude 分组通用与 Haiku 分开显示，编辑、统计和行开关各自绑定对应配置", () => {
+    const general = {
+      ...providers[0],
+      id: 3,
+      name: "Anyrouter-github",
+      providerType: "claude",
+      groupTag: "claude",
+      priority: 2,
+      allowedModels: null,
+    } as ProviderDisplay;
+    const haiku = {
+      ...general,
+      id: 107,
+      name: "Anyrouter-github-haiku",
+      priority: 0,
+      allowedModels: [{ matchType: "exact", pattern: "claude-haiku-4-5-20251001" }],
+      anthropicThinkingBudgetPreference: "10240",
+    } as ProviderDisplay;
+    const secondHaiku = { ...haiku, id: 108, name: "Anyrouter-haiku" };
+    const edit = vi.fn();
+    const select = vi.fn();
+    const statistics = {
+      3: { todayCalls: 7, todayCost: "2", lastCallTime: null, lastCallModel: null },
+      107: { todayCalls: 3, todayCost: "0.4", lastCallTime: null, lastCallModel: null },
+      108: { todayCalls: 2, todayCost: "0.2", lastCallTime: null, lastCallModel: null },
+    };
+    const rerender = render(
+      list({
+        providers: [general, haiku, secondHaiku],
+        onEditProvider: edit,
+        isMultiSelectMode: true,
+        onSelectProvider: select,
+        statistics,
+      })
+    );
+    expect(document.querySelectorAll('[data-testid^="key-"]')).toHaveLength(2);
+    expect(document.body.textContent).toContain("Anyrouter-github-haiku");
+    const haikuProps = renderKey.mock.calls.find(([props]) => props.provider.id === 107)?.[0];
+    expect(haikuProps.channelProviders.map((key: ProviderDisplay) => key.id)).toEqual([107, 108]);
+    expect(haikuProps.statistics.todayCalls).toBe(5);
+    expect(
+      renderKey.mock.calls.find(([props]) => props.provider.id === 3)?.[0].statistics.todayCalls
+    ).toBe(7);
+    click('[data-testid="key-107"] button:last-child');
+    expect(edit).toHaveBeenLastCalledWith(haiku);
+    click('[aria-label="Select key 107"]');
+    expect(select.mock.calls).toEqual([
+      [107, true],
+      [108, true],
+    ]);
+    rerender(list({ providers: [secondHaiku], allProviders: [general, haiku, secondHaiku] }));
+    expect(document.querySelector('[data-testid="key-107"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="key-3"]')).toBeNull();
+  });
   test("三个密钥仍复用一个原列表行，编辑绑定原渠道，列表不包含折叠摘要", () => {
     const edit = vi.fn();
     render(list({ currentUser: admin, onEditProvider: edit }));
