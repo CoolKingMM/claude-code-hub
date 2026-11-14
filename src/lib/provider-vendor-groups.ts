@@ -1,16 +1,11 @@
 import type { ProviderDisplay } from "@/types/provider";
 import { normalizeAllowedModelRules } from "./allowed-model-rules";
-import { normalizeProviderModelRedirectRules } from "./provider-model-redirects";
 import { normalizeProviderGroup } from "./utils/provider-group";
 
 type ChannelConfiguration = Partial<
   Pick<
     ProviderDisplay,
-    | "groupTag"
-    | "allowedModels"
-    | "modelRedirects"
-    | "anthropicThinkingBudgetPreference"
-    | "anthropicAdaptiveThinking"
+    "groupTag" | "allowedModels" | "anthropicThinkingBudgetPreference" | "anthropicAdaptiveThinking"
   >
 >;
 
@@ -19,15 +14,14 @@ function configurationKey(provider: ChannelConfiguration): string {
   const models = (normalizeAllowedModelRules(provider.allowedModels) ?? [])
     .map((rule) => [rule.matchType, rule.pattern])
     .toSorted((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-  const redirects = normalizeProviderModelRedirectRules(provider.modelRedirects) ?? [];
   const budget = provider.anthropicThinkingBudgetPreference;
   const thinkingBudget = !budget || budget === "inherit" ? null : budget;
   const adaptive = provider.anthropicAdaptiveThinking ?? null;
   const group = normalizeProviderGroup(provider.groupTag);
-  if (group === "default" && !models.length && !redirects.length && !thinkingBudget && !adaptive) {
+  if (group === "default" && !models.length && !thinkingBudget && !adaptive) {
     return "";
   }
-  return `:${JSON.stringify([group, models, redirects, thinkingBudget, adaptive])}`;
+  return `:${JSON.stringify([group, models, thinkingBudget, adaptive])}`;
 }
 
 // 缺少 vendor 的记录各自显示，不能将所有未知服务商合并为一个条目。

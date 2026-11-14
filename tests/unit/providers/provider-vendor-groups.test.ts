@@ -30,7 +30,6 @@ describe("服务商密钥聚合", () => {
         {
           ...base,
           allowedModels: [" b ", "a"],
-          modelRedirects: { a: "b" } as unknown as ProviderDisplay["modelRedirects"],
           anthropicThinkingBudgetPreference: "inherit",
         },
         {
@@ -40,14 +39,27 @@ describe("服务商密钥聚合", () => {
             { matchType: "exact" as const, pattern: "a" },
             { matchType: "exact" as const, pattern: "b" },
           ],
-          modelRedirects: [{ matchType: "exact" as const, source: "a", target: "b" }],
           anthropicThinkingBudgetPreference: null,
         },
       ])
     ).toHaveLength(1);
+    expect(groupProvidersByChannel([{ ...base, allowedModels: [] }, base])).toHaveLength(1);
+  });
+
+  test("单独设置模型重定向的主密钥仍与其他密钥显示为一行", () => {
+    const base = {
+      id: 163,
+      providerVendorId: 132,
+      providerType: "codex",
+      groupTag: "codex",
+    } as ProviderDisplay;
     expect(
-      groupProvidersByChannel([{ ...base, allowedModels: [], modelRedirects: [] }, base])
-    ).toHaveLength(1);
+      groupProvidersByChannel([
+        { ...base, modelRedirects: [{ matchType: "exact", source: "gpt-old", target: "gpt-new" }] },
+        { ...base, id: 164, modelRedirects: null },
+        { ...base, id: 165, modelRedirects: null },
+      ]).map((group) => group.providers.map((provider) => provider.id))
+    ).toEqual([[163, 164, 165]]);
   });
 
   test("相同接口的不同分组和思考参数独立显示", () => {
