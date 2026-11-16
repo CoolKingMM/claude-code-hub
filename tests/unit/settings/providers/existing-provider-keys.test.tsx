@@ -8,6 +8,7 @@ import { ExistingProviderKeys } from "@/app/[locale]/settings/providers/_compone
 import { TestingSection } from "@/app/[locale]/settings/providers/_components/forms/provider-form/sections/testing-section";
 import type { ProviderDisplay } from "@/types/provider";
 import enMessages from "../../../../messages/en";
+import "../../../framer-motion.mock";
 
 const actions = vi.hoisted(() => ({ getProviders: vi.fn(), editProvider: vi.fn() }));
 const testForm = vi.hoisted(() => ({
