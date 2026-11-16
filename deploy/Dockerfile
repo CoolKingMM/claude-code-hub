@@ -48,7 +48,9 @@ WORKDIR /app
 # 使用 PostgreSQL 官方仓库安装 18.x 以匹配 docker-compose 中的 postgres:18
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl ca-certificates gnupg && \
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/pgdg.gpg && \
+    curl -fsSL --retry 5 --retry-all-errors --connect-timeout 15 --max-time 60 \
+      -o /tmp/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc && \
+    gpg --dearmor -o /etc/apt/keyrings/pgdg.gpg /tmp/pgdg.asc && \
     echo "deb [signed-by=/etc/apt/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends postgresql-client-18 && \
