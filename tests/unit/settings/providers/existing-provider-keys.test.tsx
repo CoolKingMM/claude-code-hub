@@ -1,14 +1,17 @@
 /** @vitest-environment happy-dom */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { ExistingProviderKeys } from "@/app/[locale]/settings/providers/_components/forms/provider-form/components/existing-provider-keys";
 import { TestingSection } from "@/app/[locale]/settings/providers/_components/forms/provider-form/sections/testing-section";
 import type { ProviderDisplay } from "@/types/provider";
 import enMessages from "../../../../messages/en";
-import "../../../framer-motion.mock";
+
+vi.mock("framer-motion", () => ({
+  motion: { div: ({ children }: { children?: ReactNode }) => <div>{children}</div> },
+}));
 
 const actions = vi.hoisted(() => ({ getProviders: vi.fn(), editProvider: vi.fn() }));
 const testForm = vi.hoisted(() => ({
