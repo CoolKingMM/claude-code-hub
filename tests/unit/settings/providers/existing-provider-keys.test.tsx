@@ -5,10 +5,36 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { ExistingProviderKeys } from "@/app/[locale]/settings/providers/_components/forms/provider-form/components/existing-provider-keys";
+import { TestingSection } from "@/app/[locale]/settings/providers/_components/forms/provider-form/sections/testing-section";
 import type { ProviderDisplay } from "@/types/provider";
 import enMessages from "../../../../messages/en";
 
 const actions = vi.hoisted(() => ({ getProviders: vi.fn(), editProvider: vi.fn() }));
+const testForm = vi.hoisted(() => ({
+  state: {
+    basic: { url: "https://example.com", key: "" },
+    routing: { providerType: "codex", allowedModels: [], customHeadersText: "" },
+    network: { proxyUrl: "http://proxy.example", proxyFallbackToDirect: true },
+    mcp: { mcpPassthroughType: "none", mcpPassthroughUrl: "" },
+    ui: { isPending: false },
+  },
+}));
+vi.mock(
+  "@/app/[locale]/settings/providers/_components/forms/provider-form/provider-form-context",
+  () => ({
+    useProviderForm: () => ({
+      mode: "edit",
+      provider: keys[0],
+      state: testForm.state,
+      dispatch: vi.fn(),
+    }),
+  })
+);
+vi.mock("@/app/[locale]/settings/providers/_components/forms/api-test-button", () => ({
+  ApiTestButton: (props: { providerId?: number; apiKey: string; proxyUrl: string }) => (
+    <div data-testid="selected-test-key" data-id={props.providerId} data-proxy={props.proxyUrl} />
+  ),
+}));
 const filters = vi.hoisted(() => ({
   data: { items: [] as Array<Record<string, unknown>> },
   isError: false,
@@ -59,7 +85,7 @@ afterEach(() => {
   filters.isError = false;
   filters.isPending = false;
 });
-function render(provider = keys[0], disabled = false) {
+function render(provider = keys[0], disabled = false, testing = false) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -68,7 +94,11 @@ function render(provider = keys[0], disabled = false) {
     root.render(
       <QueryClientProvider client={client}>
         <NextIntlClientProvider locale="en" messages={enMessages} timeZone="UTC">
-          <ExistingProviderKeys provider={provider} disabled={disabled} />
+          {testing ? (
+            <TestingSection />
+          ) : (
+            <ExistingProviderKeys provider={provider} disabled={disabled} />
+          )}
         </NextIntlClientProvider>
       </QueryClientProvider>
     )
@@ -94,6 +124,25 @@ async function click(selector: string) {
   });
 }
 describe("编辑渠道中的已有密钥开关", () => {
+  test("测试页可选择同渠道的具体密钥，沿用表单网络设置", async () => {
+    actions.getProviders.mockResolvedValue(keys);
+    render(keys[0], false, true);
+    await flush();
+    const selected = () => document.querySelector('[data-testid="selected-test-key"]');
+    expect(selected()?.getAttribute("data-id")).toBe("163");
+    expect(selected()?.getAttribute("data-proxy")).toBe("http://proxy.example");
+    await click('button[role="combobox"]');
+    const option = Array.from(document.querySelectorAll('[role="option"]')).find((item) =>
+      item.textContent?.includes("Agentrouter-2")
+    );
+    expect(option).not.toBeUndefined();
+    expect(document.body.textContent).not.toContain("Agentrouter Claude");
+    await act(async () => {
+      option?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(selected()?.getAttribute("data-id")).toBe("164");
+    expect(actions.editProvider).not.toHaveBeenCalled();
+  });
   test("同密钥归为一条，展开后展示通用和 Haiku 用途并单独切换配置", async () => {
     const general = {
       ...keys[0],

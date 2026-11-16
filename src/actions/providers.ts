@@ -899,7 +899,7 @@ export async function editProvider(
 
     const sharedPayload = getSharedProviderUpdate(payload);
     const channel =
-      Object.keys(sharedPayload).length > 0
+      currentProvider.providerVendorId && Object.keys(sharedPayload).length > 0
         ? (groupProvidersByChannel(await findAllProvidersFresh()).find((group) =>
             group.providers.some((provider) => provider.id === providerId)
           )?.providers ?? [currentProvider])

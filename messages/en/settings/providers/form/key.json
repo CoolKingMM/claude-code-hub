@@ -56,6 +56,8 @@
     "contains": "contains",
     "regex": "regex"
   },
-  "channelSettingsDesc": "Saving shared settings such as cost multiplier and model redirects applies them to all keys in this channel. Key switches, other groups, and model-specific configurations remain independent.",
-  "channelChanged": "The channel configuration changed. Reopen the editor and retry."
+  "channelSettingsDesc": "Saving configuration in Basic info, Routing, Options, Limits, Network, and Testing applies it to every key in this channel. API credentials, key names, and individual switches are preserved. Other groups and model-specific channels remain independent.",
+  "channelChanged": "The channel configuration changed. Reopen the editor and retry.",
+  "testKeyLabel": "Key used for testing",
+  "testKeyDesc": "Choose a key in this channel to test with the current address and network settings. A newly entered API key takes precedence."
 }

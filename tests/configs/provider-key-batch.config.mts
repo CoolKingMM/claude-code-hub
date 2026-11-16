@@ -30,6 +30,7 @@ export default createCoverageConfig({
     "tests/unit/settings/providers/provider-form-total-limit-ui.test.tsx",
     "tests/unit/api/v1/provider-schemas-key-length.test.ts",
     "tests/unit/actions/providers.test.ts",
+    "tests/unit/actions/provider-undo-edit.test.ts",
     "tests/unit/repository/provider-create-transaction.test.ts",
     "tests/unit/repository/provider-endpoint-sync-on-edit.test.ts",
     "tests/unit/proxy/codex-history-filter.test.ts",

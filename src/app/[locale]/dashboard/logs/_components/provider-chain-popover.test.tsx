@@ -168,12 +168,15 @@ describe("provider-chain-popover probability formatting", () => {
         <ProviderChainPopover
           chain={[
             { id: 140, name: "Agentrouter-2", reason: "retry_failed" },
-            { id: 141, name: "Agentrouter-3", reason: "retry_success" },
+            { id: 141, name: "Agentrouter-3", reason: "retry_success", statusCode: 200 },
           ]}
           finalProvider="Agentrouter-3"
           channelName="Agentrouter"
         />
       )
+    );
+    expect(retries.querySelector('[data-slot="popover-trigger"]')?.textContent).toContain(
+      "Agentrouter"
     );
     expect(retries.querySelector('[data-slot="popover-trigger"]')?.textContent).not.toContain(
       "Agentrouter-3"

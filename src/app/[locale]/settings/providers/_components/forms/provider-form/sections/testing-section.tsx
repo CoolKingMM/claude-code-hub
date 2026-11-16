@@ -1,9 +1,10 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { FlaskConical, Globe, Link2, Plug, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -12,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getProviders } from "@/lib/api-client/v1/actions/providers";
 import { parseCustomHeadersJsonText } from "@/lib/custom-headers";
+import { groupProvidersByChannel } from "@/lib/provider-vendor-groups";
 import { extractBaseUrl } from "@/lib/utils/validation";
 import type { McpPassthroughType } from "@/types/provider";
 import { ApiTestButton } from "../../api-test-button";
@@ -24,6 +27,21 @@ export function TestingSection() {
   const { state, dispatch, mode, provider, enableMultiProviderTypes } = useProviderForm();
   const isEdit = mode === "edit";
   const isBatch = mode === "batch";
+  const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null);
+  const { data: providers } = useQuery({
+    queryKey: ["providers"],
+    queryFn: getProviders,
+    enabled: isEdit && Boolean(provider?.providerVendorId),
+    refetchOnWindowFocus: false,
+  });
+  const channelKeys = provider
+    ? (
+        groupProvidersByChannel(providers ?? [provider]).find((channel) =>
+          channel.providers.some((key) => key.id === provider.id)
+        )?.providers ?? [provider]
+      ).toSorted((left, right) => left.id - right.id)
+    : [];
+  const testProviderId = channelKeys.find((key) => key.id === selectedKeyId)?.id ?? provider?.id;
 
   // Forward parsed custom headers from form state to ApiTestButton; on parse failure
   // (user is mid-typing), pass null so the button's own textarea handles correction.
@@ -60,6 +78,26 @@ export function TestingSection() {
 
             {/* API Test Button */}
             <div className="p-4 rounded-lg bg-card/50 border border-border/50 space-y-4">
+              {isEdit && channelKeys.length > 1 && (
+                <SmartInputWrapper label={t("key.testKeyLabel")} description={t("key.testKeyDesc")}>
+                  <Select
+                    value={String(testProviderId)}
+                    onValueChange={(value) => setSelectedKeyId(Number(value))}
+                    disabled={state.ui.isPending || Boolean(state.basic.key.trim())}
+                  >
+                    <SelectTrigger aria-label={t("key.testKeyLabel")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {channelKeys.map((key) => (
+                        <SelectItem key={key.id} value={String(key.id)}>
+                          {key.name} · {key.maskedKey}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </SmartInputWrapper>
+              )}
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary">
                   <FlaskConical className="h-5 w-5" />
@@ -74,7 +112,7 @@ export function TestingSection() {
                 apiKey={state.basic.key}
                 proxyUrl={state.network.proxyUrl}
                 proxyFallbackToDirect={state.network.proxyFallbackToDirect}
-                providerId={isEdit ? provider?.id : undefined}
+                providerId={isEdit ? testProviderId : undefined}
                 providerType={state.routing.providerType}
                 allowedModels={state.routing.allowedModels}
                 customHeaders={customHeadersForTestButton}
