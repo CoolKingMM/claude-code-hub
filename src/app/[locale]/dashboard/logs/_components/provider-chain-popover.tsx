@@ -332,7 +332,7 @@ export function ProviderChainPopover({
   const isHedge = isHedgeRace(chain);
 
   // Fallback for empty string
-  const displayName = finalProvider || "-";
+  const displayName = channelName || finalProvider || "-";
 
   if (normalizedRoutingTrace?.mode === "discovery") {
     const { rounds, attempts } = deriveDiscoveryStats(normalizedRoutingTrace);
@@ -581,7 +581,9 @@ export function ProviderChainPopover({
             <TooltipContent side="bottom" align="start" className="max-w-[320px]">
               <div className="space-y-2">
                 {/* Provider name */}
-                <div className="font-medium text-xs">{displayName}</div>
+                <div className="font-medium text-xs">
+                  {singleRequestItem?.name || chain[0]?.name || finalProvider || displayName}
+                </div>
                 {isLeaseConflictProtection && (
                   <div className="flex items-start gap-1.5 border-b pb-2 text-[10px] text-amber-700 dark:border-zinc-700 dark:text-amber-300">
                     <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />

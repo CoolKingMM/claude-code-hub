@@ -14,6 +14,7 @@ import { normalizeRoutingTrace, type RoutingTraceV1 } from "@/types/routing-trac
 import type { SpecialSetting } from "@/types/special-settings";
 import { LEDGER_AUDIT_CONDITION, LEDGER_BILLING_CONDITION } from "./_shared/ledger-conditions";
 import { EXCLUDE_WARMUP_CONDITION } from "./_shared/message-request-conditions";
+import { providerChannelName } from "./_shared/provider-channel-name";
 import { toMessageRequest } from "./_shared/transformers";
 import { isReservedSessionIdentity } from "./_shared/usage-log-filters";
 import {
@@ -1169,7 +1170,7 @@ export async function aggregateSessionStats(
   const providerList = await db
     .selectDistinct({
       providerId: usageLedger.finalProviderId,
-      providerName: providers.name,
+      providerName: providerChannelName,
     })
     .from(usageLedger)
     .leftJoin(providers, eq(usageLedger.finalProviderId, providers.id))
@@ -1723,7 +1724,7 @@ export async function aggregateMultipleSessionStats(
     .selectDistinct({
       sessionId: ledgerSessionIdentity,
       providerId: usageLedger.finalProviderId,
-      providerName: providers.name,
+      providerName: providerChannelName,
     })
     .from(usageLedger)
     .leftJoin(providers, eq(usageLedger.finalProviderId, providers.id))

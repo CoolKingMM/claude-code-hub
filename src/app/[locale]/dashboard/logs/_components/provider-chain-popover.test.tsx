@@ -144,6 +144,44 @@ function getCompactDiscoveryRouteBadge(html: string) {
 }
 
 describe("provider-chain-popover probability formatting", () => {
+  test("主表显示渠道名称，单次与重试详情保留具体密钥名称", () => {
+    const single = parseHtml(
+      renderWithIntl(
+        <ProviderChainPopover
+          chain={[{ id: 140, name: "Agentrouter-2", reason: "request_success", statusCode: 200 }]}
+          finalProvider="Agentrouter-2"
+          channelName="Agentrouter"
+        />
+      )
+    );
+    expect(single.querySelector('[data-slot="tooltip-trigger"]')?.textContent).toContain(
+      "Agentrouter"
+    );
+    expect(single.querySelector('[data-slot="tooltip-trigger"]')?.textContent).not.toContain(
+      "Agentrouter-2"
+    );
+    expect(single.querySelector('[data-slot="tooltip-content"]')?.textContent).toContain(
+      "Agentrouter-2"
+    );
+    const retries = parseHtml(
+      renderWithIntl(
+        <ProviderChainPopover
+          chain={[
+            { id: 140, name: "Agentrouter-2", reason: "retry_failed" },
+            { id: 141, name: "Agentrouter-3", reason: "retry_success" },
+          ]}
+          finalProvider="Agentrouter-3"
+          channelName="Agentrouter"
+        />
+      )
+    );
+    expect(retries.querySelector('[data-slot="popover-trigger"]')?.textContent).not.toContain(
+      "Agentrouter-3"
+    );
+    expect(retries.querySelector('[data-slot="popover-content"]')?.textContent).toContain(
+      "Agentrouter-3"
+    );
+  });
   test("renders probability 0.5 as 50% in tooltip", () => {
     const html = renderWithIntl(
       <ProviderChainPopover

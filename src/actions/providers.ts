@@ -30,6 +30,7 @@ import {
   PROVIDER_BATCH_PATCH_ERROR_CODES,
   SENSITIVE_PROVIDER_BATCH_UNDO_KEYS,
 } from "@/lib/provider-batch-patch-error-codes";
+import { getSharedProviderUpdate } from "@/lib/provider-channel-update";
 import { buildProviderKeyGroupIds } from "@/lib/provider-key-groups";
 import { PROVIDER_MODEL_REDIRECT_RULE_LIST_SCHEMA } from "@/lib/provider-model-redirect-schema";
 import { normalizeProviderModelRedirectRules } from "@/lib/provider-model-redirects";
@@ -47,6 +48,7 @@ import {
   type TestSubStatus,
 } from "@/lib/provider-testing";
 import { getPresetsForProvider } from "@/lib/provider-testing/presets";
+import { groupProvidersByChannel } from "@/lib/provider-vendor-groups";
 import {
   createProxyAgentForProvider,
   fetchWithDispatcher,
@@ -86,6 +88,7 @@ import {
   resetProviderTotalCostResetAt,
   undoProviderBatchOperation,
   updateProvider,
+  updateProviderChannel,
   updateProviderPrioritiesBatch,
   updateProvidersBatch,
   updateProviderWithKeys,
@@ -894,35 +897,51 @@ export async function editProvider(
       return { ok: false, error: "供应商不存在" };
     }
 
-    const preimageFields: Record<string, unknown> = {};
-    for (const [field, nextValue] of Object.entries(payload)) {
-      if (field === "key") {
-        continue;
-      }
-
-      const providerKey = SINGLE_EDIT_PREIMAGE_FIELD_TO_PROVIDER_KEY[field];
-      if (!providerKey) {
-        continue;
-      }
-
-      const currentValue = currentProvider[providerKey];
-      if (!hasProviderFieldChangedForUndo(currentValue, nextValue)) {
-        continue;
-      }
-
-      preimageFields[providerKey] = currentValue;
-    }
-
-    const appended = additionalKeys?.length
-      ? await updateProviderWithKeys(providerId, payload, additionalKeys)
-      : null;
-    const provider = additionalKeys?.length
-      ? appended?.provider
-      : await updateProvider(providerId, payload);
+    const sharedPayload = getSharedProviderUpdate(payload);
+    const channel =
+      Object.keys(sharedPayload).length > 0
+        ? (groupProvidersByChannel(await findAllProvidersFresh()).find((group) =>
+            group.providers.some((provider) => provider.id === providerId)
+          )?.providers ?? [currentProvider])
+        : [currentProvider];
+    const channelUpdate =
+      channel.length > 1
+        ? await updateProviderChannel(
+            providerId,
+            channel.map((provider) => provider.id),
+            payload,
+            additionalKeys ?? []
+          )
+        : null;
+    const appended =
+      channelUpdate ??
+      (additionalKeys?.length
+        ? await updateProviderWithKeys(providerId, payload, additionalKeys)
+        : null);
+    const provider =
+      appended?.provider ??
+      (channelUpdate || additionalKeys?.length ? null : await updateProvider(providerId, payload));
 
     if (!provider) {
       return { ok: false, error: "供应商不存在" };
     }
+
+    const previousProviders = channelUpdate?.previousProviders ?? [currentProvider];
+    const updatedProviders = channelUpdate?.updatedProviders ?? [provider];
+    const preimage: Record<number, Record<string, unknown>> = {};
+    for (const previous of previousProviders) {
+      const changes: Record<string, unknown> = {};
+      const applied = previous.id === providerId ? payload : sharedPayload;
+      for (const [field, nextValue] of Object.entries(applied)) {
+        if (field === "key") continue;
+        const providerKey = SINGLE_EDIT_PREIMAGE_FIELD_TO_PROVIDER_KEY[field];
+        if (providerKey && hasProviderFieldChangedForUndo(previous[providerKey], nextValue)) {
+          changes[providerKey] = previous[providerKey];
+        }
+      }
+      preimage[previous.id] = changes;
+    }
+    const preimageFields = preimage[providerId];
 
     for (const added of appended?.addedProviders ?? []) {
       try {
@@ -969,22 +988,30 @@ export async function editProvider(
       }
     }
 
-    if (shouldInvalidateStickySessionsOnProviderEdit(preimageFields)) {
-      await SessionManager.terminateStickySessionsForProviders([providerId], "editProvider");
+    const changedSessionIds = previousProviders
+      .filter((previous) => shouldInvalidateStickySessionsOnProviderEdit(preimage[previous.id]))
+      .map((previous) => previous.id);
+    if (changedSessionIds.length > 0) {
+      await SessionManager.terminateStickySessionsForProviders(changedSessionIds, "editProvider");
     }
 
     if (
       payload.limit_5h_reset_mode !== undefined &&
-      payload.limit_5h_reset_mode !== currentProvider.limit5hResetMode
+      previousProviders.some(
+        (previous) => payload.limit_5h_reset_mode !== previous.limit5hResetMode
+      )
     ) {
       const { clearSingleProviderCostCache } = await import("@/lib/redis/cost-cache-cleanup");
-      await clearSingleProviderCostCache({ providerId }).catch((error) => {
-        logger.warn("editProvider:clear_provider_cost_cache_failed", {
-          providerId,
-          error: error instanceof Error ? error.message : String(error),
+      for (const previous of previousProviders) {
+        if (payload.limit_5h_reset_mode === previous.limit5hResetMode) continue;
+        await clearSingleProviderCostCache({ providerId: previous.id }).catch((error) => {
+          logger.warn("editProvider:clear_provider_cost_cache_failed", {
+            providerId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
         });
-        return null;
-      });
+      }
     }
 
     // 同步熔断器配置到 Redis（如果配置有变化）
@@ -994,25 +1021,27 @@ export async function editProvider(
       validated.circuit_breaker_half_open_success_threshold !== undefined;
 
     if (hasCircuitConfigChange) {
-      try {
-        await saveProviderCircuitConfig(providerId, {
-          failureThreshold: provider.circuitBreakerFailureThreshold,
-          openDuration: provider.circuitBreakerOpenDuration,
-          halfOpenSuccessThreshold: provider.circuitBreakerHalfOpenSuccessThreshold,
-        });
-        // 清除配置缓存并广播（跨实例立即生效）
-        await publishCircuitBreakerConfigInvalidation(providerId);
-        logger.debug("editProvider:config_synced_to_redis", { providerId });
+      for (const updated of updatedProviders) {
+        try {
+          await saveProviderCircuitConfig(updated.id, {
+            failureThreshold: updated.circuitBreakerFailureThreshold,
+            openDuration: updated.circuitBreakerOpenDuration,
+            halfOpenSuccessThreshold: updated.circuitBreakerHalfOpenSuccessThreshold,
+          });
+          // 清除配置缓存并广播（跨实例立即生效）
+          await publishCircuitBreakerConfigInvalidation(updated.id);
+          logger.debug("editProvider:config_synced_to_redis", { providerId });
 
-        // 若管理员禁用熔断器（threshold<=0），则应立即解除 OPEN/HALF-OPEN 拦截（跨实例）
-        if (provider.circuitBreakerFailureThreshold <= 0) {
-          await forceCloseCircuitState(providerId, { reason: "circuit_breaker_disabled" });
+          // 若管理员禁用熔断器（threshold<=0），则应立即解除 OPEN/HALF-OPEN 拦截（跨实例）
+          if (updated.circuitBreakerFailureThreshold <= 0) {
+            await forceCloseCircuitState(updated.id, { reason: "circuit_breaker_disabled" });
+          }
+        } catch (error) {
+          logger.warn("editProvider:redis_sync_failed", {
+            providerId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      } catch (error) {
-        logger.warn("editProvider:redis_sync_failed", {
-          providerId,
-          error: error instanceof Error ? error.message : String(error),
-        });
       }
     }
 
@@ -1025,10 +1054,8 @@ export async function editProvider(
     await providerPatchUndoStore.set(undoToken, {
       undoToken,
       operationId,
-      providerIds: [providerId],
-      preimage: {
-        [providerId]: preimageFields,
-      },
+      providerIds: previousProviders.map((previous) => previous.id),
+      preimage,
       durable: false,
     });
 
@@ -1058,7 +1085,14 @@ export async function editProvider(
     };
   } catch (error) {
     logger.error("更新服务商失败:", error);
-    const message = error instanceof Error ? error.message : "更新服务商失败";
+    const message =
+      error instanceof Error && error.name === "ProviderChannelEditError"
+        ? (await (await import("next-intl/server")).getTranslations("settings.providers.form.key"))(
+            "channelChanged"
+          )
+        : error instanceof Error
+          ? error.message
+          : "更新服务商失败";
     emitActionAudit({
       category: "provider",
       action: "provider.update",

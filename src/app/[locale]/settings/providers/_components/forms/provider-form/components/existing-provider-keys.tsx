@@ -168,6 +168,7 @@ export function ExistingProviderKeys({
     <div className="space-y-3" data-testid="existing-provider-keys">
       <p className="text-sm font-medium">{t("existingTitle")}</p>
       <p className="text-xs text-muted-foreground">{t("existingDesc")}</p>
+      <p className="text-xs text-muted-foreground">{t("channelSettingsDesc")}</p>
       {isLoading && <p className="text-xs text-muted-foreground">{tList("keyLoading")}</p>}
       {isError && (
         <p role="alert" className="text-xs text-destructive">

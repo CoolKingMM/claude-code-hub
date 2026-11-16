@@ -9,6 +9,7 @@ const createProviderMock = vi.fn();
 const createProvidersMock = vi.fn();
 const updateProviderMock = vi.fn();
 const updateProviderWithKeysMock = vi.fn();
+const updateProviderChannelMock = vi.fn();
 const deleteProviderMock = vi.fn();
 const updateProviderPrioritiesBatchMock = vi.fn();
 
@@ -40,6 +41,7 @@ vi.mock("@/repository/provider", () => ({
   resetProviderTotalCostResetAt: vi.fn(async () => {}),
   updateProvider: updateProviderMock,
   updateProviderWithKeys: updateProviderWithKeysMock,
+  updateProviderChannel: updateProviderChannelMock,
   updateProviderPrioritiesBatch: updateProviderPrioritiesBatchMock,
 }));
 
@@ -640,6 +642,49 @@ describe("Provider Actions - Async Optimization", () => {
   // 说明：当前代码实现的函数名为 editProvider/removeProvider。
   // 这里按需求用例命名 describe，但实际调用对应实现以确保测试可编译、可运行。
   describe("updateProvider", () => {
+    it("公共设置同步全部同配置密钥，开关和其他分组、Haiku 配置保持独立", async () => {
+      const [base] = await findAllProvidersFreshMock();
+      const main = { ...base, providerVendorId: 137, providerType: "codex", groupTag: "codex" };
+      const secondary = { ...main, id: 140, isEnabled: false, costMultiplier: 1 };
+      const otherGroup = { ...main, id: 141, groupTag: "glm" };
+      const special = {
+        ...main,
+        id: 142,
+        allowedModels: [{ matchType: "exact", pattern: "special" }],
+      };
+      findAllProvidersFreshMock.mockResolvedValue([main, secondary, otherGroup, special]);
+      updateProviderChannelMock.mockResolvedValue({
+        provider: main,
+        previousProviders: [main, secondary],
+        updatedProviders: [main, secondary],
+        addedProviders: [],
+      });
+      const { editProvider } = await import("@/actions/providers");
+      const redirects = [{ matchType: "exact" as const, source: "gpt-5.5", target: "gpt-6.1-sol" }];
+      expect((await editProvider(1, { cost_multiplier: 0.5, model_redirects: redirects })).ok).toBe(
+        true
+      );
+      expect(updateProviderChannelMock).toHaveBeenCalledWith(
+        1,
+        [1, 140],
+        { cost_multiplier: 0.5, model_redirects: redirects },
+        []
+      );
+      expect(updateProviderMock).not.toHaveBeenCalled();
+      expect(terminateProviderSessionsBatchMock).toHaveBeenCalledWith([1, 140], "editProvider");
+    });
+
+    it("仅切换一个密钥不触发渠道公共设置同步", async () => {
+      const [base] = await findAllProvidersFreshMock();
+      findAllProvidersFreshMock.mockResolvedValue([
+        { ...base, providerVendorId: 137 },
+        { ...base, id: 2, providerVendorId: 137 },
+      ]);
+      const { editProvider } = await import("@/actions/providers");
+      expect((await editProvider(1, { is_enabled: false })).ok).toBe(true);
+      expect(updateProviderMock).toHaveBeenCalledWith(1, { is_enabled: false });
+      expect(updateProviderChannelMock).not.toHaveBeenCalled();
+    });
     it("编辑时新密钥与配置一同保存，原密钥未输入时不被替换", async () => {
       updateProviderWithKeysMock.mockResolvedValue({
         provider: { id: 1 },

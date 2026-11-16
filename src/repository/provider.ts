@@ -15,9 +15,11 @@ import { PROVIDER_TIMEOUT_DEFAULTS } from "@/lib/constants/provider.constants";
 import { resetEndpointCircuit } from "@/lib/endpoint-circuit-breaker";
 import { logger } from "@/lib/logger";
 import { SENSITIVE_PROVIDER_BATCH_UNDO_KEYS } from "@/lib/provider-batch-patch-error-codes";
+import { getSharedProviderUpdate } from "@/lib/provider-channel-update";
 import { type ProviderKeyEntry, validateProviderKeys } from "@/lib/provider-key-batch";
 import { buildAdditionalProviderData } from "@/lib/provider-key-clone";
 import { normalizeProviderModelRedirectRules } from "@/lib/provider-model-redirects";
+import { groupProvidersByChannel } from "@/lib/provider-vendor-groups";
 import { parseProviderGroups } from "@/lib/utils/provider-group";
 import { resolveSystemTimezone } from "@/lib/utils/timezone";
 import type {
@@ -1031,6 +1033,13 @@ export class ProviderKeyAppendError extends Error {
   }
 }
 
+export class ProviderChannelEditError extends Error {
+  constructor() {
+    super("provider.channel_changed");
+    this.name = "ProviderChannelEditError";
+  }
+}
+
 export async function updateProviderWithKeys(
   id: number,
   data: UpdateProviderData,
@@ -1052,6 +1061,64 @@ export async function updateProviderWithKeys(
       );
     }
     return { provider, addedProviders };
+  });
+  for (const callback of afterCommit) await callback();
+  return result;
+}
+
+/** Save one channel's common settings and optional new keys atomically. */
+export async function updateProviderChannel(
+  id: number,
+  providerIds: number[],
+  data: UpdateProviderData,
+  entries: ProviderKeyEntry[] = []
+): Promise<{
+  provider: Provider;
+  updatedProviders: Provider[];
+  previousProviders: Provider[];
+  addedProviders: Provider[];
+}> {
+  const afterCommit: Array<() => Promise<void>> = [];
+  const result = await db.transaction(async (tx) => {
+    // Lock in ID order so edits to different keys cannot partially update a channel.
+    const rows = await tx
+      .select()
+      .from(providers)
+      .where(and(inArray(providers.id, providerIds), isNull(providers.deletedAt)))
+      .orderBy(providers.id)
+      .for("update");
+    const previousProviders = rows.map((row) => normalizeProviderRuntimeFields(toProvider(row)));
+    const channel = groupProvidersByChannel(previousProviders).find((group) =>
+      group.providers.some((provider) => provider.id === id)
+    );
+    if (!channel || channel.providers.length !== new Set(providerIds).size) {
+      throw new ProviderChannelEditError();
+    }
+    const shared = getSharedProviderUpdate(data);
+    const updatedProviders: Provider[] = [];
+    for (const previous of previousProviders) {
+      const updated = await updateProvider(previous.id, previous.id === id ? data : shared, {
+        tx,
+        afterCommit,
+      });
+      if (!updated) throw new ProviderChannelEditError();
+      updatedProviders.push(updated);
+    }
+    const provider = updatedProviders.find((item) => item.id === id)!;
+    const addedProviders: Provider[] = [];
+    if (entries.length > 0) {
+      const keyError = validateProviderKeys([
+        { key: provider.key, is_enabled: provider.isEnabled },
+        ...entries,
+      ]);
+      if (keyError) throw new ProviderKeyAppendError(keyError);
+      for (const input of buildAdditionalProviderData(provider, entries)) {
+        addedProviders.push(
+          await createProvider(input, { tx, providerVendorId: provider.providerVendorId })
+        );
+      }
+    }
+    return { provider, updatedProviders, previousProviders, addedProviders };
   });
   for (const callback of afterCommit) await callback();
   return result;

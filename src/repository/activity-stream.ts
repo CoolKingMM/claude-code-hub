@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/drizzle/db";
 import { keys as keysTable, messageRequest, providers, users } from "@/drizzle/schema";
 import { logger } from "@/lib/logger";
+import { providerChannelName } from "./_shared/provider-channel-name";
 
 const messageSessionIdentity = sql<
   string | null
@@ -83,7 +84,7 @@ export async function findRecentActivityStream(limit = 20): Promise<ActivityStre
           keyId: keysTable.id,
           keyName: keysTable.name,
           providerId: messageRequest.providerId,
-          providerName: providers.name,
+          providerName: providerChannelName,
           model: messageRequest.model,
           originalModel: messageRequest.originalModel,
           statusCode: messageRequest.statusCode,
@@ -165,7 +166,7 @@ export async function findRecentActivityStream(limit = 20): Promise<ActivityStre
           keyId: keysTable.id,
           keyName: keysTable.name,
           providerId: messageRequest.providerId,
-          providerName: providers.name,
+          providerName: providerChannelName,
           model: messageRequest.model,
           originalModel: messageRequest.originalModel,
           statusCode: messageRequest.statusCode,

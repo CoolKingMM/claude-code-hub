@@ -55,5 +55,7 @@
     "suffix": "suffix",
     "contains": "contains",
     "regex": "regex"
-  }
+  },
+  "channelSettingsDesc": "Saving shared settings such as cost multiplier and model redirects applies them to all keys in this channel. Key switches, other groups, and model-specific configurations remain independent.",
+  "channelChanged": "The channel configuration changed. Reopen the editor and retry."
 }
