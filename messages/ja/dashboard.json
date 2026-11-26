@@ -1350,6 +1350,6 @@
     "cacheShort": "キャッシュ",
     "requestsShort": "件",
     "cacheWriteShort": "書込",
-    "cacheCreationDescription": "アップストリームがキャッシュ書き込みトークンを明示的に返す場合（Claude など）に記録されます。Gemini や OpenAI の暗黙キャッシュは読み込みのみ報告されます。"
+    "cacheCreationDescription": "アップストリームがキャッシュ書き込みトークンを明示的に返す場合 (Claude など) に記録されます。Gemini や OpenAI の暗黙キャッシュは読み込みのみ報告されます。"
   }
 }
