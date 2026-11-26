@@ -13,7 +13,11 @@ vi.mock("framer-motion", () => ({
   motion: { div: ({ children }: { children?: ReactNode }) => <div>{children}</div> },
 }));
 
-const actions = vi.hoisted(() => ({ getProviders: vi.fn(), editProvider: vi.fn() }));
+const actions = vi.hoisted(() => ({
+  getProviders: vi.fn(),
+  editProvider: vi.fn(),
+  getUnmaskedProviderKey: vi.fn(),
+}));
 const testForm = vi.hoisted(() => ({
   state: {
     basic: { url: "https://example.com", key: "" },
@@ -45,8 +49,9 @@ const filters = vi.hoisted(() => ({
   isPending: false,
 }));
 vi.mock("@/lib/api-client/v1/request-filters/hooks", () => ({ useRequestFilters: () => filters }));
+vi.mock("@/lib/api-client/v1/actions/providers", () => actions);
 vi.mock("@/actions/providers", () => actions);
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 const keys = [
   {
     id: 163,
@@ -290,5 +295,90 @@ describe("编辑渠道中的已有密钥开关", () => {
       reject(new Error("network failed"));
     });
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("network failed");
+  });
+  test("点击查看明文与复制按钮可获取并隐藏任意合并密钥的完整明文", async () => {
+    actions.getProviders.mockResolvedValue(keys);
+    actions.getUnmaskedProviderKey.mockResolvedValue({
+      ok: true,
+      data: { key: "sk-plain-secret-2" },
+    });
+    render();
+    await flush();
+    const secondCard = document.querySelector('[data-testid="existing-provider-key-164"]');
+    expect(secondCard?.textContent).toContain("sk-***2");
+
+    const showBtn = secondCard?.querySelector(
+      '[aria-label="Show full API key"]'
+    ) as HTMLButtonElement;
+    expect(showBtn).not.toBeNull();
+    await act(async () => {
+      showBtn.click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(actions.getUnmaskedProviderKey).toHaveBeenCalledWith(164);
+    expect(secondCard?.textContent).toContain("sk-plain-secret-2");
+
+    // 再次点击隐藏恢复脱敏展示
+    const hideBtn = secondCard?.querySelector(
+      '[aria-label="Hide full API key"]'
+    ) as HTMLButtonElement;
+    expect(hideBtn).not.toBeNull();
+    await act(async () => {
+      hideBtn.click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(secondCard?.textContent).toContain("sk-***2");
+    expect(secondCard?.textContent).not.toContain("sk-plain-secret-2");
+
+    // 复制按钮可自动拉取明文
+    const copyBtn = secondCard?.querySelector(
+      '[aria-label="Copy full API key"]'
+    ) as HTMLButtonElement;
+    expect(copyBtn).not.toBeNull();
+    await act(async () => {
+      copyBtn.click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(actions.getUnmaskedProviderKey).toHaveBeenCalledTimes(2);
+  });
+  test("多协议逻辑渠道展示全部独立密钥，共享同一把密钥的跨协议配置归入同一卡片", async () => {
+    const grouped = [
+      {
+        id: 201,
+        name: "AnyRouter",
+        maskedKey: "sk-***a",
+        providerVendorId: 50,
+        providerType: "claude",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 201,
+        isEnabled: true,
+      },
+      {
+        id: 202,
+        name: "AnyRouter-gemini",
+        maskedKey: "sk-***a",
+        providerVendorId: 50,
+        providerType: "gemini",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 201,
+        isEnabled: true,
+      },
+      {
+        id: 203,
+        name: "AnyRouter-adopted",
+        maskedKey: "sk-***b",
+        providerVendorId: 50,
+        providerType: "codex",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 203,
+        isEnabled: true,
+      },
+    ] as ProviderDisplay[];
+    actions.getProviders.mockResolvedValue(grouped);
+    render(grouped[0]);
+    await flush();
+    expect(document.querySelectorAll('[data-testid^="existing-provider-key-"]')).toHaveLength(2);
+    expect(document.body.textContent).toContain("sk-***a");
+    expect(document.body.textContent).toContain("sk-***b");
   });
 });

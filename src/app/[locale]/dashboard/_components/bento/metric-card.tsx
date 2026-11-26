@@ -14,6 +14,8 @@ interface ComparisonData {
 interface MetricCardProps {
   title: string;
   value: number | string;
+  subtitle?: string;
+  valueTitle?: string;
   icon?: LucideIcon;
   trend?: {
     value: number;
@@ -114,6 +116,8 @@ function ComparisonBadge({ value, label, isPercentage = true }: ComparisonData) 
 export function BentoMetricCard({
   title,
   value,
+  subtitle,
+  valueTitle,
   icon: Icon,
   trend,
   comparisons,
@@ -258,8 +262,9 @@ export function BentoMetricCard({
         {/* Value */}
         <div className="mt-3">
           <h3
+            title={valueTitle}
             className={cn(
-              "text-2xl md:text-3xl font-bold tracking-tight text-foreground",
+              "text-2xl md:text-3xl font-bold tracking-tight text-foreground tabular-nums",
               "transition-opacity duration-200",
               isAnimating && "opacity-80"
             )}
@@ -267,6 +272,7 @@ export function BentoMetricCard({
             {formattedValue}
           </h3>
           {trend?.label && <p className="text-xs text-muted-foreground mt-1">{trend.label}</p>}
+          {subtitle && <p className="text-xs text-muted-foreground mt-1 truncate">{subtitle}</p>}
         </div>
       </div>
 

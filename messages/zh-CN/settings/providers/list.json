@@ -44,5 +44,8 @@
   "selectProvider": "选择 {name}",
   "schedule": "调度",
   "proxyEnabled": "已启用代理",
-  "confirmDeleteBundleMessage": "确定要删除逻辑渠道 \"{name}\" 及其包含的全部 {count} 条协议子记录吗？历史请求日志将被保留。"
+  "confirmDeleteBundleMessage": "确定要删除逻辑渠道 \"{name}\" 及其包含的全部 {count} 条协议子记录吗？历史请求日志将被保留。",
+  "copyAllKeys": "复制全部密钥",
+  "allKeysCopied": "已复制全部 {count} 把密钥",
+  "keyCountSummary": "当前渠道共包含 {count} 把独立密钥"
 }

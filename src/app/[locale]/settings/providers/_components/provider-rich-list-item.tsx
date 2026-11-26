@@ -77,6 +77,7 @@ import type {
   ProviderCircuitHealth,
   ProviderDisplay,
   ProviderStatistics,
+  ProviderType,
   ProviderVendor,
 } from "@/types/provider";
 import type { User } from "@/types/user";
@@ -192,8 +193,17 @@ function ProviderRichListItemInner({
     setCloneFormReady(false);
   }, [openClone]);
   const [mobileDeleteDialogOpen, setMobileDeleteDialogOpen] = useState(false);
-  const [unmaskedKey, setUnmaskedKey] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [unmaskedKeys, setUnmaskedKeys] = useState<
+    Array<{
+      id: number;
+      key: string;
+      name: string;
+      protocols: ProviderType[];
+      isEnabled: boolean;
+    }>
+  >([]);
+  const [keysLoading, setKeysLoading] = useState(false);
+  const [copiedKeyId, setCopiedKeyId] = useState<number | "all" | null>(null);
   const [clipboardAvailable, setClipboardAvailable] = useState(false);
   const [resetPending, startResetTransition] = useTransition();
   const [resetUsagePending, startResetUsageTransition] = useTransition();
@@ -264,6 +274,24 @@ function ProviderRichListItemInner({
   const typeLabel = tTypes(`${typeKey}.label`);
   const typeDescription = tTypes(`${typeKey}.description`);
 
+  const bundleKeyRepresentatives = (() => {
+    const groups = new Map<
+      string,
+      { representative: ProviderDisplay; members: ProviderDisplay[] }
+    >();
+    for (const member of bundleMembers.toSorted((left, right) => left.id - right.id)) {
+      const groupKey = member.keyGroupId != null ? `kg:${member.keyGroupId}` : `id:${member.id}`;
+      const existing = groups.get(groupKey);
+      if (existing) {
+        existing.members.push(member);
+      } else {
+        groups.set(groupKey, { representative: member, members: [member] });
+      }
+    }
+    return Array.from(groups.values());
+  })();
+  const additionalKeyCount = Math.max(0, bundleKeyRepresentatives.length - 1);
+
   const renderProtocolIndicators = () => {
     if (!isMultiProtocolChannel) {
       return (
@@ -277,8 +305,15 @@ function ProviderRichListItemInner({
       );
     }
 
+    const compact = bundleProtocols.length >= 3;
+    const badgeSizeClass = compact ? "w-[18px] h-[18px]" : "w-5 h-5";
+    const iconSizeClass = compact ? "h-2.5 w-2.5" : "h-3 w-3";
+
     return (
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div
+        className="flex flex-col items-center justify-center gap-0.5 w-6 flex-shrink-0"
+        data-testid={`provider-protocols-vertical-${provider.id}`}
+      >
         {bundleProtocols.map((protocol) => {
           const cfg = getProviderTypeConfig(protocol);
           const ProtoIcon = cfg.icon;
@@ -290,18 +325,18 @@ function ProviderRichListItemInner({
               <TooltipTrigger asChild>
                 <div
                   className={cn(
-                    `relative flex items-center justify-center w-6 h-6 rounded ${cfg.bgColor} flex-shrink-0`,
+                    `relative flex items-center justify-center ${badgeSizeClass} rounded ${cfg.bgColor} flex-shrink-0`,
                     isProtoBroken && "ring-1 ring-destructive"
                   )}
                   aria-label={protoLabel}
                 >
-                  <ProtoIcon className="h-3.5 w-3.5" aria-hidden />
+                  <ProtoIcon className={iconSizeClass} aria-hidden />
                   {isProtoBroken && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-1 ring-background" />
+                    <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-destructive ring-1 ring-background" />
                   )}
                 </div>
               </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
+              <TooltipContent side="right" className="text-xs">
                 {protoLabel}
                 {isProtoBroken ? ` · ${tList("keyCircuitBroken")}` : ""}
               </TooltipContent>
@@ -394,18 +429,68 @@ function ProviderRichListItemInner({
     }
   };
 
-  // 处理查看密钥
+  // 处理查看密钥（合并渠道/多协议渠道自动拉取全部唯一密钥明文并去重）
   const handleShowKey = async () => {
     setShowKeyDialog(true);
+    setUnmaskedKeys([]);
+    setKeysLoading(true);
     try {
-      const result = await getUnmaskedProviderKey(provider.id);
-      if (result.ok) {
-        setUnmaskedKey(result.data.key);
-      } else {
+      const results = await Promise.all(
+        bundleKeyRepresentatives.map(async ({ representative, members }) => {
+          const result = await getUnmaskedProviderKey(representative.id);
+          return { representative, members, result };
+        })
+      );
+
+      const deduped = new Map<
+        string,
+        {
+          id: number;
+          key: string;
+          name: string;
+          protocols: ProviderType[];
+          isEnabled: boolean;
+        }
+      >();
+      let firstError: string | undefined;
+
+      for (const { representative, members, result } of results) {
+        if (!result.ok) {
+          firstError ??= result.error;
+          continue;
+        }
+        const plainKey = result.data.key;
+        const memberProtocols = members.map((item) => item.providerType);
+        const existing = deduped.get(plainKey);
+        if (existing) {
+          existing.protocols = sortProtocolsByDisplayOrder([
+            ...existing.protocols,
+            ...memberProtocols,
+          ]);
+          existing.isEnabled = existing.isEnabled || members.some((item) => item.isEnabled);
+        } else {
+          deduped.set(plainKey, {
+            id: representative.id,
+            key: plainKey,
+            name: representative.name,
+            protocols: sortProtocolsByDisplayOrder(memberProtocols),
+            isEnabled: members.some((item) => item.isEnabled),
+          });
+        }
+      }
+
+      const entries = Array.from(deduped.values());
+      if (entries.length === 0) {
         toast.error(tList("getKeyFailed"), {
-          description: result.error || tList("unknownError"),
+          description: firstError || tList("unknownError"),
         });
         setShowKeyDialog(false);
+        return;
+      }
+
+      setUnmaskedKeys(entries);
+      if (firstError) {
+        toast.error(tList("getKeyFailed"), { description: firstError });
       }
     } catch (error) {
       console.error("Failed to get provider key:", error);
@@ -413,29 +498,42 @@ function ProviderRichListItemInner({
         description: tList("unknownError"),
       });
       setShowKeyDialog(false);
+    } finally {
+      setKeysLoading(false);
     }
   };
 
-  // 处理复制密钥
-  const handleCopy = async () => {
-    if (unmaskedKey) {
-      const success = await copyToClipboard(unmaskedKey);
+  // 处理复制单把密钥
+  const handleCopySingleKey = async (id: number, keyValue: string) => {
+    const success = await copyToClipboard(keyValue);
+    if (success) {
+      setCopiedKeyId(id);
+      toast.success(tList("keyCopied"));
+      setTimeout(() => setCopiedKeyId((curr) => (curr === id ? null : curr)), 3000);
+    } else {
+      toast.error(tList("copyFailed"));
+    }
+  };
 
-      if (success) {
-        setCopied(true);
-        toast.success(tList("keyCopied"));
-        setTimeout(() => setCopied(false), 3000);
-      } else {
-        toast.error(tList("copyFailed"));
-      }
+  // 处理复制全部密钥（一行一个，方便批量粘贴）
+  const handleCopyAllKeys = async () => {
+    if (unmaskedKeys.length === 0) return;
+    const success = await copyToClipboard(unmaskedKeys.map((entry) => entry.key).join("\n"));
+    if (success) {
+      setCopiedKeyId("all");
+      toast.success(tList("allKeysCopied", { count: unmaskedKeys.length }));
+      setTimeout(() => setCopiedKeyId((curr) => (curr === "all" ? null : curr)), 3000);
+    } else {
+      toast.error(tList("copyFailed"));
     }
   };
 
   // 处理关闭 Dialog
   const handleCloseDialog = () => {
     setShowKeyDialog(false);
-    setUnmaskedKey(null);
-    setCopied(false);
+    setUnmaskedKeys([]);
+    setKeysLoading(false);
+    setCopiedKeyId(null);
   };
 
   // 处理手动解除熔断（多协议渠道时一并解除所有处于熔断状态的子协议）
@@ -940,6 +1038,7 @@ function ProviderRichListItemInner({
             )}
             {canEdit && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleShowKey();
@@ -947,7 +1046,12 @@ function ProviderRichListItemInner({
                 className="inline-flex items-center gap-1 text-xs font-mono hover:underline flex-shrink-0"
               >
                 <Key className="h-3 w-3" />
-                {provider.maskedKey}
+                <span>{provider.maskedKey}</span>
+                {additionalKeyCount > 0 && (
+                  <Badge variant="secondary" className="h-4 px-1 text-[10px] font-sans font-normal">
+                    +{additionalKeyCount}
+                  </Badge>
+                )}
               </button>
             )}
             <span className="text-xs text-muted-foreground flex-shrink-0">
@@ -1220,28 +1324,118 @@ function ProviderRichListItemInner({
         </ProviderFormDialogContent>
       </Dialog>
 
-      {/* API Key 展示 Dialog */}
+      {/* API Key 展示 Dialog（单把保持简洁，多把合并密钥逐把展示并支持一键全复制） */}
       <Dialog open={showKeyDialog} onOpenChange={handleCloseDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{tList("viewFullKey")}</DialogTitle>
-            <DialogDescription>{tList("viewFullKeyDesc")}</DialogDescription>
+            <DialogDescription>
+              {unmaskedKeys.length > 1
+                ? `${tList("keyCountSummary", { count: unmaskedKeys.length })} · ${tList("viewFullKeyDesc")}`
+                : tList("viewFullKeyDesc")}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <code className="flex-1 font-mono bg-muted px-3 py-2 rounded text-sm break-all">
-                {unmaskedKey || tList("keyLoading")}
-              </code>
-              {clipboardAvailable && (
-                <Button onClick={handleCopy} disabled={!unmaskedKey} size="icon" variant="outline">
-                  {copied ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              )}
-            </div>
+          <div className="space-y-3">
+            {keysLoading || unmaskedKeys.length === 0 ? (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 font-mono bg-muted px-3 py-2 rounded text-sm break-all">
+                  {tList("keyLoading")}
+                </code>
+              </div>
+            ) : unmaskedKeys.length === 1 ? (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 font-mono bg-muted px-3 py-2 rounded text-sm break-all">
+                  {unmaskedKeys[0].key}
+                </code>
+                {clipboardAvailable && (
+                  <Button
+                    type="button"
+                    onClick={() => handleCopySingleKey(unmaskedKeys[0].id, unmaskedKeys[0].key)}
+                    size="icon"
+                    variant="outline"
+                  >
+                    {copiedKeyId === unmaskedKeys[0].id ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="max-h-[55vh] space-y-2.5 overflow-y-auto pr-1">
+                  {unmaskedKeys.map((entry, idx) => (
+                    <div key={entry.id} className="space-y-1.5 rounded-md border bg-muted/20 p-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                          <span className="font-medium text-foreground">
+                            #{idx + 1} {entry.name}
+                          </span>
+                          {entry.protocols.map((proto) => {
+                            const protoKey = getProviderTypeTranslationKey(proto);
+                            return (
+                              <Badge
+                                key={proto}
+                                variant="outline"
+                                className="h-4 px-1.5 text-[10px] font-normal"
+                              >
+                                {tTypes(`${protoKey}.label`)}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                        <Badge
+                          variant={entry.isEnabled ? "secondary" : "outline"}
+                          className="h-4 px-1.5 text-[10px] font-normal"
+                        >
+                          {entry.isEnabled ? tList("statusEnabled") : tList("statusDisabled")}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 font-mono bg-muted px-2.5 py-1.5 rounded text-xs break-all">
+                          {entry.key}
+                        </code>
+                        {clipboardAvailable && (
+                          <Button
+                            type="button"
+                            onClick={() => handleCopySingleKey(entry.id, entry.key)}
+                            size="icon"
+                            variant="outline"
+                            className="h-8 w-8 shrink-0"
+                            aria-label={`${tList("viewFullKey")} #${idx + 1}`}
+                          >
+                            {copiedKeyId === entry.id ? (
+                              <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {clipboardAvailable && (
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCopyAllKeys}
+                      className="gap-1.5"
+                    >
+                      {copiedKeyId === "all" ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      {tList("copyAllKeys")}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
             {!clipboardAvailable && (
               <p className="text-xs text-muted-foreground">{tList("clipboardUnavailable")}</p>
             )}

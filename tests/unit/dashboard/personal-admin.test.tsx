@@ -285,4 +285,28 @@ describe("lightweight overview", () => {
     );
     expect(container.textContent).toContain("-");
   });
+  test("formats large request counts, seconds latency, comparisons, and model breakdown slot", () => {
+    const container = render(
+      <DashboardOverview
+        isAdmin
+        currencyCode="USD"
+        initialOverview={{
+          ...overview,
+          todayRequests: 1_250_000,
+          todayCost: 18.5,
+          avgResponseTime: 1850,
+          todayErrorRate: 2.5,
+          yesterdaySamePeriodRequests: 1_000_000,
+          yesterdaySamePeriodCost: 15,
+          yesterdaySamePeriodAvgResponseTime: 1500,
+          recentMinuteRequests: 1500,
+        }}
+        modelBreakdown={<div data-testid="model-breakdown-slot">models</div>}
+      />
+    );
+    expect(container.textContent).toContain("1.25M");
+    expect(container.textContent).toContain("1.85 s");
+    expect(container.textContent).toContain("1.5K");
+    expect(container.querySelector('[data-testid="model-breakdown-slot"]')).toBeTruthy();
+  });
 });

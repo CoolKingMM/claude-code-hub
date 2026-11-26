@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getDashboardUsage } from "@/lib/api-client/v1/actions/dashboard-usage";
+import { cn, formatTokenAmount } from "@/lib/utils";
 import { type CurrencyCode, formatCurrency } from "@/lib/utils/currency";
 import {
   type DashboardUsageData,
@@ -36,6 +38,15 @@ const tokenFields = [
 export function cacheHitRate(metrics: UsageMetrics): string {
   const totalInput = metrics.inputTokens + metrics.cacheCreationTokens + metrics.cacheReadTokens;
   return `${(totalInput > 0 ? (metrics.cacheReadTokens / totalInput) * 100 : 0).toFixed(1)}%`;
+}
+
+export function sumUsageTokens(metrics: UsageMetrics): number {
+  return (
+    metrics.inputTokens +
+    metrics.outputTokens +
+    metrics.cacheCreationTokens +
+    metrics.cacheReadTokens
+  );
 }
 
 function useUsage(query: DashboardUsageQuery, enabled = true) {
@@ -67,68 +78,108 @@ function UsageRows({
     item.name ?? t(query.scope === "model" ? "unknownModel" : "removedEntity");
   return (
     <>
-      {data.items.map((item) => (
-        <Fragment key={item.id}>
-          <TableRow>
-            <TableCell className="max-w-72">
-              {onExpand ? (
-                <Button
-                  variant="ghost"
-                  className="h-auto max-w-full justify-start gap-2 px-0 text-left"
-                  onClick={() => onExpand(item.id)}
-                  aria-expanded={expanded === item.id}
-                  aria-label={t("expand", { name: label(item) })}
-                >
-                  {expanded === item.id ? (
-                    <ChevronDown className="h-4 w-4 shrink-0" />
+      {data.items.map((item) => {
+        const sharePct = data.summary.cost > 0 ? (item.cost / data.summary.cost) * 100 : 0;
+        const totalTokens = sumUsageTokens(item);
+        return (
+          <Fragment key={item.id}>
+            <TableRow className="transition-colors hover:bg-muted/30">
+              <TableCell className="max-w-72 font-medium">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {onExpand ? (
+                    <Button
+                      variant="ghost"
+                      className="h-auto max-w-full justify-start gap-2 px-0 text-left font-medium hover:bg-transparent"
+                      onClick={() => onExpand(item.id)}
+                      aria-expanded={expanded === item.id}
+                      aria-label={t("expand", { name: label(item) })}
+                    >
+                      {expanded === item.id ? (
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="truncate">{label(item)}</span>
+                    </Button>
                   ) : (
-                    <ChevronRight className="h-4 w-4 shrink-0" />
+                    <span
+                      className={cn(
+                        "break-all",
+                        query.scope === "model" && "font-mono text-xs sm:text-sm"
+                      )}
+                    >
+                      {query.scope === "providerKey"
+                        ? t("credential", { id: item.id.replace("provider:", "") })
+                        : label(item)}
+                    </span>
                   )}
-                  <span className="truncate">{label(item)}</span>
-                </Button>
-              ) : (
-                <span className="break-all">
-                  {query.scope === "providerKey"
-                    ? t("credential", { id: item.id.replace("provider:", "") })
-                    : label(item)}
-                </span>
-              )}
-              {item.providerType && query.scope === "channel" && (
-                <span className="ml-2 text-xs text-muted-foreground">{item.providerType}</span>
-              )}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {formatCurrency(item.cost, currencyCode)}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {data.summary.cost > 0
-                ? `${((item.cost / data.summary.cost) * 100).toFixed(1)}%`
-                : "0%"}
-            </TableCell>
-            <TableCell className="text-right tabular-nums" title={t("cacheHitRateDescription")}>
-              {cacheHitRate(item)}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {item.requests.toLocaleString()}
-            </TableCell>
-            {tokenFields.map((field) => (
-              <TableCell key={field} className="text-right tabular-nums">
-                {item[field].toLocaleString()}
+                  {item.providerType && query.scope === "channel" && (
+                    <Badge
+                      variant="secondary"
+                      className="h-5 shrink-0 px-1.5 text-[10px] font-normal"
+                    >
+                      {item.providerType}
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
-            ))}
-          </TableRow>
-          {expanded === item.id && (
-            <TableRow>
-              <TableCell colSpan={9} className="bg-muted/30 p-4">
-                <ChannelUsage
-                  query={{ ...query, scope: "providerKey", channelId: item.id, page: 1 }}
-                  currencyCode={currencyCode}
-                />
+              <TableCell className="text-right font-semibold tabular-nums whitespace-nowrap">
+                {formatCurrency(item.cost, currencyCode)}
               </TableCell>
+              <TableCell className="text-right tabular-nums whitespace-nowrap">
+                <div className="inline-flex items-center justify-end gap-2">
+                  <div className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-muted sm:block">
+                    <div
+                      className="h-full rounded-full bg-primary/70"
+                      style={{ width: `${Math.min(100, sharePct)}%` }}
+                    />
+                  </div>
+                  <span className="min-w-[3rem] text-right text-muted-foreground">
+                    {data.summary.cost > 0 ? `${sharePct.toFixed(1)}%` : "0%"}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell
+                className="text-right tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400"
+                title={t("cacheHitRateDescription")}
+              >
+                {cacheHitRate(item)}
+              </TableCell>
+              <TableCell
+                className="text-right tabular-nums whitespace-nowrap"
+                title={item.requests.toLocaleString()}
+              >
+                {formatTokenAmount(item.requests)}
+              </TableCell>
+              <TableCell
+                className="text-right font-medium tabular-nums whitespace-nowrap"
+                title={totalTokens.toLocaleString()}
+              >
+                {formatTokenAmount(totalTokens)}
+              </TableCell>
+              {tokenFields.map((field) => (
+                <TableCell
+                  key={field}
+                  className="text-right tabular-nums whitespace-nowrap text-muted-foreground"
+                  title={item[field].toLocaleString()}
+                >
+                  {formatTokenAmount(item[field])}
+                </TableCell>
+              ))}
             </TableRow>
-          )}
-        </Fragment>
-      ))}
+            {expanded === item.id && (
+              <TableRow>
+                <TableCell colSpan={10} className="bg-muted/20 p-4">
+                  <ChannelUsage
+                    query={{ ...query, scope: "providerKey", channelId: item.id, page: 1 }}
+                    currencyCode={currencyCode}
+                  />
+                </TableCell>
+              </TableRow>
+            )}
+          </Fragment>
+        );
+      })}
     </>
   );
 }
@@ -142,29 +193,33 @@ function UsageTable({
 }: Parameters<typeof UsageRows>[0]) {
   const t = useTranslations("dashboard.usage");
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t(`scopes.${query.scope}`)}</TableHead>
-          {(["cost", "share", "cacheHitRate", "requests", ...tokenFields] as const).map((field) => (
-            <TableHead key={field} className="text-right whitespace-nowrap">
-              {t(field)}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {data.items.length ? (
-          <UsageRows {...{ data, query, currencyCode, expanded, onExpand }} />
-        ) : (
-          <TableRow>
-            <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-              {t("empty")}
-            </TableCell>
+    <div className="overflow-x-auto rounded-xl border border-border/50 bg-background/40">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/30 hover:bg-muted/30">
+            <TableHead>{t(`scopes.${query.scope}`)}</TableHead>
+            {(
+              ["cost", "share", "cacheHitRate", "requests", "totalTokens", ...tokenFields] as const
+            ).map((field) => (
+              <TableHead key={field} className="text-right whitespace-nowrap">
+                {t(field)}
+              </TableHead>
+            ))}
           </TableRow>
-        )}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {data.items.length ? (
+            <UsageRows {...{ data, query, currencyCode, expanded, onExpand }} />
+          ) : (
+            <TableRow>
+              <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
+                {t("empty")}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
@@ -246,30 +301,48 @@ export function DashboardUsage({ currencyCode }: { currencyCode: CurrencyCode })
   };
 
   return (
-    <section aria-label={t("title")} className="rounded-xl border bg-card p-4 sm:p-6 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">{t("title")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
+    <section
+      aria-label={t("title")}
+      className={cn(
+        "relative overflow-hidden rounded-2xl p-5 md:p-6 space-y-5",
+        "bg-card/60 dark:bg-[rgba(20,20,23,0.5)] backdrop-blur-lg",
+        "border border-border/50 dark:border-white/[0.08] shadow-sm"
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+            <BarChart3 className="h-4.5 w-4.5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">{t("title")}</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t("description")}</p>
+          </div>
         </div>
         <Button
           variant="outline"
+          size="sm"
+          className="h-8 rounded-lg"
           disabled={!enabled || isFetching}
           onClick={() => {
             setExpanded(null);
             void refetch();
           }}
         >
-          <RefreshCw className="mr-2 h-4 w-4" />
+          <RefreshCw className={cn("mr-2 h-3.5 w-3.5", isFetching && "animate-spin")} />
           {t("refresh")}
         </Button>
       </div>
-      <div className="flex flex-wrap gap-2" aria-label={t("period")}>
+      <div
+        className="inline-flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1"
+        aria-label={t("period")}
+      >
         {USAGE_PERIODS.map((value) => (
           <Button
             key={value}
             size="sm"
-            variant={period === value ? "secondary" : "outline"}
+            variant={period === value ? "secondary" : "ghost"}
+            className={cn("h-7 px-2.5 text-xs", period === value && "shadow-xs font-medium")}
             aria-pressed={period === value}
             onClick={() => {
               setPeriod(value);
@@ -332,30 +405,65 @@ export function DashboardUsage({ currencyCode }: { currencyCode: CurrencyCode })
           <p className="text-xs text-muted-foreground">
             {t("timezone", { timezone: data.timezone })}
           </p>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
-            {(["cost", "cacheHitRate", "requests", ...tokenFields] as const).map((field) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5">
+              <p className="text-xs text-muted-foreground">{t("cost")}</p>
+              <p className="mt-1 text-lg font-bold tracking-tight tabular-nums">
+                {formatCurrency(data.summary.cost, currencyCode)}
+              </p>
+            </div>
+            <div
+              className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3.5"
+              title={sumUsageTokens(data.summary).toLocaleString()}
+            >
+              <p className="text-xs text-muted-foreground">{t("totalTokens")}</p>
+              <p className="mt-1 text-lg font-bold tracking-tight tabular-nums">
+                {formatTokenAmount(sumUsageTokens(data.summary))}
+              </p>
+            </div>
+            <div
+              className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5"
+              title={t("cacheHitRateDescription")}
+            >
+              <p className="text-xs text-muted-foreground">{t("cacheHitRate")}</p>
+              <p className="mt-1 text-lg font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
+                {cacheHitRate(data.summary)}
+              </p>
+            </div>
+            <div
+              className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-3.5"
+              title={data.summary.requests.toLocaleString()}
+            >
+              <p className="text-xs text-muted-foreground">{t("requests")}</p>
+              <p className="mt-1 text-lg font-bold tracking-tight tabular-nums">
+                {formatTokenAmount(data.summary.requests)}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {tokenFields.map((field) => (
               <div
                 key={field}
-                className="rounded-lg bg-muted/40 p-3"
-                title={field === "cacheHitRate" ? t("cacheHitRateDescription") : undefined}
+                className="rounded-xl border border-border/50 bg-background/40 px-3.5 py-2.5"
+                title={data.summary[field].toLocaleString()}
               >
-                <p className="text-xs text-muted-foreground">{t(field)}</p>
-                <p className="mt-1 font-semibold tabular-nums">
-                  {field === "cacheHitRate"
-                    ? cacheHitRate(data.summary)
-                    : field === "cost"
-                      ? formatCurrency(data.summary.cost, currencyCode)
-                      : data.summary[field].toLocaleString()}
+                <p className="text-[11px] text-muted-foreground">{t(field)}</p>
+                <p className="mt-0.5 text-sm font-semibold tabular-nums">
+                  {formatTokenAmount(data.summary[field])}
                 </p>
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2" aria-label={t("groupBy")}>
+          <div
+            className="inline-flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1"
+            aria-label={t("groupBy")}
+          >
             {scopes.map((scope) => (
               <Button
                 key={scope}
                 size="sm"
                 variant={view.scope === scope ? "secondary" : "ghost"}
+                className={cn("h-7 px-3 text-xs", view.scope === scope && "shadow-xs font-medium")}
                 aria-pressed={view.scope === scope}
                 onClick={() => {
                   setView({ scope, page: 1 });

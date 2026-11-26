@@ -59,5 +59,8 @@
   "channelSettingsDesc": "Saving configuration in Basic info, Routing, Options, Limits, Network, and Testing applies it to every key in this channel. API credentials, key names, and individual switches are preserved. Other groups and model-specific channels remain independent.",
   "channelChanged": "The channel configuration changed. Reopen the editor and retry.",
   "testKeyLabel": "Key used for testing",
-  "testKeyDesc": "Choose a key in this channel to test with the current address and network settings. A newly entered API key takes precedence."
+  "testKeyDesc": "Choose a key in this channel to test with the current address and network settings. A newly entered API key takes precedence.",
+  "showFullKey": "Show full API key",
+  "hideFullKey": "Hide full API key",
+  "copyFullKey": "Copy full API key"
 }

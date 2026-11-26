@@ -1344,6 +1344,17 @@
     "previous": "Previous",
     "next": "Next",
     "cacheHitRate": "Cache hit rate",
-    "cacheHitRateDescription": "Cache read tokens divided by all input tokens (uncached input + cache creation + cache read). Calculated from totals for the selected range."
+    "cacheHitRateDescription": "Cache read tokens divided by all input tokens (uncached input + cache creation + cache read). Calculated from totals for the selected range.",
+    "totalTokens": "Total tokens",
+    "modelBreakdownTitle": "Model consumption",
+    "modelBreakdownDesc": "Cost and token distribution across models. Hover compact values for exact counts.",
+    "modelCount": "{count} models",
+    "otherModels": "Other models",
+    "showAllModels": "Show all {count} models",
+    "collapseModels": "Show fewer models",
+    "inputShort": "In",
+    "outputShort": "Out",
+    "cacheShort": "Cache",
+    "requestsShort": "req"
   }
 }

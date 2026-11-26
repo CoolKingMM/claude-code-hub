@@ -219,4 +219,31 @@ describe("dashboard usage controls", () => {
     await click(c, t.periods.yesterday);
     expect(c.querySelector('[role="status"]')?.textContent).toBe(t.loading);
   });
+  test("compacts large token counts with K/M/B units while preserving exact titles", async () => {
+    const bigMetrics = {
+      cost: 123.45,
+      requests: 15_200,
+      inputTokens: 1_500_000,
+      outputTokens: 250_000,
+      cacheCreationTokens: 500_000_000,
+      cacheReadTokens: 2_350_000_000,
+    };
+    fetchUsage.mockImplementation(async (q: DashboardUsageQuery) => ({
+      ...data(q),
+      summary: bigMetrics,
+      items: [
+        { ...bigMetrics, id: "claude-opus-4-6", name: "claude-opus-4-6", providerType: null },
+      ],
+      totalCount: 1,
+    }));
+    const c = await render();
+    expect(c.textContent).toContain("15.2K");
+    expect(c.textContent).toContain("1.5M");
+    expect(c.textContent).toContain("2.35B");
+    expect(c.textContent).toContain("2.85B");
+    const exactCell = Array.from(c.querySelectorAll("[title]")).find(
+      (el) => el.getAttribute("title") === (2_350_000_000).toLocaleString()
+    );
+    expect(exactCell).toBeTruthy();
+  });
 });

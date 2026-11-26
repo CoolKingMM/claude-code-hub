@@ -44,5 +44,8 @@
   "selectProvider": "{name} を選択",
   "schedule": "スケジュール",
   "proxyEnabled": "プロキシ有効",
-  "confirmDeleteBundleMessage": "チャネル \"{name}\" と関連する {count} 件のプロトコルレコードをすべて削除してもよろしいですか？過去のリクエストログは保持されます。"
+  "confirmDeleteBundleMessage": "チャネル \"{name}\" と関連する {count} 件のプロトコルレコードをすべて削除してもよろしいですか？過去のリクエストログは保持されます。",
+  "copyAllKeys": "すべてのキーをコピー",
+  "allKeysCopied": "{count} 件のキーをすべてコピーしました",
+  "keyCountSummary": "このチャネルには {count} 件の独立したキーがあります"
 }

@@ -1341,6 +1341,17 @@
     "previous": "上一頁",
     "next": "下一頁",
     "cacheHitRate": "快取命中率",
-    "cacheHitRateDescription": "快取讀取 Token ÷ 總輸入 Token（一般輸入 + 快取寫入 + 快取讀取），依所選時間範圍的合計計算。"
+    "cacheHitRateDescription": "快取讀取 Token ÷ 總輸入 Token（一般輸入 + 快取寫入 + 快取讀取），依所選時間範圍的合計計算。",
+    "totalTokens": "總 Token",
+    "modelBreakdownTitle": "模型消耗分佈",
+    "modelBreakdownDesc": "依模型顯示消耗金額與 Token 用量，游標懸停縮寫數值可查看完整精確計數。",
+    "modelCount": "共 {count} 個模型",
+    "otherModels": "其餘模型",
+    "showAllModels": "展開全部 {count} 個模型",
+    "collapseModels": "收起更多模型",
+    "inputShort": "輸入",
+    "outputShort": "輸出",
+    "cacheShort": "快取讀",
+    "requestsShort": "次"
   }
 }

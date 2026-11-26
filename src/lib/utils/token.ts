@@ -1,5 +1,7 @@
-const TOKEN_UNIT_K = 1000;
-const TOKEN_UNIT_M = TOKEN_UNIT_K * TOKEN_UNIT_K;
+const TOKEN_UNIT_K = 1_000;
+const TOKEN_UNIT_M = 1_000_000;
+const TOKEN_UNIT_B = 1_000_000_000;
+const TOKEN_UNIT_T = 1_000_000_000_000;
 
 const NUMBER_FORMAT_OPTIONS: Intl.NumberFormatOptions = {
   minimumFractionDigits: 0,
@@ -16,14 +18,16 @@ function appendUnit(value: number, divisor: number, unit: string): string {
 }
 
 /**
- * 统一的 Token 数值格式化函数
- * - 小于 1000 显示原值
- * - 小于 1000 * 1000 时转为 K，保留2位小数
- * - 其他情况转为 M，保留2位小数
+ * 统一的 Token / 大数值紧凑格式化函数
+ * - 小于 1,000 显示原值
+ * - 1,000 ~ 999,999 显示 K（保留最多 2 位小数）
+ * - 1,000,000 ~ 999,999,999 显示 M（保留最多 2 位小数）
+ * - 1,000,000,000 ~ 999,999,999,999 显示 B（保留最多 2 位小数）
+ * - >= 1,000,000,000,000 显示 T（保留最多 2 位小数）
  * - 空值返回 "-"
  */
 export function formatTokenAmount(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
     return "-";
   }
 
@@ -37,5 +41,13 @@ export function formatTokenAmount(value: number | null | undefined): string {
     return appendUnit(value, TOKEN_UNIT_K, "K");
   }
 
-  return appendUnit(value, TOKEN_UNIT_M, "M");
+  if (absolute < TOKEN_UNIT_B) {
+    return appendUnit(value, TOKEN_UNIT_M, "M");
+  }
+
+  if (absolute < TOKEN_UNIT_T) {
+    return appendUnit(value, TOKEN_UNIT_B, "B");
+  }
+
+  return appendUnit(value, TOKEN_UNIT_T, "T");
 }

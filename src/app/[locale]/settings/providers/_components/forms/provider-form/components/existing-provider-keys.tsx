@@ -1,25 +1,31 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { CheckCircle, ChevronDown, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { normalizeAllowedModelRules } from "@/lib/allowed-model-rules";
-import { editProvider, getProviders } from "@/lib/api-client/v1/actions/providers";
+import {
+  editProvider,
+  getProviders,
+  getUnmaskedProviderKey,
+} from "@/lib/api-client/v1/actions/providers";
 import { useRequestFilters } from "@/lib/api-client/v1/request-filters/hooks";
 import {
   groupProviderKeyConfigurations,
   matchesProviderRequestFilter,
 } from "@/lib/provider-key-groups";
+import { copyToClipboard } from "@/lib/utils/clipboard";
 import { normalizeProviderGroup } from "@/lib/utils/provider-group";
 import type { ProviderDisplay, ProviderType } from "@/types/provider";
 import { invalidateProviderQueries } from "../../../invalidate-provider-queries";
 
 export function ExistingProviderKeys({
   provider,
-  activeProtocol,
+  activeProtocol: _activeProtocol,
   disabled = false,
 }: {
   provider: ProviderDisplay;
@@ -31,6 +37,9 @@ export function ExistingProviderKeys({
   const queryClient = useQueryClient();
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [revealedKeys, setRevealedKeys] = useState<Record<number, string>>({});
+  const [loadingRevealId, setLoadingRevealId] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const {
     data: providers,
     isLoading,
@@ -43,17 +52,12 @@ export function ExistingProviderKeys({
   });
   const sourceProviders = providers ?? [provider];
   const keys = (() => {
+    // 多协议逻辑渠道：纳入同 protocolGroupId 下的全部记录，groupProviderKeyConfigurations 会按 keyGroupId 去重合并，
+    // 既能一次查看全部不同密钥（含并入的不同密钥），又可展开管理每条协议配置的独立开关。
     if (provider.protocolGroupId) {
-      const groupItems = sourceProviders.filter(
-        (item) => item.protocolGroupId === provider.protocolGroupId
-      );
-      const targetProto = activeProtocol ?? provider.providerType;
-      const protoItems = groupItems.filter((item) => item.providerType === targetProto);
-      const effectiveItems =
-        protoItems.length > 0
-          ? protoItems
-          : groupItems.filter((item) => item.providerType === provider.providerType);
-      return effectiveItems.toSorted((left, right) => left.id - right.id);
+      return sourceProviders
+        .filter((item) => item.protocolGroupId === provider.protocolGroupId)
+        .toSorted((left, right) => left.id - right.id);
     }
     return sourceProviders
       .filter((key) =>
@@ -67,6 +71,105 @@ export function ExistingProviderKeys({
   })();
   const keyGroups = groupProviderKeyConfigurations(keys);
   const filters = useRequestFilters({ enabled: keyGroups.some((group) => group.length > 1) });
+
+  const resolvePlainKey = async (keyId: number): Promise<string | null> => {
+    if (revealedKeys[keyId]) return revealedKeys[keyId];
+    setLoadingRevealId(keyId);
+    try {
+      const res = await getUnmaskedProviderKey(keyId);
+      if (!res.ok) {
+        toast.error(tList("getKeyFailed"), {
+          description: res.error || tList("unknownError"),
+        });
+        return null;
+      }
+      return res.data.key;
+    } catch {
+      toast.error(tList("getKeyFailed"), { description: tList("unknownError") });
+      return null;
+    } finally {
+      setLoadingRevealId((curr) => (curr === keyId ? null : curr));
+    }
+  };
+
+  const handleToggleReveal = async (keyId: number) => {
+    if (revealedKeys[keyId]) {
+      setRevealedKeys((prev) => {
+        const next = { ...prev };
+        delete next[keyId];
+        return next;
+      });
+      return;
+    }
+    const plainKey = await resolvePlainKey(keyId);
+    if (plainKey) {
+      setRevealedKeys((prev) => ({ ...prev, [keyId]: plainKey }));
+    }
+  };
+
+  const handleCopyPlainKey = async (keyId: number) => {
+    const plainKey = await resolvePlainKey(keyId);
+    if (!plainKey) return;
+    const ok = await copyToClipboard(plainKey);
+    if (ok) {
+      setCopiedId(keyId);
+      toast.success(tList("keyCopied"));
+      setTimeout(() => setCopiedId((curr) => (curr === keyId ? null : curr)), 2500);
+    } else {
+      toast.error(tList("copyFailed"));
+    }
+  };
+
+  const renderKeyActions = (keyId: number) => {
+    const isRevealed = Boolean(revealedKeys[keyId]);
+    const isLoadingThis = loadingRevealId === keyId;
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          disabled={disabled || isLoadingThis}
+          aria-label={isRevealed ? t("hideFullKey") : t("showFullKey")}
+          title={isRevealed ? t("hideFullKey") : t("showFullKey")}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void handleToggleReveal(keyId);
+          }}
+        >
+          {isLoadingThis ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isRevealed ? (
+            <EyeOff className="h-3.5 w-3.5" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          disabled={disabled || isLoadingThis}
+          aria-label={t("copyFullKey")}
+          title={t("copyFullKey")}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void handleCopyPlainKey(keyId);
+          }}
+        >
+          {copiedId === keyId ? (
+            <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      </div>
+    );
+  };
 
   const toggleKey = async (key: ProviderDisplay, enabled: boolean) => {
     setPendingId(key.id);
@@ -199,6 +302,7 @@ export function ExistingProviderKeys({
       )}
       {keyGroups.map((configurations, index) => {
         const key = configurations[0];
+        const plainKey = revealedKeys[key.id];
         if (configurations.length > 1) {
           return (
             <details
@@ -207,16 +311,25 @@ export function ExistingProviderKeys({
               data-testid={`existing-provider-key-${key.id}`}
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 [&::-webkit-details-marker]:hidden">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{t("entryLabel", { number: index + 1 })}</p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">
-                    {key.maskedKey}
+                  <p
+                    className={
+                      plainKey
+                        ? "break-all font-mono text-xs text-foreground"
+                        : "truncate font-mono text-xs text-muted-foreground"
+                    }
+                  >
+                    {plainKey ?? key.maskedKey}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {t("configurationCount", { count: configurations.length })}
                   </p>
                 </div>
-                <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {renderKeyActions(key.id)}
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+                </div>
               </summary>
               <div className="space-y-2 border-t p-3">
                 <p className="text-xs text-muted-foreground">{t("configurationDesc")}</p>
@@ -231,11 +344,22 @@ export function ExistingProviderKeys({
             className="flex items-center justify-between gap-3 rounded-md border p-3"
             data-testid={`existing-provider-key-${key.id}`}
           >
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">{t("entryLabel", { number: index + 1 })}</p>
-              <p className="truncate font-mono text-xs text-muted-foreground">{key.maskedKey}</p>
+              <p
+                className={
+                  plainKey
+                    ? "break-all font-mono text-xs text-foreground"
+                    : "truncate font-mono text-xs text-muted-foreground"
+                }
+              >
+                {plainKey ?? key.maskedKey}
+              </p>
             </div>
-            {renderSwitch(key, t("enabledLabel", { number: index + 1 }))}
+            <div className="flex shrink-0 items-center gap-2">
+              {renderKeyActions(key.id)}
+              {renderSwitch(key, t("enabledLabel", { number: index + 1 }))}
+            </div>
           </div>
         );
       })}

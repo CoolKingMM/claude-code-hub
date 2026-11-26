@@ -44,5 +44,8 @@
   "selectProvider": "選擇 {name}",
   "schedule": "排程",
   "proxyEnabled": "已啟用代理",
-  "confirmDeleteBundleMessage": "確定要刪除邏輯渠道 \"{name}\" 及其包含的全部 {count} 筆協定子記錄嗎？歷史請求日誌將會保留。"
+  "confirmDeleteBundleMessage": "確定要刪除邏輯渠道 \"{name}\" 及其包含的全部 {count} 筆協定子記錄嗎？歷史請求日誌將會保留。",
+  "copyAllKeys": "複製全部金鑰",
+  "allKeysCopied": "已複製全部 {count} 把金鑰",
+  "keyCountSummary": "目前渠道共包含 {count} 把獨立金鑰"
 }
