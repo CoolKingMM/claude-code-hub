@@ -36,6 +36,7 @@ import {
   PROVIDER_KEY_BATCH_MAX,
   validateProviderKeys,
 } from "@/lib/provider-key-batch";
+import { isUserFacingProtocolType } from "@/lib/provider-protocol-bundle";
 import { isValidUrl } from "@/lib/utils/validation";
 import type {
   ProviderDisplay,
@@ -149,7 +150,9 @@ function ProviderFormContent({
 
   const buildProtocolConfigsPayload = useCallback((): ProviderProtocolConfigInput[] | undefined => {
     if (!isMultiProtocolBundle) return undefined;
-    return state.routing.selectedProtocols.map((protocol) => {
+    const validProtocols = state.routing.selectedProtocols.filter(isUserFacingProtocolType);
+    if (validProtocols.length === 0) return undefined;
+    return validProtocols.map((protocol) => {
       const stored = state.routing.protocolConfigs[protocol];
       const isActive = protocol === state.routing.activeProtocol;
       const allowedModels = isActive ? state.routing.allowedModels : (stored?.allowedModels ?? []);

@@ -1547,7 +1547,9 @@ export async function syncProviderProtocolBundle(
     const addedProviders: Provider[] = [];
     const adoptedProviders: Provider[] = [];
     const keptProviderIds = new Set<number>();
-    const targetProtocolSet = new Set(protocolConfigs.map((config) => config.provider_type));
+    const targetProtocolSet = new Set<ProviderType>(
+      protocolConfigs.map((config) => config.provider_type)
+    );
 
     // 先算出同步后的目标 vendorId（当 URL/name/website 更新时保持组内 vendor 一致）
     let resolvedVendorId: number | null = anchor.providerVendorId;
