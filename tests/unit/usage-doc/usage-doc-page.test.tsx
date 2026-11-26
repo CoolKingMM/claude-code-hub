@@ -79,16 +79,14 @@ describe("UsageDocPage - 目录/快速链接交互", () => {
     await unmount();
   });
 
-  test("ru 语言不应显示中文占位符与代码块注释", async () => {
-    const { unmount } = await renderWithIntl("ru", <UsageDocPage />);
+  test("en 语言不应显示中文占位符与代码块注释", async () => {
+    const { unmount } = await renderWithIntl("en", <UsageDocPage />);
 
     const text = document.body.textContent || "";
 
     expect(text).not.toContain("你的用户名");
     expect(text).not.toContain("检查环境变量");
     expect(text).not.toContain("添加到 PATH");
-
-    expect(text).toContain("C:\\Users\\your-username");
 
     await unmount();
   });

@@ -11,12 +11,12 @@ async function fetchRedirect(path: string, cookie?: string) {
 }
 
 describe("i18n routing e2e", () => {
-  test("unprefixed protected routes use NEXT_LOCALE for the login redirect", async () => {
+  test("unprefixed protected routes redirect to zh-CN login regardless of legacy NEXT_LOCALE", async () => {
     const response = await fetchRedirect("/dashboard", `${localeCookieName}=en`);
 
     expect(response.status).toBeGreaterThanOrEqual(300);
     expect(response.status).toBeLessThan(400);
-    expect(response.headers.get("location")).toContain("/en/login?from=%2Fdashboard");
+    expect(response.headers.get("location")).toContain("/zh-CN/login?from=%2Fdashboard");
   });
 
   test("repeated locale prefixes do not leak into the login from parameter", async () => {
@@ -25,7 +25,7 @@ describe("i18n routing e2e", () => {
 
     expect(response.status).toBeGreaterThanOrEqual(300);
     expect(response.status).toBeLessThan(400);
-    expect(location).toContain("/en/login?from=%2Fdashboard");
+    expect(location).toContain("/zh-CN/login?from=%2Fdashboard");
     expect(location).not.toContain("from=%2Fen%2Fdashboard");
   });
 });
