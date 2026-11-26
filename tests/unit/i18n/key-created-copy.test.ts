@@ -16,7 +16,7 @@ import { describe, expect, test } from "vitest";
  *    clients can render the real reason instead of a generic "Bad request".
  */
 
-const LOCALES = ["zh-CN", "zh-TW", "en", "ja", "ru"] as const;
+const LOCALES = ["zh-CN", "en"] as const;
 
 const COPY_PATHS: ReadonlyArray<readonly string[]> = [["addKeyForm", "generatedKey", "hint"]];
 
@@ -36,10 +36,7 @@ const ONE_TIME_CLAIM_PATTERNS: RegExp[] = [
 
 const REVIEWABLE_MARKERS: Record<(typeof LOCALES)[number], RegExp> = {
   "zh-CN": /重新查看/,
-  "zh-TW": /重新檢視/,
   en: /view the full key again/i,
-  ja: /再表示できます/,
-  ru: /снова просмотреть/i,
 };
 
 function loadMessages(locale: string, file: string): Record<string, unknown> {

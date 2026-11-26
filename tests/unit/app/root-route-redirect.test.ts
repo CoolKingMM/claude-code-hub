@@ -31,11 +31,11 @@ describe("root route redirect", () => {
     cookieValues.clear();
   });
 
-  it("redirects to the dashboard of the locale stored in the locale cookie", async () => {
+  it("redirects to zh-CN dashboard even when legacy locale cookie is set", async () => {
     cookieValues.set("NEXT_LOCALE", "ja");
 
     await expect(captureRedirect()).resolves.toEqual({
-      location: "/ja/dashboard",
+      location: "/zh-CN/dashboard",
       status: "307",
     });
   });

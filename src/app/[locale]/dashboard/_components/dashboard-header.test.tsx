@@ -33,10 +33,6 @@ vi.mock("@/components/customs/version-update-notifier", () => ({
   VersionUpdateNotifier: () => <span data-testid="version-update" />,
 }));
 
-vi.mock("@/components/ui/language-switcher", () => ({
-  LanguageSwitcher: () => <span data-testid="language-switcher" />,
-}));
-
 vi.mock("@/components/ui/theme-switcher", () => ({
   ThemeSwitcher: () => <span data-testid="theme-switcher" />,
 }));

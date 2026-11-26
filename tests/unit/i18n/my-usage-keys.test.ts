@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import enMyUsage from "../../../messages/en/myUsage.json";
-import jaMyUsage from "../../../messages/ja/myUsage.json";
-import ruMyUsage from "../../../messages/ru/myUsage.json";
 import zhCNMyUsage from "../../../messages/zh-CN/myUsage.json";
-import zhTWMyUsage from "../../../messages/zh-TW/myUsage.json";
 
 function extractKeys(obj: Record<string, unknown>, prefix = ""): string[] {
   const keys: string[] = [];
@@ -26,9 +23,6 @@ function extractKeys(obj: Record<string, unknown>, prefix = ""): string[] {
 const locales: Record<string, Record<string, unknown>> = {
   en: enMyUsage,
   "zh-CN": zhCNMyUsage,
-  "zh-TW": zhTWMyUsage,
-  ja: jaMyUsage,
-  ru: ruMyUsage,
 };
 
 const baselineKeys = extractKeys(enMyUsage);

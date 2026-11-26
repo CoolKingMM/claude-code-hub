@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { useRouter } from "@/i18n/routing";
 import { DEFAULT_SITE_TITLE } from "@/lib/site-title";
@@ -226,7 +225,6 @@ function LoginPageContent() {
       {/* Top Right Controls */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <ThemeSwitcher size="sm" />
-        <LanguageSwitcher size="sm" />
       </div>
 
       {/* Background Orbs */}

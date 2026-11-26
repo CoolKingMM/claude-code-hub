@@ -179,7 +179,7 @@ describe("SystemSettingsForm non-chat fallback toggle", () => {
   });
 
   test("all locales define non-chat fallback labels", () => {
-    const locales = ["zh-CN", "zh-TW", "en", "ja", "ru"] as const;
+    const locales = ["zh-CN", "en"] as const;
 
     for (const locale of locales) {
       const config = loadMessages(locale).settings.config;

@@ -1,12 +1,8 @@
 import { ProxyResponses } from "@/app/v1/_lib/proxy/responses";
 import { defaultLocale, type Locale, locales } from "@/i18n/config";
 
-const catalogs = {
+const catalogs: Record<Locale, () => Promise<{ default: { LOCAL_CAPACITY_EXCEEDED: string } }>> = {
   "zh-CN": () => import("../../../messages/zh-CN/errors.json"),
-  "zh-TW": () => import("../../../messages/zh-TW/errors.json"),
-  en: () => import("../../../messages/en/errors.json"),
-  ja: () => import("../../../messages/ja/errors.json"),
-  ru: () => import("../../../messages/ru/errors.json"),
 };
 
 export async function buildLocalCapacityResponse(): Promise<Response> {

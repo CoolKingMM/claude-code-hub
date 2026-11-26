@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 
 const REPO_ROOT = process.cwd();
-const LOCALES = ["en", "zh-CN", "zh-TW", "ja", "ru"] as const;
+const LOCALES = ["en", "zh-CN"] as const;
 
 function walkFiles(dir: string): string[] {
   const results: string[] = [];

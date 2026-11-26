@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import enDashboard from "../../../messages/en/dashboard.json";
-import jaDashboard from "../../../messages/ja/dashboard.json";
-import ruDashboard from "../../../messages/ru/dashboard.json";
 import zhCNDashboard from "../../../messages/zh-CN/dashboard.json";
-import zhTWDashboard from "../../../messages/zh-TW/dashboard.json";
 
 const PRICING_SOURCES = [
   "local_manual",
@@ -18,10 +15,7 @@ const PRICING_SOURCES = [
 
 const dashboards = {
   en: enDashboard,
-  ja: jaDashboard,
-  ru: ruDashboard,
   "zh-CN": zhCNDashboard,
-  "zh-TW": zhTWDashboard,
 };
 
 describe("dashboard pricing source translations", () => {

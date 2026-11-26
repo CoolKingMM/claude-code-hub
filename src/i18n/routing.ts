@@ -15,10 +15,9 @@ export const routing = defineRouting({
   // Default locale (used when no locale prefix is present)
   defaultLocale,
 
-  // Locale detection strategy:
-  // 1. Check locale cookie (NEXT_LOCALE)
-  // 2. Check Accept-Language header
-  // 3. Fall back to default locale
+  // Only zh-CN is enabled; disable Accept-Language / cookie locale negotiation
+  localeDetection: false,
+
   localePrefix: "always",
 
   // Locale cookie configuration

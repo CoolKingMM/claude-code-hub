@@ -1,6 +1,5 @@
 import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
-import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { Link } from "@/i18n/routing";
 import type { AuthSession } from "@/lib/auth";
@@ -38,7 +37,6 @@ export async function DashboardHeader({ session, locale }: DashboardHeaderProps)
         </div>
         <div className="flex items-center gap-3">
           <ThemeSwitcher />
-          <LanguageSwitcher size="sm" />
           {session ? (
             <UserMenu user={session.user} />
           ) : (

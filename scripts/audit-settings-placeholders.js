@@ -17,7 +17,7 @@ const path = require("node:path");
 const sync = require("./sync-settings-keys.js");
 
 const CANONICAL = "zh-CN";
-const DEFAULT_TARGET_LOCALES = ["en", "ja", "ru", "zh-TW"];
+const DEFAULT_TARGET_LOCALES = ["en"];
 const SCOPES = ["settings", "dashboard", "myUsage"];
 
 function isObject(v) {

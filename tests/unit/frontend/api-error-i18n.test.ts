@@ -5,10 +5,7 @@ import {
   getApiErrorMessageParams,
 } from "@/lib/api-client/v1/errors";
 import enDashboard from "../../../messages/en/dashboard.json";
-import jaDashboard from "../../../messages/ja/dashboard.json";
-import ruDashboard from "../../../messages/ru/dashboard.json";
 import zhCNDashboard from "../../../messages/zh-CN/dashboard.json";
-import zhTWDashboard from "../../../messages/zh-TW/dashboard.json";
 
 describe("v1 API error i18n mapping", () => {
   test("maps problem error codes to existing translation keys instead of raw details", () => {
@@ -115,7 +112,7 @@ describe("v1 API error i18n mapping", () => {
   });
 
   test("defines Session detail identity and error labels in every locale", () => {
-    for (const dashboard of [enDashboard, zhCNDashboard, zhTWDashboard, jaDashboard, ruDashboard]) {
+    for (const dashboard of [enDashboard, zhCNDashboard]) {
       expect(dashboard.sessions.status.error).toBeTruthy();
       expect(dashboard.sessions.details.canonicalSessionId).toBeTruthy();
       expect(dashboard.sessions.details.clientSessionId).toBeTruthy();

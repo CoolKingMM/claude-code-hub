@@ -4,10 +4,7 @@ import { act, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import config from "../../../messages/en/settings/config.json";
-import jaConfig from "../../../messages/ja/settings/config.json";
-import ruConfig from "../../../messages/ru/settings/config.json";
 import zhCNConfig from "../../../messages/zh-CN/settings/config.json";
-import zhTWConfig from "../../../messages/zh-TW/settings/config.json";
 import {
   ProviderChannelPicker,
   type SpecialHandlingProvider,
@@ -131,10 +128,7 @@ function group(value: string) {
 describe("特殊处理完整渠道选择", () => {
   test.each([
     ["en", config],
-    ["ja", jaConfig],
-    ["ru", ruConfig],
     ["zh-CN", zhCNConfig],
-    ["zh-TW", zhTWConfig],
   ] as const)("%s 的两张卡片均可展开渠道并提供完整翻译", (locale, localeConfig) => {
     for (const section of ["specialHandling", "form"] as const) {
       const translated = localeConfig[section];

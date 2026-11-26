@@ -86,15 +86,15 @@ describe("locale root layout", () => {
 
     const tree = await RootLayout({
       children: <main />,
-      params: Promise.resolve({ locale: "en" }),
+      params: Promise.resolve({ locale: "zh-CN" }),
     });
 
-    expect.soft(nextIntlMocks.setRequestLocale).toHaveBeenCalledWith("en");
-    expect(nextIntlMocks.getMessages).toHaveBeenCalledWith({ locale: "en" });
+    expect.soft(nextIntlMocks.setRequestLocale).toHaveBeenCalledWith("zh-CN");
+    expect(nextIntlMocks.getMessages).toHaveBeenCalledWith({ locale: "zh-CN" });
 
     const provider = findProviderElement(tree);
     expect.soft(provider?.props).toMatchObject({
-      locale: "en",
+      locale: "zh-CN",
       timeZone: "UTC",
     });
   });

@@ -2,6 +2,8 @@ import { type Locale, locales } from "./config";
 
 const DEFAULT_INTERNAL_PATH = "/dashboard";
 const PROTOCOL_LIKE_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
+// Strip both active and retired locale path prefixes so old bookmarks resolve cleanly to zh-CN.
+const STRIPPABLE_LOCALE_SEGMENTS = new Set<string>([...locales, "zh-TW", "en", "ru", "ja"]);
 
 function isLocale(value: string): value is Locale {
   return locales.some((locale) => locale === value);
@@ -47,7 +49,7 @@ export function normalizePathnameForLocaleNavigation(
     const localeMatch = path.match(/^\/([^/]+)(?=\/|$)/);
     const locale = localeMatch?.[1];
 
-    if (!locale || !isLocale(locale)) {
+    if (!locale || !STRIPPABLE_LOCALE_SEGMENTS.has(locale)) {
       break;
     }
 

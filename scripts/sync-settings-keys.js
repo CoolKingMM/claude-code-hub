@@ -14,7 +14,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const LOCALES = ["en", "ja", "ru", "zh-TW"];
+const LOCALES = ["en"];
 const CANONICAL = "zh-CN";
 const DEFAULT_MESSAGES_DIR = path.join(process.cwd(), "messages");
 

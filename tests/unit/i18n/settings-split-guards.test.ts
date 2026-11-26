@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 
-const LOCALES = ["zh-CN", "zh-TW", "en", "ja", "ru"] as const;
+const LOCALES = ["zh-CN", "en"] as const;
 const CANONICAL: (typeof LOCALES)[number] = "zh-CN";
 
 const SETTINGS_LINE_THRESHOLD = 800;

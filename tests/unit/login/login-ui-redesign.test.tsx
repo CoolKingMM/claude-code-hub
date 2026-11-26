@@ -98,7 +98,7 @@ describe("LoginPage UI Redesign", () => {
     expect(topRightArea).not.toBeNull();
 
     const buttons = topRightArea?.querySelectorAll("button");
-    expect(buttons?.length).toBeGreaterThanOrEqual(2);
+    expect(buttons?.length).toBeGreaterThanOrEqual(1);
   });
 
   it("brand panel has data-testid login-brand-panel", async () => {

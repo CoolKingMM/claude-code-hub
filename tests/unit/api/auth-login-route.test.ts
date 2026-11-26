@@ -244,24 +244,24 @@ describe("POST /api/auth/login", () => {
     expect(json).toEqual({ error: "translated:serverError" });
   });
 
-  it("uses NEXT_LOCALE cookie for translations", async () => {
+  it("uses default zh-CN locale regardless of legacy NEXT_LOCALE cookie", async () => {
     mockValidateKey.mockResolvedValue(null);
 
     await POST(makeRequest({ key: "x" }, { locale: "ja" }));
 
     expect(mockGetTranslations).toHaveBeenCalledWith({
-      locale: "ja",
+      locale: "zh-CN",
       namespace: "auth.errors",
     });
   });
 
-  it("detects locale from accept-language header", async () => {
+  it("uses default zh-CN locale regardless of accept-language header", async () => {
     mockValidateKey.mockResolvedValue(null);
 
     await POST(makeRequest({ key: "x" }, { acceptLanguage: "ru;q=1.0" }));
 
     expect(mockGetTranslations).toHaveBeenCalledWith({
-      locale: "ru",
+      locale: "zh-CN",
       namespace: "auth.errors",
     });
   });
@@ -273,11 +273,11 @@ describe("POST /api/auth/login", () => {
       .mockResolvedValueOnce(mockT);
     mockValidateKey.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ key: "x" }, { locale: "ja" }));
+    const res = await POST(makeRequest({ key: "x" }, { locale: "zh-CN" }));
 
     expect(mockGetTranslations).toHaveBeenCalledTimes(2);
     expect(mockGetTranslations).toHaveBeenNthCalledWith(1, {
-      locale: "ja",
+      locale: "zh-CN",
       namespace: "auth.errors",
     });
     expect(mockGetTranslations).toHaveBeenNthCalledWith(2, {

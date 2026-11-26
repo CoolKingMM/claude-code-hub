@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import enAuth from "../../../messages/en/auth.json";
-import jaAuth from "../../../messages/ja/auth.json";
-import ruAuth from "../../../messages/ru/auth.json";
 import zhCNAuth from "../../../messages/zh-CN/auth.json";
-import zhTWAuth from "../../../messages/zh-TW/auth.json";
 
 /**
  * Recursively extract all dot-separated key paths from a nested object.
@@ -27,9 +24,6 @@ function extractKeys(obj: Record<string, unknown>, prefix = ""): string[] {
 const locales: Record<string, Record<string, unknown>> = {
   en: enAuth,
   "zh-CN": zhCNAuth,
-  "zh-TW": zhTWAuth,
-  ja: jaAuth,
-  ru: ruAuth,
 };
 
 const baselineKeys = extractKeys(locales.en);

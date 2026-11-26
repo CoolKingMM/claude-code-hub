@@ -8,19 +8,9 @@ import { resolveSystemTimezone } from "@/lib/utils/timezone";
 import type { Locale } from "./config";
 import { routing } from "./routing";
 
-export default getRequestConfig(async ({ requestLocale }) => {
-  // This typically corresponds to the `[locale]` segment in the app directory
-  let locale = await requestLocale;
-
-  // Ensure that the incoming locale is valid
-  if (!locale || !routing.locales.includes(locale as Locale)) {
-    locale = routing.defaultLocale;
-  }
-
-  // Dynamically import all translation files for the current locale
-  // NOTE: This import expects each `messages/<locale>/index.ts` to default-export the full messages object.
-  // The `settings` namespace is composed by `messages/<locale>/settings/index.ts` so key paths stay stable.
-  const messages = await import(`../../messages/${locale}`).then((module) => module.default);
+export default getRequestConfig(async () => {
+  const locale: Locale = routing.defaultLocale;
+  const messages = await import("../../messages/zh-CN").then((module) => module.default);
 
   const timeZone = await resolveSystemTimezone();
 
