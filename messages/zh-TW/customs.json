@@ -32,7 +32,8 @@
     "avgResponse": "平均回應時間",
     "viewDetails": "查看詳情",
     "rpm": "RPM",
-    "vsYesterday": "較昨日同期"
+    "vsYesterday": "較昨日同期",
+    "todayTokens": "今日總 Token"
   },
   "activeSessions": {
     "title": "活躍 Session",

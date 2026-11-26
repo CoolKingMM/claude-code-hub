@@ -2,10 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
-  Activity,
   Clock,
   DollarSign,
   KeyRound,
+  Layers,
   RefreshCw,
   ScrollText,
   Server,
@@ -69,6 +69,9 @@ export function DashboardOverview({
     : undefined;
   const latencyComparisons = data
     ? calcComparison(data.avgResponseTime, data.yesterdaySamePeriodAvgResponseTime, vsYesterday)
+    : undefined;
+  const tokensComparisons = data
+    ? calcComparison(data.todayTokens ?? 0, data.yesterdaySamePeriodTokens ?? 0, vsYesterday)
     : undefined;
 
   return (
@@ -145,15 +148,16 @@ export function DashboardOverview({
           accentColor="purple"
         />
         <BentoMetricCard
-          title={t("metrics.rpm")}
-          value={data ? formatTokenAmount(data.recentMinuteRequests) : "-"}
-          valueTitle={data ? data.recentMinuteRequests.toLocaleString() : undefined}
+          title={t("metrics.todayTokens")}
+          value={data ? formatTokenAmount(data.todayTokens ?? 0) : "-"}
+          valueTitle={data ? (data.todayTokens ?? 0).toLocaleString() : undefined}
+          comparisons={tokensComparisons}
           subtitle={
             data && isAdmin
               ? `${t("metrics.concurrent")}: ${data.concurrentSessions.toLocaleString()}`
               : undefined
           }
-          icon={Activity}
+          icon={Layers}
           accentColor="emerald"
         />
       </BentoGrid>

@@ -2,11 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "@/i18n/routing";
 import { getSession } from "@/lib/auth";
 import { getSystemSettings } from "@/repository/system-config";
-import { ActiveSessionsSkeleton } from "./_components/active-sessions-skeleton";
-import {
-  UsageLogsActiveSessionsSection,
-  UsageLogsDataSection,
-} from "./_components/usage-logs-sections";
+import { UsageLogsDataSection } from "./_components/usage-logs-sections";
 import { UsageLogsSkeleton } from "./_components/usage-logs-skeleton";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +26,6 @@ export default async function UsageLogsPage({
 
   return (
     <div className="space-y-4">
-      {!systemSettings.enableHighConcurrencyMode && (
-        <Suspense fallback={<ActiveSessionsSkeleton />}>
-          <UsageLogsActiveSessionsSection currencyCode={systemSettings.currencyDisplay} />
-        </Suspense>
-      )}
-
       {/* Stats + Filters + Logs Table */}
       <Suspense fallback={<UsageLogsSkeleton />}>
         <UsageLogsDataSection

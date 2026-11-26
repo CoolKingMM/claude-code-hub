@@ -1355,6 +1355,8 @@
     "inputShort": "输入",
     "outputShort": "输出",
     "cacheShort": "缓读",
-    "requestsShort": "次"
+    "requestsShort": "次",
+    "cacheWriteShort": "缓写",
+    "cacheCreationDescription": "仅当上游明确返回缓存写入计数时记录（如 Claude 协议）；Gemini、OpenAI、DeepSeek 等隐式缓存仅上报缓存读取 Token。"
   }
 }

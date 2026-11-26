@@ -32,7 +32,8 @@
     "avgResponse": "平均応答時間",
     "viewDetails": "詳細を表示",
     "rpm": "RPM",
-    "vsYesterday": "前日同時間帯比"
+    "vsYesterday": "前日同時間帯比",
+    "todayTokens": "本日のトークン"
   },
   "activeSessions": {
     "title": "アクティブなセッション",

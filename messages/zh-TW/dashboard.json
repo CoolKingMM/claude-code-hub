@@ -1352,6 +1352,8 @@
     "inputShort": "輸入",
     "outputShort": "輸出",
     "cacheShort": "快取讀",
-    "requestsShort": "次"
+    "requestsShort": "次",
+    "cacheWriteShort": "快取寫",
+    "cacheCreationDescription": "僅當上游明確回傳快取寫入計數時記錄（如 Claude 協定）；Gemini、OpenAI、DeepSeek 等隱式快取僅上報快取讀取 Token。"
   }
 }

@@ -1355,6 +1355,8 @@
     "inputShort": "In",
     "outputShort": "Out",
     "cacheShort": "Cache",
-    "requestsShort": "req"
+    "requestsShort": "req",
+    "cacheWriteShort": "Write",
+    "cacheCreationDescription": "Recorded when the upstream explicitly reports cache write tokens (e.g. Claude). Implicit caching providers (Gemini/OpenAI) only report cache read tokens."
   }
 }

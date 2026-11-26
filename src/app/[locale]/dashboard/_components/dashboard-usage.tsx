@@ -201,7 +201,17 @@ function UsageTable({
             {(
               ["cost", "share", "cacheHitRate", "requests", "totalTokens", ...tokenFields] as const
             ).map((field) => (
-              <TableHead key={field} className="text-right whitespace-nowrap">
+              <TableHead
+                key={field}
+                className="text-right whitespace-nowrap"
+                title={
+                  field === "cacheHitRate"
+                    ? t("cacheHitRateDescription")
+                    : field === "cacheCreationTokens"
+                      ? t("cacheCreationDescription")
+                      : undefined
+                }
+              >
                 {t(field)}
               </TableHead>
             ))}
@@ -445,7 +455,11 @@ export function DashboardUsage({ currencyCode }: { currencyCode: CurrencyCode })
               <div
                 key={field}
                 className="rounded-xl border border-border/50 bg-background/40 px-3.5 py-2.5"
-                title={data.summary[field].toLocaleString()}
+                title={
+                  field === "cacheCreationTokens"
+                    ? `${data.summary[field].toLocaleString()} · ${t("cacheCreationDescription")}`
+                    : data.summary[field].toLocaleString()
+                }
               >
                 <p className="text-[11px] text-muted-foreground">{t(field)}</p>
                 <p className="mt-0.5 text-sm font-semibold tabular-nums">

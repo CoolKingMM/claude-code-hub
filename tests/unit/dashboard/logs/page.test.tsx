@@ -96,7 +96,7 @@ describe("UsageLogsPage", () => {
     expect(getChildComponentNames(element)).toEqual(["UsageLogsDataSection"]);
   });
 
-  it("renders active sessions section and logs data section in normal mode", async () => {
+  it("does not render active sessions card in normal mode", async () => {
     authMocks.getSession.mockResolvedValue({
       user: {
         id: 7,
@@ -117,9 +117,6 @@ describe("UsageLogsPage", () => {
     if (!isValidElement<{ children?: ReactNode }>(element)) {
       throw new Error("UsageLogsPage should return a React element");
     }
-    expect(getChildComponentNames(element)).toEqual([
-      "UsageLogsActiveSessionsSection",
-      "UsageLogsDataSection",
-    ]);
+    expect(getChildComponentNames(element)).toEqual(["UsageLogsDataSection"]);
   });
 });

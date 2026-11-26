@@ -1355,6 +1355,8 @@
     "inputShort": "Вход",
     "outputShort": "Выход",
     "cacheShort": "Кэш",
-    "requestsShort": "запр."
+    "requestsShort": "запр.",
+    "cacheWriteShort": "Запись",
+    "cacheCreationDescription": "Записывается, когда апстрим явно возвращает токены записи в кэш (например, Claude). Провайдеры с неявным кэшем (Gemini/OpenAI) сообщают только чтение кэша."
   }
 }

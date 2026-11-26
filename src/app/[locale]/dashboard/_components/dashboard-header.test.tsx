@@ -94,18 +94,19 @@ describe("DashboardHeader", () => {
       await DashboardHeader({ session: buildSession(false), locale: "en" })
     );
 
-    expect(html).toContain('href="/usage-doc"');
+    expect(html).not.toContain('href="/usage-doc"');
     expect(html).not.toContain('href="/dashboard/logs"');
     expect(html).not.toContain('href="/dashboard/users"');
   });
 
-  it("keeps normal dashboard navigation for full web UI sessions", async () => {
+  it("keeps normal dashboard navigation without documentation link for full web UI sessions", async () => {
     const html = renderToString(
       await DashboardHeader({ session: buildSession(true), locale: "en" })
     );
 
+    expect(html).toContain('href="/dashboard"');
     expect(html).toContain('href="/dashboard/logs"');
-    expect(html).toContain('href="/dashboard/my-quota"');
-    expect(html).toContain('href="/usage-doc"');
+    expect(html).toContain('href="/dashboard/users"');
+    expect(html).not.toContain('href="/usage-doc"');
   });
 });

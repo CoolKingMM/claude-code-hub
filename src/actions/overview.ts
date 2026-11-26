@@ -17,6 +17,8 @@ export interface OverviewData {
   todayRequests: number;
   /** 今日总消耗（美元） */
   todayCost: number;
+  /** 今日总 Token 消耗 */
+  todayTokens?: number;
   /** 平均响应时间（毫秒） */
   avgResponseTime: number;
   /** 今日错误率（百分比） */
@@ -25,6 +27,8 @@ export interface OverviewData {
   yesterdaySamePeriodRequests: number;
   /** 昨日同时段消耗 */
   yesterdaySamePeriodCost: number;
+  /** 昨日同时段总 Token 消耗 */
+  yesterdaySamePeriodTokens?: number;
   /** 昨日同时段平均响应时间 */
   yesterdaySamePeriodAvgResponseTime: number;
   /** 最近1分钟请求数 (RPM) */
@@ -78,10 +82,12 @@ export async function getOverviewData(): Promise<ActionResult<OverviewData>> {
         concurrentSessions,
         todayRequests: metricsData.todayRequests,
         todayCost: metricsData.todayCost,
+        todayTokens: metricsData.todayTokens ?? 0,
         avgResponseTime: metricsData.avgResponseTime,
         todayErrorRate: metricsData.todayErrorRate,
         yesterdaySamePeriodRequests: metricsData.yesterdaySamePeriodRequests,
         yesterdaySamePeriodCost: metricsData.yesterdaySamePeriodCost,
+        yesterdaySamePeriodTokens: metricsData.yesterdaySamePeriodTokens ?? 0,
         yesterdaySamePeriodAvgResponseTime: metricsData.yesterdaySamePeriodAvgResponseTime,
         recentMinuteRequests: metricsData.recentMinuteRequests,
       },

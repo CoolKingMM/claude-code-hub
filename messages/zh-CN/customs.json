@@ -32,7 +32,8 @@
     "avgResponse": "平均响应时间",
     "viewDetails": "查看详情",
     "rpm": "RPM",
-    "vsYesterday": "较昨日同期"
+    "vsYesterday": "较昨日同期",
+    "todayTokens": "今日总 Token"
   },
   "activeSessions": {
     "title": "活跃 Session",

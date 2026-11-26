@@ -50,7 +50,7 @@ describe("UserMenu", () => {
     container.remove();
   });
 
-  it("keeps a usage documentation entry in the user control area", () => {
+  it("renders user info and logout without documentation entry", () => {
     act(() => {
       root.render(
         <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
@@ -59,9 +59,9 @@ describe("UserMenu", () => {
       );
     });
 
-    const docsLink = container.querySelector('a[href="/usage-doc"][aria-label="Docs"]');
+    const docsLink = container.querySelector('a[href="/usage-doc"]');
 
-    expect(docsLink).not.toBeNull();
-    expect(docsLink?.getAttribute("title")).toBe("Docs");
+    expect(docsLink).toBeNull();
+    expect(container.textContent).toContain("Ada Lovelace");
   });
 });

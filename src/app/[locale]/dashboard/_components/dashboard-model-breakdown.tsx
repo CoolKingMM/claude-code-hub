@@ -307,9 +307,16 @@ export function DashboardModelBreakdown({ currencyCode }: { currencyCode: Curren
                         <span title={`${t("outputTokens")}: ${item.outputTokens.toLocaleString()}`}>
                           {t("outputShort")} {formatTokenAmount(item.outputTokens)}
                         </span>
-                        {(item.cacheReadTokens > 0 || item.cacheCreationTokens > 0) && (
+                        {item.cacheCreationTokens > 0 && (
                           <span
-                            title={`${t("cacheCreationTokens")}: ${item.cacheCreationTokens.toLocaleString()} / ${t("cacheReadTokens")}: ${item.cacheReadTokens.toLocaleString()}`}
+                            title={`${t("cacheCreationTokens")}: ${item.cacheCreationTokens.toLocaleString()}`}
+                          >
+                            {t("cacheWriteShort")} {formatTokenAmount(item.cacheCreationTokens)}
+                          </span>
+                        )}
+                        {item.cacheReadTokens > 0 && (
+                          <span
+                            title={`${t("cacheReadTokens")}: ${item.cacheReadTokens.toLocaleString()}`}
                           >
                             {t("cacheShort")} {formatTokenAmount(item.cacheReadTokens)}
                           </span>

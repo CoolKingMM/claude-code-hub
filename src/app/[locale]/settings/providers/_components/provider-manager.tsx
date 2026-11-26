@@ -36,8 +36,6 @@ import type {
   ProviderType,
 } from "@/types/provider";
 import type { User } from "@/types/user";
-import { ProviderBalanceProvider } from "./balance/provider-balance-context";
-import { ProviderBalanceToolbar } from "./balance/provider-balance-toolbar";
 import {
   type BatchActionMode,
   ProviderBatchActions,
@@ -682,46 +680,43 @@ export function ProviderManager({
       ) : loading && providers.length === 0 ? (
         <ProviderListSkeleton label={tCommon("loading")} />
       ) : (
-        <ProviderBalanceProvider>
-          <div className="space-y-3">
-            {refreshing ? <InlineLoading label={tCommon("loading")} /> : null}
-            <ProviderBalanceToolbar />
+        <div className="space-y-3">
+          {refreshing ? <InlineLoading label={tCommon("loading")} /> : null}
 
-            {viewMode === "list" ? (
-              <ProviderList
-                providers={filteredProviders}
-                allProviders={providers}
-                currentUser={currentUser}
-                healthStatus={healthStatus}
-                endpointCircuitInfo={endpointCircuitInfo}
-                statistics={statistics}
-                statisticsLoading={statisticsLoading}
-                currencyCode={currencyCode}
-                enableMultiProviderTypes={enableMultiProviderTypes}
-                activeGroupFilter={groupFilter.length === 1 ? groupFilter[0] : null}
-                isMultiSelectMode={isMultiSelectMode}
-                selectedProviderIds={selectedProviderIds}
-                onSelectProvider={handleSelectProvider}
-                onEditProvider={handleOpenProviderEditor}
-                allGroups={allGroups}
-                userGroups={userGroups}
-                isAdmin={isAdmin}
-              />
-            ) : (
-              <ProviderVendorView
-                collapseKeysByDefault
-                providers={filteredProviders}
-                allProviders={providers}
-                currentUser={currentUser}
-                enableMultiProviderTypes={enableMultiProviderTypes}
-                healthStatus={healthStatus}
-                statistics={statistics}
-                statisticsLoading={statisticsLoading}
-                currencyCode={currencyCode}
-              />
-            )}
-          </div>
-        </ProviderBalanceProvider>
+          {viewMode === "list" ? (
+            <ProviderList
+              providers={filteredProviders}
+              allProviders={providers}
+              currentUser={currentUser}
+              healthStatus={healthStatus}
+              endpointCircuitInfo={endpointCircuitInfo}
+              statistics={statistics}
+              statisticsLoading={statisticsLoading}
+              currencyCode={currencyCode}
+              enableMultiProviderTypes={enableMultiProviderTypes}
+              activeGroupFilter={groupFilter.length === 1 ? groupFilter[0] : null}
+              isMultiSelectMode={isMultiSelectMode}
+              selectedProviderIds={selectedProviderIds}
+              onSelectProvider={handleSelectProvider}
+              onEditProvider={handleOpenProviderEditor}
+              allGroups={allGroups}
+              userGroups={userGroups}
+              isAdmin={isAdmin}
+            />
+          ) : (
+            <ProviderVendorView
+              collapseKeysByDefault
+              providers={filteredProviders}
+              allProviders={providers}
+              currentUser={currentUser}
+              enableMultiProviderTypes={enableMultiProviderTypes}
+              healthStatus={healthStatus}
+              statistics={statistics}
+              statisticsLoading={statisticsLoading}
+              currencyCode={currencyCode}
+            />
+          )}
+        </div>
       )}
 
       <ProviderBatchActions

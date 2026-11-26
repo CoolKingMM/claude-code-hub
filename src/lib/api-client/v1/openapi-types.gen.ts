@@ -18583,6 +18583,8 @@ export interface operations {
                         todayRequests: number;
                         /** @description Today's cost. */
                         todayCost: number;
+                        /** @description Today's total token usage. */
+                        todayTokens?: number;
                         /** @description Average response time in milliseconds. */
                         avgResponseTime: number;
                         /** @description Today's error rate percentage. */
@@ -18591,6 +18593,8 @@ export interface operations {
                         yesterdaySamePeriodRequests: number;
                         /** @description Yesterday same-period cost. */
                         yesterdaySamePeriodCost: number;
+                        /** @description Yesterday same-period total token usage. */
+                        yesterdaySamePeriodTokens?: number;
                         /** @description Yesterday same-period average response time. */
                         yesterdaySamePeriodAvgResponseTime: number;
                         /** @description Recent one-minute request count. */

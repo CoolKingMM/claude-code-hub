@@ -53,6 +53,8 @@ describe("dashboard ledger aggregations", () => {
       const sql = sqlQuery();
       expect(sql.sql).toContain('"usage_ledger"');
       expect(sql.sql).toContain("GROUPING SETS ((dimension_id), ())");
+      expect(sql.sql).toContain("cache_creation_5m_input_tokens");
+      expect(sql.sql).toContain("cache_creation_1h_input_tokens");
       expect(sql.sql).toContain('"is_replay" = false');
       expect(sql.sql).toContain('"blocked_by" IS NULL');
       expect(sql.sql).toContain("NOT IN");

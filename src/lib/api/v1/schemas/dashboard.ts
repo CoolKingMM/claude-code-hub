@@ -72,10 +72,17 @@ export const DashboardOverviewResponseSchema = z.object({
   concurrentSessions: z.number().int().min(0).describe("Concurrent sessions."),
   todayRequests: z.number().int().min(0).describe("Today's request count."),
   todayCost: z.number().min(0).describe("Today's cost."),
+  todayTokens: z.number().int().min(0).optional().describe("Today's total token usage."),
   avgResponseTime: z.number().min(0).describe("Average response time in milliseconds."),
   todayErrorRate: z.number().min(0).describe("Today's error rate percentage."),
   yesterdaySamePeriodRequests: z.number().int().min(0).describe("Yesterday same-period requests."),
   yesterdaySamePeriodCost: z.number().min(0).describe("Yesterday same-period cost."),
+  yesterdaySamePeriodTokens: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Yesterday same-period total token usage."),
   yesterdaySamePeriodAvgResponseTime: z
     .number()
     .min(0)

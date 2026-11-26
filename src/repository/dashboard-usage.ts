@@ -95,11 +95,20 @@ export async function findDashboardUsage(
         count(*) AS requests, COALESCE(sum(cost_usd), 0) AS cost,
         COALESCE(sum(input_tokens), 0) AS "inputTokens",
         COALESCE(sum(output_tokens), 0) AS "outputTokens",
-        COALESCE(sum(cache_creation_input_tokens), 0) AS "cacheCreationTokens",
+        COALESCE(
+          sum(
+            GREATEST(
+              COALESCE(cache_creation_input_tokens, 0),
+              COALESCE(cache_creation_5m_input_tokens, 0) + COALESCE(cache_creation_1h_input_tokens, 0)
+            )
+          ),
+          0
+        ) AS "cacheCreationTokens",
         COALESCE(sum(cache_read_input_tokens), 0) AS "cacheReadTokens"
       FROM (SELECT ${dimension} AS dimension_id, ${representative} AS representative_id,
         ${usageLedger.costUsd}, ${usageLedger.inputTokens}, ${usageLedger.outputTokens},
-        ${usageLedger.cacheCreationInputTokens}, ${usageLedger.cacheReadInputTokens}
+        ${usageLedger.cacheCreationInputTokens}, ${usageLedger.cacheCreation5mInputTokens},
+        ${usageLedger.cacheCreation1hInputTokens}, ${usageLedger.cacheReadInputTokens}
         FROM ${usageLedger} ${sourceJoin}
       WHERE ${LEDGER_BILLING_CONDITION}
         AND ${usageLedger.createdAt} >= ${range.startTime.toISOString()}::timestamptz

@@ -67,20 +67,6 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     iconName: "file-text",
   },
   {
-    href: "/api/v1/scalar",
-    labelKey: "nav.apiDocs",
-    label: "API Docs",
-    external: true,
-    iconName: "book-open",
-  },
-  {
-    href: "https://claude-code-hub.app/",
-    labelKey: "nav.docs",
-    label: "Documentation",
-    external: true,
-    iconName: "help-circle",
-  },
-  {
     href: "https://github.com/ding113/claude-code-hub/issues",
     labelKey: "nav.feedback",
     label: "Feedback",

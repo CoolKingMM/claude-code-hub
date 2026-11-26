@@ -239,10 +239,12 @@ describe("lightweight overview", () => {
     concurrentSessions: 1,
     todayRequests: 12,
     todayCost: 1.2,
+    todayTokens: 2_500_000,
     avgResponseTime: 250,
     todayErrorRate: 0,
     yesterdaySamePeriodRequests: 0,
     yesterdaySamePeriodCost: 0,
+    yesterdaySamePeriodTokens: 0,
     yesterdaySamePeriodAvgResponseTime: 0,
     recentMinuteRequests: 3,
   };
@@ -294,10 +296,12 @@ describe("lightweight overview", () => {
           ...overview,
           todayRequests: 1_250_000,
           todayCost: 18.5,
+          todayTokens: 3_450_000_000,
           avgResponseTime: 1850,
           todayErrorRate: 2.5,
           yesterdaySamePeriodRequests: 1_000_000,
           yesterdaySamePeriodCost: 15,
+          yesterdaySamePeriodTokens: 2_000_000_000,
           yesterdaySamePeriodAvgResponseTime: 1500,
           recentMinuteRequests: 1500,
         }}
@@ -306,7 +310,7 @@ describe("lightweight overview", () => {
     );
     expect(container.textContent).toContain("1.25M");
     expect(container.textContent).toContain("1.85 s");
-    expect(container.textContent).toContain("1.5K");
+    expect(container.textContent).toContain("3.45B");
     expect(container.querySelector('[data-testid="model-breakdown-slot"]')).toBeTruthy();
   });
 });

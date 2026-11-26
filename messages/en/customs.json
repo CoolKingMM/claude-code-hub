@@ -32,7 +32,8 @@
     "avgResponse": "Average Response Time",
     "viewDetails": "View Details",
     "rpm": "RPM",
-    "vsYesterday": "vs Yesterday"
+    "vsYesterday": "vs Yesterday",
+    "todayTokens": "Today's Tokens"
   },
   "activeSessions": {
     "title": "Active Sessions",

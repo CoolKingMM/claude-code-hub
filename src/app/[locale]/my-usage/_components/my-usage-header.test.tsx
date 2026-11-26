@@ -64,13 +64,12 @@ describe("MyUsageHeader", () => {
     });
   }
 
-  it("renders a visible usage documentation entry for readonly users", () => {
+  it("renders user header without usage documentation entry", () => {
     renderHeader();
 
     const docsLink = container.querySelector('a[href="/usage-doc"]');
 
-    expect(docsLink).not.toBeNull();
-    expect(docsLink?.textContent).toContain("Usage Docs");
+    expect(docsLink).toBeNull();
     expect(container.textContent).toContain("Welcome, Ada");
   });
 });

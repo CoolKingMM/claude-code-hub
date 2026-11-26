@@ -32,7 +32,8 @@
     "avgResponse": "Среднее время ответа",
     "viewDetails": "Просмотр деталей",
     "rpm": "RPM",
-    "vsYesterday": "к вчера"
+    "vsYesterday": "к вчера",
+    "todayTokens": "Токены за сегодня"
   },
   "activeSessions": {
     "title": "Активные сеансы",

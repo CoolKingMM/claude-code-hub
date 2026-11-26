@@ -15,6 +15,8 @@ export interface OverviewMetrics {
   todayRequests: number;
   /** 今日总消耗（美元） */
   todayCost: number;
+  /** 今日总 Token 消耗（输入 + 输出 + 缓存写入 + 缓存读取） */
+  todayTokens?: number;
   /** 平均响应时间（毫秒） */
   avgResponseTime: number;
   /** 今日错误率（百分比） */
@@ -29,11 +31,27 @@ export interface OverviewMetricsWithComparison extends OverviewMetrics {
   yesterdaySamePeriodRequests: number;
   /** 昨日同时段消耗 */
   yesterdaySamePeriodCost: number;
+  /** 昨日同时段总 Token 消耗 */
+  yesterdaySamePeriodTokens?: number;
   /** 昨日同时段平均响应时间 */
   yesterdaySamePeriodAvgResponseTime: number;
   /** 最近1分钟请求数 (RPM) */
   recentMinuteRequests: number;
 }
+
+const totalTokensExpr = sql<number>`COALESCE(
+  sum(
+    COALESCE(${usageLedger.inputTokens}, 0)::bigint +
+    COALESCE(${usageLedger.outputTokens}, 0)::bigint +
+    GREATEST(
+      COALESCE(${usageLedger.cacheCreationInputTokens}, 0)::bigint,
+      COALESCE(${usageLedger.cacheCreation5mInputTokens}, 0)::bigint +
+        COALESCE(${usageLedger.cacheCreation1hInputTokens}, 0)::bigint
+    ) +
+    COALESCE(${usageLedger.cacheReadInputTokens}, 0)::bigint
+  ),
+  0
+)`;
 
 /**
  * 获取今日概览统计数据
@@ -51,6 +69,7 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     .select({
       requestCount: count(),
       totalCost: sum(usageLedger.costUsd),
+      totalTokens: totalTokensExpr,
       avgDuration: avg(usageLedger.durationMs),
       errorCount: sql<number>`count(*) FILTER (WHERE NOT ${usageLedger.isSuccess})`,
     })
@@ -79,6 +98,7 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
   return {
     todayRequests: requestCount,
     todayCost,
+    todayTokens: Number(result.totalTokens || 0),
     avgResponseTime,
     todayErrorRate,
   };
@@ -112,6 +132,7 @@ export async function getOverviewMetricsWithComparison(
       .select({
         requestCount: count(),
         totalCost: sum(usageLedger.costUsd),
+        totalTokens: totalTokensExpr,
         avgDuration: avg(usageLedger.durationMs),
         errorCount: sql<number>`count(*) FILTER (WHERE NOT ${usageLedger.isSuccess})`,
       })
@@ -130,6 +151,7 @@ export async function getOverviewMetricsWithComparison(
       .select({
         requestCount: count(),
         totalCost: sum(usageLedger.costUsd),
+        totalTokens: totalTokensExpr,
         avgDuration: avg(usageLedger.durationMs),
       })
       .from(usageLedger)
@@ -183,10 +205,12 @@ export async function getOverviewMetricsWithComparison(
   return {
     todayRequests: todayRequestCount,
     todayCost,
+    todayTokens: Number(today.totalTokens || 0),
     avgResponseTime: todayAvgResponseTime,
     todayErrorRate,
     yesterdaySamePeriodRequests,
     yesterdaySamePeriodCost,
+    yesterdaySamePeriodTokens: Number(yesterday.totalTokens || 0),
     yesterdaySamePeriodAvgResponseTime,
     recentMinuteRequests: Number(rpm.requestCount || 0),
   };

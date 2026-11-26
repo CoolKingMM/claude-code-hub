@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, Book, ExternalLink, Eye, EyeOff, Key, Loader2 } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Key, Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
-import { Link, useRouter } from "@/i18n/routing";
+import { useRouter } from "@/i18n/routing";
 import { DEFAULT_SITE_TITLE } from "@/lib/site-title";
 import { resolveLoginRedirectTarget } from "./redirect-safety";
 
@@ -225,16 +225,6 @@ function LoginPageContent() {
 
       {/* Top Right Controls */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
-        <Link
-          href="/usage-doc"
-          className="flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-card/70 px-3 text-sm text-muted-foreground shadow-xs transition-all hover:border-border hover:bg-accent/60 hover:text-accent-foreground"
-        >
-          <Book className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t("actions.viewUsageDoc")}</span>
-          <span className="sm:hidden">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </span>
-        </Link>
         <ThemeSwitcher size="sm" />
         <LanguageSwitcher size="sm" />
       </div>
