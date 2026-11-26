@@ -35,6 +35,7 @@ import type {
   Provider,
   ProviderModelRedirectRule,
   ProviderProtocolConfigInput,
+  ProviderType,
   UpdateProviderData,
 } from "@/types/provider";
 import { toProvider } from "./_shared/transformers";
