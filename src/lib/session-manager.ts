@@ -3442,7 +3442,8 @@ export class SessionManager {
   static async terminateSession(
     sessionId: string,
     expectedProviderIds?: readonly number[],
-    expectedKeyId?: number
+    expectedKeyId?: number,
+    extraQuotaScopes?: readonly (number | string)[]
   ): Promise<boolean> {
     const redis = getRedisClient();
     if (redis?.status !== "ready") {
@@ -3560,6 +3561,10 @@ export class SessionManager {
                 `provider:${terminatedProviderId}:active_session_refs`,
                 sessionId
               );
+              for (const scope of extraQuotaScopes ?? []) {
+                providerCleanup.zrem(`provider:${scope}:active_sessions`, sessionId);
+                providerCleanup.hdel(`provider:${scope}:active_session_refs`, sessionId);
+              }
               await providerCleanup.exec();
             } catch (cleanupError) {
               logger.warn("SessionManager: Scoped versioned Provider index cleanup failed", {
@@ -3616,6 +3621,10 @@ export class SessionManager {
                 `provider:${terminatedProviderId}:active_session_refs`,
                 sessionId
               );
+              for (const scope of extraQuotaScopes ?? []) {
+                providerCleanup.zrem(`provider:${scope}:active_sessions`, sessionId);
+                providerCleanup.hdel(`provider:${scope}:active_session_refs`, sessionId);
+              }
               await providerCleanup.exec();
             } catch (cleanupError) {
               logger.warn("SessionManager: Scoped legacy Provider index cleanup failed", {
@@ -3691,6 +3700,10 @@ export class SessionManager {
         pipeline.zrem(`provider:${providerId}:active_sessions`, sessionId);
         pipeline.hdel(`provider:${providerId}:active_session_refs`, sessionId);
       }
+      for (const scope of extraQuotaScopes ?? []) {
+        pipeline.zrem(`provider:${scope}:active_sessions`, sessionId);
+        pipeline.hdel(`provider:${scope}:active_session_refs`, sessionId);
+      }
 
       if (keyId) {
         pipeline.zrem(getKeyActiveSessionsKey(keyId), sessionId);
@@ -3733,9 +3746,15 @@ export class SessionManager {
     }
   }
 
-  static async terminateProviderSessionsBatch(providerIds: number[]): Promise<number> {
+  static async terminateProviderSessionsBatch(
+    providerIds: number[],
+    extraQuotaScopes?: readonly (number | string)[]
+  ): Promise<number> {
     const uniqueProviderIds = Array.from(
       new Set(providerIds.filter((providerId) => Number.isInteger(providerId) && providerId > 0))
+    );
+    const uniqueQuotaScopes = Array.from(
+      new Set((extraQuotaScopes ?? []).filter((scope) => String(scope).trim().length > 0))
     );
     if (uniqueProviderIds.length === 0) {
       return 0;
@@ -3751,6 +3770,9 @@ export class SessionManager {
       const pipeline = redis.pipeline();
       for (const providerId of uniqueProviderIds) {
         pipeline.zrange(`provider:${providerId}:active_sessions`, "0", "-1");
+      }
+      for (const scope of uniqueQuotaScopes) {
+        pipeline.zrange(`provider:${scope}:active_sessions`, "0", "-1");
       }
 
       const results = await pipeline.exec();
@@ -3781,10 +3803,14 @@ export class SessionManager {
         return 0;
       }
 
-      const terminatedCount = await SessionManager.terminateSessionsBatch(
-        [...sessionIds],
-        uniqueProviderIds
-      );
+      const terminatedCount =
+        uniqueQuotaScopes.length > 0
+          ? await SessionManager.terminateSessionsBatch(
+              [...sessionIds],
+              uniqueProviderIds,
+              uniqueQuotaScopes
+            )
+          : await SessionManager.terminateSessionsBatch([...sessionIds], uniqueProviderIds);
       logger.info("SessionManager: Terminated provider sessions batch", {
         providerIds: uniqueProviderIds,
         sessionCount: sessionIds.size,
@@ -3802,7 +3828,8 @@ export class SessionManager {
 
   static async terminateStickySessionsForProviders(
     providerIds: number[],
-    context: string
+    context: string,
+    extraQuotaScopes?: readonly (number | string)[]
   ): Promise<void> {
     const uniqueProviderIds = Array.from(
       new Set(providerIds.filter((providerId) => Number.isInteger(providerId) && providerId > 0))
@@ -3812,7 +3839,7 @@ export class SessionManager {
     }
 
     try {
-      await SessionManager.terminateProviderSessionsBatch(uniqueProviderIds);
+      await SessionManager.terminateProviderSessionsBatch(uniqueProviderIds, extraQuotaScopes);
     } catch (error) {
       logger.warn(`${context}:terminate_provider_sessions_failed`, {
         providerIds: uniqueProviderIds,
@@ -3831,7 +3858,8 @@ export class SessionManager {
    */
   static async terminateSessionsBatch(
     sessionIds: string[],
-    expectedProviderIds?: readonly number[]
+    expectedProviderIds?: readonly number[],
+    extraQuotaScopes?: readonly (number | string)[]
   ): Promise<number> {
     if (sessionIds.length === 0) {
       return 0;
@@ -3852,7 +3880,12 @@ export class SessionManager {
         const chunk = sessionIds.slice(i, i + CHUNK_SIZE);
         const results = await Promise.all(
           chunk.map(async (sessionId) => {
-            const success = await SessionManager.terminateSession(sessionId, expectedProviderIds);
+            const success = await SessionManager.terminateSession(
+              sessionId,
+              expectedProviderIds,
+              undefined,
+              extraQuotaScopes
+            );
             return success ? 1 : 0;
           })
         );

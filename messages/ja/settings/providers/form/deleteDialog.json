@@ -2,5 +2,10 @@
   "cancel": "キャンセル",
   "confirm": "削除を確定",
   "description": "プロバイダー「{name}」を削除しますか？この操作は元に戻せません。",
-  "title": "プロバイダーを削除"
+  "title": "プロバイダーを削除",
+  "bundleDescription": "チャネル \"{name}\" と関連する {count} 件のプロトコルレコードをすべて削除してもよろしいですか？過去のリクエストログは保持されます。",
+  "removeProtocolTitle": "プロトコル削除の確認",
+  "removeProtocolDescription": "保存すると、チェックを外した次のプロトコルがソフト削除されます: {protocols}。過去のログは保持され、対象プロトコルのスティッキーセッションは終了されます。",
+  "removeProtocolCancel": "キャンセル",
+  "removeProtocolConfirm": "確認して保存"
 }

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/drizzle/db";
 import {
@@ -19,6 +20,11 @@ import { getSharedProviderUpdate } from "@/lib/provider-channel-update";
 import { type ProviderKeyEntry, validateProviderKeys } from "@/lib/provider-key-batch";
 import { buildAdditionalProviderData } from "@/lib/provider-key-clone";
 import { normalizeProviderModelRedirectRules } from "@/lib/provider-model-redirects";
+import {
+  extractProtocolSpecificUpdate,
+  normalizeProtocolConfigs,
+  stripProtocolSpecificFields,
+} from "@/lib/provider-protocol-bundle";
 import { groupProvidersByChannel } from "@/lib/provider-vendor-groups";
 import { parseProviderGroups } from "@/lib/utils/provider-group";
 import { resolveSystemTimezone } from "@/lib/utils/timezone";
@@ -28,6 +34,7 @@ import type {
   CreateProviderData,
   Provider,
   ProviderModelRedirectRule,
+  ProviderProtocolConfigInput,
   UpdateProviderData,
 } from "@/types/provider";
 import { toProvider } from "./_shared/transformers";
@@ -226,6 +233,7 @@ export async function createProvider(
     key: providerData.key,
     newApiAccessToken: providerData.new_api_access_token ?? null,
     newApiUserId: providerData.new_api_user_id ?? null,
+    protocolGroupId: providerData.protocol_group_id ?? null,
     isEnabled: providerData.is_enabled,
     weight: providerData.weight,
     priority: providerData.priority,
@@ -322,6 +330,7 @@ export async function createProvider(
         newApiAccessToken: providers.newApiAccessToken,
         newApiUserId: providers.newApiUserId,
         providerVendorId: providers.providerVendorId,
+        protocolGroupId: providers.protocolGroupId,
         isEnabled: providers.isEnabled,
         weight: providers.weight,
         priority: providers.priority,
@@ -413,6 +422,7 @@ export async function findProviderList(
       newApiAccessToken: providers.newApiAccessToken,
       newApiUserId: providers.newApiUserId,
       providerVendorId: providers.providerVendorId,
+      protocolGroupId: providers.protocolGroupId,
       isEnabled: providers.isEnabled,
       weight: providers.weight,
       priority: providers.priority,
@@ -504,6 +514,7 @@ export async function findAllProvidersFresh(): Promise<Provider[]> {
       newApiAccessToken: providers.newApiAccessToken,
       newApiUserId: providers.newApiUserId,
       providerVendorId: providers.providerVendorId,
+      protocolGroupId: providers.protocolGroupId,
       isEnabled: providers.isEnabled,
       weight: providers.weight,
       priority: providers.priority,
@@ -599,6 +610,7 @@ export async function findProviderById(id: number): Promise<Provider | null> {
       newApiAccessToken: providers.newApiAccessToken,
       newApiUserId: providers.newApiUserId,
       providerVendorId: providers.providerVendorId,
+      protocolGroupId: providers.protocolGroupId,
       isEnabled: providers.isEnabled,
       weight: providers.weight,
       priority: providers.priority,
@@ -686,6 +698,8 @@ export async function updateProvider(
     dbData.newApiAccessToken = providerData.new_api_access_token;
   if (providerData.new_api_user_id !== undefined)
     dbData.newApiUserId = providerData.new_api_user_id;
+  if (providerData.protocol_group_id !== undefined)
+    dbData.protocolGroupId = providerData.protocol_group_id;
   if (providerData.is_enabled !== undefined) dbData.isEnabled = providerData.is_enabled;
   if (providerData.weight !== undefined) dbData.weight = providerData.weight;
   if (providerData.priority !== undefined) dbData.priority = providerData.priority;
@@ -876,6 +890,7 @@ export async function updateProvider(
         newApiAccessToken: providers.newApiAccessToken,
         newApiUserId: providers.newApiUserId,
         providerVendorId: providers.providerVendorId,
+        protocolGroupId: providers.protocolGroupId,
         isEnabled: providers.isEnabled,
         weight: providers.weight,
         priority: providers.priority,
@@ -1095,9 +1110,21 @@ export async function updateProviderChannel(
       throw new ProviderChannelEditError();
     }
     const shared = getSharedProviderUpdate(data);
+    const crossProtocolShared = stripProtocolSpecificFields(shared);
+    const anchorProvider = previousProviders.find((item) => item.id === id);
     const updatedProviders: Provider[] = [];
     for (const previous of previousProviders) {
-      const updated = await updateProvider(previous.id, previous.id === id ? data : shared, {
+      const nextPatch =
+        previous.id === id
+          ? data
+          : anchorProvider && previous.providerType !== anchorProvider.providerType
+            ? crossProtocolShared
+            : shared;
+      if (Object.keys(nextPatch).length === 0) {
+        updatedProviders.push(previous);
+        continue;
+      }
+      const updated = await updateProvider(previous.id, nextPatch, {
         tx,
         afterCommit,
       });
@@ -1120,6 +1147,605 @@ export async function updateProviderChannel(
     }
     return { provider, updatedProviders, previousProviders, addedProviders };
   });
+  for (const callback of afterCommit) await callback();
+  return result;
+}
+
+export class ProviderProtocolBundleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProviderProtocolBundleError";
+  }
+}
+
+function buildKeySlotName(baseName: string, slotIndex: number): string {
+  const trimmed = baseName.trim() || "Provider";
+  if (slotIndex <= 0) {
+    return trimmed.slice(0, 64);
+  }
+  const suffix = `-${slotIndex + 1}`;
+  return `${trimmed.slice(0, Math.max(1, 64 - suffix.length))}${suffix}`;
+}
+
+function buildCreateInputFromTemplate(
+  template: Provider,
+  overrides: Partial<CreateProviderData>
+): CreateProviderData {
+  return {
+    name: template.name,
+    url: template.url,
+    key: template.key,
+    new_api_access_token: template.newApiAccessToken,
+    new_api_user_id: template.newApiUserId,
+    protocol_group_id: template.protocolGroupId ?? null,
+    is_enabled: template.isEnabled,
+    weight: template.weight,
+    priority: template.priority,
+    group_priorities: template.groupPriorities,
+    cost_multiplier: template.costMultiplier,
+    group_tag: template.groupTag,
+    provider_type: template.providerType,
+    preserve_client_ip: template.preserveClientIp,
+    disable_session_reuse: template.disableSessionReuse,
+    // 默认清空协议专属规则，交由调用方按目标协议显式覆盖，绝不继承旧协议白名单
+    model_redirects: null,
+    allowed_models: null,
+    allowed_clients: template.allowedClients,
+    blocked_clients: template.blockedClients,
+    active_time_start: template.activeTimeStart,
+    active_time_end: template.activeTimeEnd,
+    mcp_passthrough_type: template.mcpPassthroughType,
+    mcp_passthrough_url: template.mcpPassthroughUrl,
+    limit_5h_usd: template.limit5hUsd,
+    limit_5h_reset_mode: template.limit5hResetMode,
+    limit_daily_usd: template.limitDailyUsd,
+    daily_reset_mode: template.dailyResetMode,
+    daily_reset_time: template.dailyResetTime,
+    limit_weekly_usd: template.limitWeeklyUsd,
+    limit_monthly_usd: template.limitMonthlyUsd,
+    limit_total_usd: template.limitTotalUsd,
+    limit_concurrent_sessions: template.limitConcurrentSessions,
+    max_retry_attempts: template.maxRetryAttempts,
+    circuit_breaker_failure_threshold: template.circuitBreakerFailureThreshold,
+    circuit_breaker_open_duration: template.circuitBreakerOpenDuration,
+    circuit_breaker_half_open_success_threshold: template.circuitBreakerHalfOpenSuccessThreshold,
+    proxy_url: template.proxyUrl,
+    proxy_fallback_to_direct: template.proxyFallbackToDirect,
+    custom_headers: template.customHeaders,
+    first_byte_timeout_streaming_ms: template.firstByteTimeoutStreamingMs,
+    streaming_idle_timeout_ms: template.streamingIdleTimeoutMs,
+    request_timeout_non_streaming_ms: template.requestTimeoutNonStreamingMs,
+    website_url: template.websiteUrl,
+    favicon_url: template.faviconUrl,
+    cache_ttl_preference: "inherit",
+    swap_cache_ttl_billing: false,
+    context_1m_preference: "inherit",
+    codex_reasoning_effort_preference: "inherit",
+    codex_reasoning_summary_preference: "inherit",
+    codex_text_verbosity_preference: "inherit",
+    codex_parallel_tool_calls_preference: "inherit",
+    codex_image_generation_preference: "inherit",
+    codex_service_tier_preference: "inherit",
+    anthropic_max_tokens_preference: "inherit",
+    anthropic_thinking_budget_preference: "inherit",
+    anthropic_adaptive_thinking: null,
+    gemini_google_search_preference: "inherit",
+    tpm: template.tpm,
+    rpm: template.rpm,
+    rpd: template.rpd,
+    cc: template.cc,
+    ...overrides,
+  };
+}
+
+export interface CreateProviderProtocolBundleResult {
+  primaryProvider: Provider;
+  createdProviders: Provider[];
+  adoptedProviders: Provider[];
+  protocolGroupId: string | null;
+}
+
+/**
+ * 原子创建多协议逻辑渠道（支持多 Key 矩阵及并入同站点已有独立协议渠道）。
+ */
+export async function createProviderProtocolBundle(
+  baseData: CreateProviderData,
+  rawProtocolConfigs: readonly ProviderProtocolConfigInput[],
+  additionalKeys: readonly ProviderKeyEntry[] = []
+): Promise<CreateProviderProtocolBundleResult> {
+  const protocolConfigs = normalizeProtocolConfigs(rawProtocolConfigs);
+  const allAdoptIds = Array.from(
+    new Set(protocolConfigs.flatMap((config) => config.adopt_provider_ids ?? []))
+  ).toSorted((a, b) => a - b);
+
+  const keyEntries: Array<{ key: string; isEnabled: boolean }> = [
+    { key: baseData.key.trim(), isEnabled: baseData.is_enabled ?? true },
+    ...additionalKeys.map((entry) => ({
+      key: entry.key.trim(),
+      isEnabled: entry.is_enabled ?? true,
+    })),
+  ];
+  const keyError = validateProviderKeys(
+    keyEntries.map((entry) => ({ key: entry.key, is_enabled: entry.isEnabled }))
+  );
+  if (keyError) {
+    throw new ProviderKeyAppendError(keyError);
+  }
+
+  const shouldAssignBundle = protocolConfigs.length > 1 || allAdoptIds.length > 0;
+  const protocolGroupId = shouldAssignBundle ? randomUUID() : null;
+  const sharedBase = stripProtocolSpecificFields(baseData);
+
+  const afterCommit: Array<() => Promise<void>> = [];
+  const result = await db.transaction(async (tx) => {
+    const adoptedRowsById = new Map<number, Provider>();
+    if (allAdoptIds.length > 0) {
+      const lockedAdopted = await tx
+        .select()
+        .from(providers)
+        .where(and(inArray(providers.id, allAdoptIds), isNull(providers.deletedAt)))
+        .orderBy(providers.id)
+        .for("update");
+      for (const row of lockedAdopted) {
+        const mapped = normalizeProviderRuntimeFields(toProvider(row));
+        if (mapped.protocolGroupId) {
+          throw new ProviderProtocolBundleError(
+            `渠道「${mapped.name}」已归属其他多协议渠道，无法直接并入`
+          );
+        }
+        adoptedRowsById.set(mapped.id, mapped);
+      }
+      if (adoptedRowsById.size !== allAdoptIds.length) {
+        throw new ProviderProtocolBundleError("待并入的已有渠道不存在或已被删除");
+      }
+    }
+
+    const providerVendorId = await getOrCreateProviderVendorIdFromUrls(
+      {
+        providerUrl: baseData.url,
+        websiteUrl: baseData.website_url ?? null,
+        faviconUrl: baseData.favicon_url ?? null,
+        displayName: baseData.name,
+      },
+      { tx }
+    );
+
+    const createdProviders: Provider[] = [];
+    const adoptedProviders: Provider[] = [];
+
+    for (const config of protocolConfigs) {
+      const protocolPatch = extractProtocolSpecificUpdate(config);
+      const adoptIds = config.adopt_provider_ids ?? [];
+      const adoptedKeysForProtocol = new Set<string>();
+
+      for (const adoptId of adoptIds) {
+        const target = adoptedRowsById.get(adoptId);
+        if (!target || target.providerType !== config.provider_type) {
+          throw new ProviderProtocolBundleError(
+            `待并入渠道 #${adoptId} 的协议类型与 ${config.provider_type} 不匹配`
+          );
+        }
+        const matchedSlotIndex = keyEntries.findIndex((slot) => slot.key === target.key);
+        const updated = await updateProvider(
+          target.id,
+          {
+            ...sharedBase,
+            ...protocolPatch,
+            protocol_group_id: protocolGroupId,
+            name: buildKeySlotName(baseData.name, Math.max(matchedSlotIndex, 0)),
+            key: matchedSlotIndex >= 0 ? keyEntries[matchedSlotIndex].key : target.key,
+          },
+          { tx, afterCommit }
+        );
+        if (!updated) {
+          throw new ProviderProtocolBundleError(`并入渠道 #${adoptId} 失败`);
+        }
+        adoptedProviders.push(updated);
+        adoptedKeysForProtocol.add(updated.key);
+      }
+
+      for (let slotIndex = 0; slotIndex < keyEntries.length; slotIndex++) {
+        const slot = keyEntries[slotIndex];
+        if (adoptedKeysForProtocol.has(slot.key)) continue;
+        const created = await createProvider(
+          {
+            ...sharedBase,
+            ...protocolPatch,
+            name: buildKeySlotName(baseData.name, slotIndex),
+            key: slot.key,
+            is_enabled: slot.isEnabled,
+            protocol_group_id: protocolGroupId,
+            tpm: baseData.tpm ?? null,
+            rpm: baseData.rpm ?? null,
+            rpd: baseData.rpd ?? null,
+            cc: baseData.cc ?? null,
+          } as CreateProviderData,
+          { tx, providerVendorId }
+        );
+        createdProviders.push(created);
+      }
+    }
+
+    const primaryProvider = createdProviders[0] ?? adoptedProviders[0];
+    if (!primaryProvider) {
+      throw new ProviderProtocolBundleError("创建多协议渠道失败：未生成有效记录");
+    }
+
+    return { primaryProvider, createdProviders, adoptedProviders, protocolGroupId };
+  });
+
+  for (const callback of afterCommit) await callback();
+  return result;
+}
+
+export interface SyncProviderProtocolBundleResult {
+  primaryProvider: Provider;
+  updatedProviders: Provider[];
+  previousProviders: Provider[];
+  addedProviders: Provider[];
+  adoptedProviders: Provider[];
+  removedProviders: Provider[];
+  protocolGroupId: string | null;
+}
+
+/**
+ * 原子同步编辑多协议逻辑渠道：
+ * - 支持在旧单协议渠道上勾选新协议并自动升级为多协议逻辑渠道；
+ * - 支持并入同站点已有独立协议渠道（保留其模型配置）；
+ * - 维持多协议 × 多 Key 矩阵对齐；
+ * - 取消勾选的旧协议记录软删除（保留 protocol_group_id 以便当期共享预算回源准确）。
+ */
+export async function syncProviderProtocolBundle(
+  anchorProviderId: number,
+  data: UpdateProviderData,
+  rawProtocolConfigs: readonly ProviderProtocolConfigInput[],
+  additionalKeys: readonly ProviderKeyEntry[] = []
+): Promise<SyncProviderProtocolBundleResult | null> {
+  const protocolConfigs = normalizeProtocolConfigs(rawProtocolConfigs);
+  const afterCommit: Array<() => Promise<void>> = [];
+
+  const result = await db.transaction(async (tx) => {
+    const [anchorRow] = await tx
+      .select()
+      .from(providers)
+      .where(and(eq(providers.id, anchorProviderId), isNull(providers.deletedAt)))
+      .limit(1);
+
+    if (!anchorRow) {
+      return null;
+    }
+
+    const anchorInitial = normalizeProviderRuntimeFields(toProvider(anchorRow));
+
+    // 查找当前逻辑渠道的所有活跃记录 ID
+    let currentGroupIds: number[];
+    if (anchorInitial.protocolGroupId) {
+      const siblingRows = await tx
+        .select({ id: providers.id })
+        .from(providers)
+        .where(
+          and(
+            eq(providers.protocolGroupId, anchorInitial.protocolGroupId),
+            isNull(providers.deletedAt)
+          )
+        );
+      currentGroupIds = siblingRows.map((row) => row.id);
+    } else if (anchorInitial.providerVendorId) {
+      const vendorRows = await tx
+        .select()
+        .from(providers)
+        .where(
+          and(
+            eq(providers.providerVendorId, anchorInitial.providerVendorId),
+            isNull(providers.deletedAt)
+          )
+        );
+      const vendorProviders = vendorRows.map((row) =>
+        normalizeProviderRuntimeFields(toProvider(row))
+      );
+      const matchedChannel = groupProvidersByChannel(vendorProviders).find((group) =>
+        group.providers.some((item) => item.id === anchorProviderId)
+      );
+      currentGroupIds = matchedChannel
+        ? matchedChannel.providers.map((item) => item.id)
+        : [anchorProviderId];
+    } else {
+      currentGroupIds = [anchorProviderId];
+    }
+
+    const currentGroupIdSet = new Set(currentGroupIds);
+    const requestedAdoptIds = Array.from(
+      new Set(
+        protocolConfigs
+          .flatMap((config) => config.adopt_provider_ids ?? [])
+          .filter((id) => !currentGroupIdSet.has(id))
+      )
+    );
+
+    // 统一按 ID 升序加行锁，防止并发编辑死锁或部分更新
+    const allLockIds = Array.from(new Set([...currentGroupIds, ...requestedAdoptIds])).toSorted(
+      (a, b) => a - b
+    );
+    const lockedRows = await tx
+      .select()
+      .from(providers)
+      .where(and(inArray(providers.id, allLockIds), isNull(providers.deletedAt)))
+      .orderBy(providers.id)
+      .for("update");
+
+    const lockedById = new Map<number, Provider>();
+    for (const row of lockedRows) {
+      const mapped = normalizeProviderRuntimeFields(toProvider(row));
+      lockedById.set(mapped.id, mapped);
+    }
+
+    const previousProviders = currentGroupIds
+      .map((id) => lockedById.get(id))
+      .filter((item): item is Provider => item !== undefined);
+    const anchor = lockedById.get(anchorProviderId);
+    if (!anchor || previousProviders.length !== currentGroupIds.length) {
+      throw new ProviderChannelEditError();
+    }
+
+    const adoptedInputById = new Map<number, Provider>();
+    for (const adoptId of requestedAdoptIds) {
+      const target = lockedById.get(adoptId);
+      if (!target) {
+        throw new ProviderProtocolBundleError("待并入的已有渠道不存在或已被删除");
+      }
+      if (target.protocolGroupId) {
+        throw new ProviderProtocolBundleError(
+          `渠道「${target.name}」已归属其他多协议渠道，无法直接并入`
+        );
+      }
+      adoptedInputById.set(adoptId, target);
+    }
+
+    // 一旦渠道拥有 protocolGroupId 即永久保留，确保多协议共享限额账本不断裂
+    const targetProtocolGroupId =
+      anchor.protocolGroupId ??
+      (protocolConfigs.length > 1 || requestedAdoptIds.length > 0 ? randomUUID() : null);
+
+    // 构建去重后的 Key 槽位（按最早记录顺序排列，主槽位为锚点 Key）
+    const keySlots: Array<{ originalKey: string; nextKey: string; isEnabled: boolean }> = [];
+    const seenKeys = new Set<string>();
+    const orderedExisting = [anchor, ...previousProviders.filter((item) => item.id !== anchor.id)];
+    for (const item of orderedExisting) {
+      if (seenKeys.has(item.key)) continue;
+      seenKeys.add(item.key);
+      const isPrimarySlot = item.key === anchor.key;
+      keySlots.push({
+        originalKey: item.key,
+        nextKey: isPrimarySlot && data.key?.trim() ? data.key.trim() : item.key,
+        isEnabled:
+          isPrimarySlot && data.is_enabled !== undefined ? data.is_enabled : item.isEnabled,
+      });
+    }
+
+    if (additionalKeys.length > 0) {
+      const validationError = validateProviderKeys([
+        ...keySlots.map((slot) => ({ key: slot.nextKey, is_enabled: slot.isEnabled })),
+        ...additionalKeys,
+      ]);
+      if (validationError) {
+        throw new ProviderKeyAppendError(validationError);
+      }
+      for (const entry of additionalKeys) {
+        const trimmedKey = entry.key.trim();
+        keySlots.push({
+          originalKey: trimmedKey,
+          nextKey: trimmedKey,
+          isEnabled: entry.is_enabled ?? true,
+        });
+      }
+    }
+
+    const sharedUpdateBase = stripProtocolSpecificFields(getSharedProviderUpdate(data));
+    const baseName = data.name?.trim() || anchor.name;
+
+    const updatedProviders: Provider[] = [];
+    const addedProviders: Provider[] = [];
+    const adoptedProviders: Provider[] = [];
+    const keptProviderIds = new Set<number>();
+    const targetProtocolSet = new Set(protocolConfigs.map((config) => config.provider_type));
+
+    // 先算出同步后的目标 vendorId（当 URL/name/website 更新时保持组内 vendor 一致）
+    let resolvedVendorId: number | null = anchor.providerVendorId;
+    if (data.url !== undefined || data.website_url !== undefined) {
+      resolvedVendorId = await getOrCreateProviderVendorIdFromUrls(
+        {
+          providerUrl: data.url ?? anchor.url,
+          websiteUrl: data.website_url !== undefined ? data.website_url : anchor.websiteUrl,
+          faviconUrl: data.favicon_url !== undefined ? data.favicon_url : anchor.faviconUrl,
+          displayName: baseName,
+        },
+        { tx }
+      );
+    }
+
+    for (const config of protocolConfigs) {
+      const protocolPatch = extractProtocolSpecificUpdate(config);
+      const existingForProtocol = previousProviders.filter(
+        (item) => item.providerType === config.provider_type
+      );
+
+      // 校验本协议请求并入的独立渠道
+      const adoptForProtocol: Provider[] = [];
+      for (const adoptId of config.adopt_provider_ids ?? []) {
+        if (currentGroupIdSet.has(adoptId)) continue;
+        const target = adoptedInputById.get(adoptId);
+        if (!target || target.providerType !== config.provider_type) {
+          throw new ProviderProtocolBundleError(
+            `待并入渠道 #${adoptId} 的协议类型与 ${config.provider_type} 不匹配`
+          );
+        }
+        adoptForProtocol.push(target);
+      }
+
+      const existingByOriginalKey = new Map<string, Provider>();
+      for (const record of existingForProtocol) {
+        if (!existingByOriginalKey.has(record.key)) {
+          existingByOriginalKey.set(record.key, record);
+        }
+      }
+
+      const coveredSlotKeys = new Set<string>();
+
+      // 1. 更新当前组内本协议已有记录
+      for (const record of existingForProtocol) {
+        const slotIndex = keySlots.findIndex((slot) => slot.originalKey === record.key);
+        const slot = slotIndex >= 0 ? keySlots[slotIndex] : null;
+        const nextRecordPatch: UpdateProviderData = {
+          ...sharedUpdateBase,
+          ...protocolPatch,
+          protocol_group_id: targetProtocolGroupId,
+          ...(data.name !== undefined && slotIndex >= 0
+            ? { name: buildKeySlotName(baseName, slotIndex) }
+            : {}),
+          ...(slot && slot.nextKey !== record.key ? { key: slot.nextKey } : {}),
+          ...(slotIndex === 0 && data.is_enabled !== undefined
+            ? { is_enabled: data.is_enabled }
+            : {}),
+        };
+        const updated = await updateProvider(record.id, nextRecordPatch, { tx, afterCommit });
+        if (!updated) throw new ProviderChannelEditError();
+        updatedProviders.push(updated);
+        keptProviderIds.add(updated.id);
+        if (slot) coveredSlotKeys.add(slot.nextKey);
+      }
+
+      // 2. 并入独立同协议渠道（写入同一 protocol_group_id，同步共享配置并应用本协议 Tab 规则）
+      for (const adopted of adoptForProtocol) {
+        const slotIndex = keySlots.findIndex(
+          (slot) => slot.originalKey === adopted.key || slot.nextKey === adopted.key
+        );
+        const targetSlotIndex = Math.max(slotIndex, 0);
+        const targetSlot = keySlots[targetSlotIndex];
+        const nextAdoptPatch: UpdateProviderData = {
+          ...sharedUpdateBase,
+          ...protocolPatch,
+          url: data.url ?? anchor.url,
+          website_url: data.website_url !== undefined ? data.website_url : anchor.websiteUrl,
+          favicon_url: data.favicon_url !== undefined ? data.favicon_url : anchor.faviconUrl,
+          group_tag: data.group_tag !== undefined ? data.group_tag : anchor.groupTag,
+          priority: data.priority ?? anchor.priority,
+          group_priorities:
+            data.group_priorities !== undefined ? data.group_priorities : anchor.groupPriorities,
+          weight: data.weight ?? anchor.weight,
+          cost_multiplier: data.cost_multiplier ?? anchor.costMultiplier,
+          limit_5h_usd: data.limit_5h_usd !== undefined ? data.limit_5h_usd : anchor.limit5hUsd,
+          limit_5h_reset_mode: data.limit_5h_reset_mode ?? anchor.limit5hResetMode,
+          limit_daily_usd:
+            data.limit_daily_usd !== undefined ? data.limit_daily_usd : anchor.limitDailyUsd,
+          daily_reset_mode: data.daily_reset_mode ?? anchor.dailyResetMode,
+          daily_reset_time: data.daily_reset_time ?? anchor.dailyResetTime,
+          limit_weekly_usd:
+            data.limit_weekly_usd !== undefined ? data.limit_weekly_usd : anchor.limitWeeklyUsd,
+          limit_monthly_usd:
+            data.limit_monthly_usd !== undefined ? data.limit_monthly_usd : anchor.limitMonthlyUsd,
+          limit_total_usd:
+            data.limit_total_usd !== undefined ? data.limit_total_usd : anchor.limitTotalUsd,
+          limit_concurrent_sessions:
+            data.limit_concurrent_sessions ?? anchor.limitConcurrentSessions,
+          proxy_url: data.proxy_url !== undefined ? data.proxy_url : anchor.proxyUrl,
+          proxy_fallback_to_direct: data.proxy_fallback_to_direct ?? anchor.proxyFallbackToDirect,
+          custom_headers:
+            data.custom_headers !== undefined ? data.custom_headers : anchor.customHeaders,
+          new_api_access_token:
+            data.new_api_access_token !== undefined
+              ? data.new_api_access_token
+              : anchor.newApiAccessToken,
+          new_api_user_id:
+            data.new_api_user_id !== undefined ? data.new_api_user_id : anchor.newApiUserId,
+          protocol_group_id: targetProtocolGroupId,
+          name: buildKeySlotName(baseName, targetSlotIndex),
+          // 统一使用逻辑渠道共享密钥（若该被并入记录本来就与某槽位 key 一致则无变化）
+          key: targetSlot ? targetSlot.nextKey : adopted.key,
+        };
+        const updated = await updateProvider(adopted.id, nextAdoptPatch, { tx, afterCommit });
+        if (!updated) {
+          throw new ProviderProtocolBundleError(`并入渠道 #${adopted.id} 失败`);
+        }
+        adoptedProviders.push(updated);
+        updatedProviders.push(updated);
+        keptProviderIds.add(updated.id);
+        if (targetSlot) coveredSlotKeys.add(targetSlot.nextKey);
+      }
+
+      // 3. 补齐本协议缺失的 Key 槽位（例如新勾选协议或新增 additional_keys）
+      const templateProvider = updatedProviders[0] ?? anchor;
+      for (let slotIndex = 0; slotIndex < keySlots.length; slotIndex++) {
+        const slot = keySlots[slotIndex];
+        if (coveredSlotKeys.has(slot.nextKey)) continue;
+        const createInput = buildCreateInputFromTemplate(templateProvider, {
+          ...sharedUpdateBase,
+          ...protocolPatch,
+          name: buildKeySlotName(baseName, slotIndex),
+          key: slot.nextKey,
+          is_enabled: slot.isEnabled,
+          protocol_group_id: targetProtocolGroupId,
+        });
+        const created = await createProvider(createInput, {
+          tx,
+          providerVendorId: resolvedVendorId ?? templateProvider.providerVendorId,
+        });
+        addedProviders.push(created);
+        keptProviderIds.add(created.id);
+      }
+    }
+
+    // 4. 取消勾选的旧协议：软删除并保留 protocol_group_id（保持共享预算历史完整）
+    const removedProviders: Provider[] = [];
+    const now = new Date();
+    for (const previous of previousProviders) {
+      if (targetProtocolSet.has(previous.providerType) || keptProviderIds.has(previous.id)) {
+        continue;
+      }
+      await tx
+        .update(providers)
+        .set({
+          deletedAt: now,
+          isEnabled: false,
+          protocolGroupId: targetProtocolGroupId,
+          updatedAt: now,
+        })
+        .where(and(eq(providers.id, previous.id), isNull(providers.deletedAt)));
+      removedProviders.push(previous);
+    }
+
+    // 5. 同步组内 totalCostResetAt 保持一致（以锚点为准）
+    if (targetProtocolGroupId && anchor.totalCostResetAt) {
+      const activeIds = [
+        ...updatedProviders.map((item) => item.id),
+        ...addedProviders.map((item) => item.id),
+      ];
+      if (activeIds.length > 0) {
+        await tx
+          .update(providers)
+          .set({ totalCostResetAt: anchor.totalCostResetAt })
+          .where(and(inArray(providers.id, activeIds), isNull(providers.deletedAt)));
+      }
+    }
+
+    const primaryProvider =
+      updatedProviders.find((item) => item.id === anchorProviderId) ??
+      updatedProviders[0] ??
+      addedProviders[0];
+    if (!primaryProvider) {
+      throw new ProviderProtocolBundleError("同步多协议渠道失败：至少需要保留一个协议");
+    }
+
+    return {
+      primaryProvider,
+      updatedProviders,
+      previousProviders,
+      addedProviders,
+      adoptedProviders,
+      removedProviders,
+      protocolGroupId: targetProtocolGroupId,
+    };
+  });
+
   for (const callback of afterCommit) await callback();
   return result;
 }
@@ -1297,6 +1923,7 @@ export interface BatchProviderUpdates {
   // 余额查询凭证（单个编辑撤销时恢复）
   newApiAccessToken?: string | null;
   newApiUserId?: number | null;
+  protocolGroupId?: string | null;
 }
 
 type ProviderBatchUpdatedRow = {
@@ -1548,6 +2175,9 @@ export async function updateProvidersBatch(
   }
   if (updates.newApiUserId !== undefined) {
     setClauses.newApiUserId = updates.newApiUserId;
+  }
+  if (updates.protocolGroupId !== undefined) {
+    setClauses.protocolGroupId = updates.protocolGroupId;
   }
 
   if (Object.keys(setClauses).length === 1) {
@@ -2429,10 +3059,24 @@ export async function resetProviderTotalCostResetAt(
   providerId: number,
   resetAt: Date
 ): Promise<boolean> {
+  const [target] = await db
+    .select({ id: providers.id, protocolGroupId: providers.protocolGroupId })
+    .from(providers)
+    .where(and(eq(providers.id, providerId), isNull(providers.deletedAt)))
+    .limit(1);
+
+  if (!target) {
+    return false;
+  }
+
+  const scopeCondition = target.protocolGroupId
+    ? eq(providers.protocolGroupId, target.protocolGroupId)
+    : eq(providers.id, providerId);
+
   const result = await db
     .update(providers)
     .set({ totalCostResetAt: resetAt, updatedAt: new Date() })
-    .where(and(eq(providers.id, providerId), isNull(providers.deletedAt)))
+    .where(and(scopeCondition, isNull(providers.deletedAt)))
     .returning({ id: providers.id });
 
   return result.length > 0;

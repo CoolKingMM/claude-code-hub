@@ -194,7 +194,9 @@ export async function updateProvider(c: Context): Promise<Response> {
   );
   if (!result.ok) return actionError(c, result);
 
-  const updated = await findVisibleProvider(c, id);
+  const updatedTargetId =
+    (result.data as { primaryProviderId?: number } | undefined)?.primaryProviderId ?? id;
+  const updated = await findVisibleProvider(c, updatedTargetId);
   if (updated instanceof Response) return updated;
   return jsonResponse(updated ? sanitizeProvider(updated) : sanitizeProvider(existing), {
     headers: undoMetadataHeaders(result.data),
@@ -674,6 +676,7 @@ function sanitizeProvider(
     groupTag: provider.groupTag,
     providerType: provider.providerType as ProviderSummaryResponse["providerType"],
     providerVendorId: provider.providerVendorId,
+    protocolGroupId: provider.protocolGroupId ?? null,
     preserveClientIp: provider.preserveClientIp,
     disableSessionReuse: provider.disableSessionReuse,
     modelRedirects: provider.modelRedirects,

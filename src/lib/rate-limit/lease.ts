@@ -5,6 +5,7 @@
  * DB is authoritative, Redis stores lease slices.
  */
 
+import type { ProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import {
   type DailyResetMode,
   getTimeRangeForPeriodWithMode,
@@ -29,7 +30,7 @@ export type LeaseEntityTypeType = (typeof LeaseEntityType)[number];
  */
 export interface BudgetLease {
   entityType: LeaseEntityTypeType;
-  entityId: number;
+  entityId: ProviderQuotaScopeId;
   window: LeaseWindowType;
   resetMode: DailyResetMode;
   resetTime: string;
@@ -55,7 +56,7 @@ export function createBudgetLease(params: BudgetLease): BudgetLease {
  */
 export function buildLeaseKey(
   entityType: LeaseEntityTypeType,
-  entityId: number,
+  entityId: ProviderQuotaScopeId,
   window: LeaseWindowType,
   resetMode?: DailyResetMode
 ): string {
@@ -145,9 +146,12 @@ export function deserializeLease(json: string): BudgetLease | null {
     const parsed = JSON.parse(json);
 
     // Validate required fields
+    const hasValidEntityId =
+      typeof parsed.entityId === "number" ||
+      (typeof parsed.entityId === "string" && parsed.entityId.length > 0);
     if (
       typeof parsed.entityType !== "string" ||
-      typeof parsed.entityId !== "number" ||
+      !hasValidEntityId ||
       typeof parsed.window !== "string" ||
       typeof parsed.resetMode !== "string" ||
       typeof parsed.resetTime !== "string" ||

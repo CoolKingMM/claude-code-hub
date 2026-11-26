@@ -19,6 +19,7 @@ import { groupProvidersByChannel } from "@/lib/provider-vendor-groups";
 import { extractBaseUrl } from "@/lib/utils/validation";
 import type { McpPassthroughType } from "@/types/provider";
 import { ApiTestButton } from "../../api-test-button";
+import { ProtocolSubTabs } from "../components/protocol-sub-tabs";
 import { SectionCard, SmartInputWrapper } from "../components/section-card";
 import { useProviderForm } from "../provider-form-context";
 
@@ -34,14 +35,24 @@ export function TestingSection() {
     enabled: isEdit && Boolean(provider?.providerVendorId),
     refetchOnWindowFocus: false,
   });
-  const channelKeys = provider
+  const allChannelProviders = provider
     ? (
         groupProvidersByChannel(providers ?? [provider]).find((channel) =>
           channel.providers.some((key) => key.id === provider.id)
         )?.providers ?? [provider]
       ).toSorted((left, right) => left.id - right.id)
     : [];
-  const testProviderId = channelKeys.find((key) => key.id === selectedKeyId)?.id ?? provider?.id;
+  const activeProtocol = state.routing.activeProtocol ?? state.routing.providerType;
+  const activeProtocolChannelKeys = allChannelProviders.filter(
+    (item) => item.providerType === activeProtocol
+  );
+  // 若当前激活协议刚勾选尚未入库，回退到同组主协议行复用其已保存密钥，配合 providerType 测试新协议
+  const channelKeys =
+    activeProtocolChannelKeys.length > 0
+      ? activeProtocolChannelKeys
+      : allChannelProviders.filter((item) => item.providerType === provider?.providerType);
+  const testProviderId =
+    channelKeys.find((key) => key.id === selectedKeyId)?.id ?? channelKeys[0]?.id ?? provider?.id;
 
   // Forward parsed custom headers from form state to ApiTestButton; on parse failure
   // (user is mid-typing), pass null so the button's own textarea handles correction.
@@ -78,6 +89,7 @@ export function TestingSection() {
 
             {/* API Test Button */}
             <div className="p-4 rounded-lg bg-card/50 border border-border/50 space-y-4">
+              <ProtocolSubTabs />
               {isEdit && channelKeys.length > 1 && (
                 <SmartInputWrapper label={t("key.testKeyLabel")} description={t("key.testKeyDesc")}>
                   <Select

@@ -13,14 +13,17 @@ import {
 import { normalizeAllowedModelRules } from "@/lib/allowed-model-rules";
 import { stringifyCustomHeadersForTextarea } from "@/lib/custom-headers";
 import { normalizeProviderModelRedirectRules } from "@/lib/provider-model-redirects";
+import { sortProtocolsByDisplayOrder } from "@/lib/provider-protocol-bundle";
 import { parseProviderGroups } from "@/lib/utils/provider-group";
 import type { ProviderDisplay, ProviderType } from "@/types/provider";
 import { analyzeBatchProviderSettings } from "../../batch-edit/analyze-batch-settings";
 import type {
   FormMode,
+  ProtocolSpecificConfigState,
   ProviderFormAction,
   ProviderFormContextValue,
   ProviderFormState,
+  RoutingState,
 } from "./provider-form-types";
 
 type Limit5hResetMode = "fixed" | "rolling";
@@ -123,6 +126,154 @@ const ACTION_TO_FIELD_PATH: Partial<Record<ProviderFormActionWith5hResetMode["ty
   SET_MCP_PASSTHROUGH_URL: "mcp.mcpPassthroughUrl",
 };
 
+function createDefaultProtocolSpecificConfig(): ProtocolSpecificConfigState {
+  return {
+    allowedModels: [],
+    modelRedirects: [],
+    anthropicMaxTokensPreference: "inherit",
+    anthropicThinkingBudgetPreference: "inherit",
+    anthropicAdaptiveThinking: null,
+    codexReasoningEffortPreference: "inherit",
+    codexReasoningSummaryPreference: "inherit",
+    codexTextVerbosityPreference: "inherit",
+    codexParallelToolCallsPreference: "inherit",
+    codexImageGenerationPreference: "inherit",
+    codexServiceTierPreference: "inherit",
+    geminiGoogleSearchPreference: "inherit",
+    adoptProviderIds: [],
+  };
+}
+
+function extractProtocolConfigFromProvider(
+  source: ProviderDisplay | undefined,
+  adoptProviderIds: number[] = []
+): ProtocolSpecificConfigState {
+  if (!source) {
+    return {
+      ...createDefaultProtocolSpecificConfig(),
+      adoptProviderIds,
+    };
+  }
+  return {
+    allowedModels: normalizeAllowedModelRules(source.allowedModels) ?? [],
+    modelRedirects: normalizeProviderModelRedirectRules(source.modelRedirects) ?? [],
+    anthropicMaxTokensPreference: source.anthropicMaxTokensPreference ?? "inherit",
+    anthropicThinkingBudgetPreference: source.anthropicThinkingBudgetPreference ?? "inherit",
+    anthropicAdaptiveThinking: source.anthropicAdaptiveThinking
+      ? structuredClone(source.anthropicAdaptiveThinking)
+      : null,
+    codexReasoningEffortPreference: source.codexReasoningEffortPreference ?? "inherit",
+    codexReasoningSummaryPreference: source.codexReasoningSummaryPreference ?? "inherit",
+    codexTextVerbosityPreference: source.codexTextVerbosityPreference ?? "inherit",
+    codexParallelToolCallsPreference: source.codexParallelToolCallsPreference ?? "inherit",
+    codexImageGenerationPreference: source.codexImageGenerationPreference ?? "inherit",
+    codexServiceTierPreference: source.codexServiceTierPreference ?? "inherit",
+    geminiGoogleSearchPreference: source.geminiGoogleSearchPreference ?? "inherit",
+    adoptProviderIds,
+  };
+}
+
+function mergeAdoptedProvidersIntoConfig(
+  providers: ProviderDisplay[]
+): ProtocolSpecificConfigState {
+  if (providers.length === 0) {
+    return createDefaultProtocolSpecificConfig();
+  }
+  const primary = providers[0];
+  const base = extractProtocolConfigFromProvider(
+    primary,
+    providers.map((item) => item.id)
+  );
+  // 若并入多条同协议记录（如同协议多 Key），保留它们的模型规则并集（去重）
+  if (providers.length > 1) {
+    const allowedMap = new Map(
+      base.allowedModels.map((rule) => [`${rule.matchType}:${rule.pattern}`, rule])
+    );
+    const redirectMap = new Map(
+      base.modelRedirects.map((rule) => [`${rule.matchType}:${rule.source}:${rule.target}`, rule])
+    );
+    for (const item of providers.slice(1)) {
+      for (const rule of normalizeAllowedModelRules(item.allowedModels) ?? []) {
+        const key = `${rule.matchType}:${rule.pattern}`;
+        if (!allowedMap.has(key)) allowedMap.set(key, rule);
+      }
+      for (const rule of normalizeProviderModelRedirectRules(item.modelRedirects) ?? []) {
+        const key = `${rule.matchType}:${rule.source}:${rule.target}`;
+        if (!redirectMap.has(key)) redirectMap.set(key, rule);
+      }
+    }
+    base.allowedModels = Array.from(allowedMap.values());
+    base.modelRedirects = Array.from(redirectMap.values());
+  }
+  return base;
+}
+
+function extractCurrentProtocolConfig(routing: RoutingState): ProtocolSpecificConfigState {
+  const existing = routing.protocolConfigs[routing.activeProtocol];
+  return {
+    allowedModels: routing.allowedModels,
+    modelRedirects: routing.modelRedirects,
+    anthropicMaxTokensPreference: routing.anthropicMaxTokensPreference,
+    anthropicThinkingBudgetPreference: routing.anthropicThinkingBudgetPreference,
+    anthropicAdaptiveThinking: routing.anthropicAdaptiveThinking,
+    codexReasoningEffortPreference: routing.codexReasoningEffortPreference,
+    codexReasoningSummaryPreference: routing.codexReasoningSummaryPreference,
+    codexTextVerbosityPreference: routing.codexTextVerbosityPreference,
+    codexParallelToolCallsPreference: routing.codexParallelToolCallsPreference,
+    codexImageGenerationPreference: routing.codexImageGenerationPreference,
+    codexServiceTierPreference: routing.codexServiceTierPreference,
+    geminiGoogleSearchPreference: routing.geminiGoogleSearchPreference,
+    adoptProviderIds: existing?.adoptProviderIds ?? [],
+  };
+}
+
+function applyProtocolConfigToRouting(
+  routing: RoutingState,
+  protocol: ProviderType,
+  config: ProtocolSpecificConfigState
+): RoutingState {
+  return {
+    ...routing,
+    providerType: protocol,
+    activeProtocol: protocol,
+    allowedModels: config.allowedModels,
+    modelRedirects: config.modelRedirects,
+    anthropicMaxTokensPreference: config.anthropicMaxTokensPreference,
+    anthropicThinkingBudgetPreference: config.anthropicThinkingBudgetPreference,
+    anthropicAdaptiveThinking: config.anthropicAdaptiveThinking,
+    codexReasoningEffortPreference: config.codexReasoningEffortPreference,
+    codexReasoningSummaryPreference: config.codexReasoningSummaryPreference,
+    codexTextVerbosityPreference: config.codexTextVerbosityPreference,
+    codexParallelToolCallsPreference: config.codexParallelToolCallsPreference,
+    codexImageGenerationPreference: config.codexImageGenerationPreference,
+    codexServiceTierPreference: config.codexServiceTierPreference,
+    geminiGoogleSearchPreference: config.geminiGoogleSearchPreference,
+  };
+}
+
+function updateActiveProtocolField(
+  state: ProviderFormState,
+  patch: Partial<ProtocolSpecificConfigState>
+): ProviderFormState {
+  const activeProtocol = state.routing.activeProtocol;
+  const currentConfig = extractCurrentProtocolConfig(state.routing);
+  const nextConfig: ProtocolSpecificConfigState = {
+    ...currentConfig,
+    ...patch,
+  };
+  return {
+    ...state,
+    routing: {
+      ...state.routing,
+      ...patch,
+      protocolConfigs: {
+        ...state.routing.protocolConfigs,
+        [activeProtocol]: nextConfig,
+      },
+    },
+  };
+}
+
 // Initial state factory
 export function createInitialState(
   mode: FormMode,
@@ -134,7 +285,8 @@ export function createInitialState(
     websiteUrl?: string;
     providerType?: ProviderType;
   },
-  batchProviders?: ProviderDisplay[]
+  batchProviders?: ProviderDisplay[],
+  bundleProviders?: ProviderDisplay[]
 ): ProviderFormState {
   const isEdit = mode === "edit";
   const isBatch = mode === "batch";
@@ -158,6 +310,9 @@ export function createInitialState(
       },
       routing: {
         providerType: "claude", // 批量编辑不支持修改 providerType
+        selectedProtocols: ["claude"],
+        activeProtocol: "claude",
+        protocolConfigs: { claude: createDefaultProtocolSpecificConfig() },
         groupTag:
           analysis.routing.groupTag.status === "uniform" ? analysis.routing.groupTag.value : [],
         preserveClientIp:
@@ -346,6 +501,7 @@ export function createInitialState(
         activeSubTab: null,
         isPending: false,
         showFailureThresholdConfirm: false,
+        showRemoveProtocolConfirm: false,
       },
     };
   }
@@ -364,6 +520,9 @@ export function createInitialState(
       },
       routing: {
         providerType: "claude",
+        selectedProtocols: ["claude"],
+        activeProtocol: "claude",
+        protocolConfigs: { claude: createDefaultProtocolSpecificConfig() },
         groupTag: [],
         preserveClientIp: false,
         disableSessionReuse: false,
@@ -425,9 +584,37 @@ export function createInitialState(
         activeSubTab: null,
         isPending: false,
         showFailureThresholdConfirm: false,
+        showRemoveProtocolConfirm: false,
       },
     };
   }
+
+  const effectiveBundle =
+    bundleProviders && bundleProviders.length > 0
+      ? bundleProviders
+      : sourceProvider
+        ? [sourceProvider]
+        : [];
+  const defaultProtocol: ProviderType =
+    sourceProvider?.providerType ?? preset?.providerType ?? "claude";
+  const initialProtocolConfigs: Partial<Record<ProviderType, ProtocolSpecificConfigState>> = {};
+  const protocolSet = new Set<ProviderType>();
+  for (const item of effectiveBundle) {
+    protocolSet.add(item.providerType);
+    if (!initialProtocolConfigs[item.providerType]) {
+      initialProtocolConfigs[item.providerType] = extractProtocolConfigFromProvider(item);
+    }
+  }
+  if (protocolSet.size === 0) {
+    protocolSet.add(defaultProtocol);
+    initialProtocolConfigs[defaultProtocol] = extractProtocolConfigFromProvider(sourceProvider);
+  }
+  const initialSelectedProtocols = sortProtocolsByDisplayOrder(Array.from(protocolSet));
+  const initialActiveProtocol = protocolSet.has(defaultProtocol)
+    ? defaultProtocol
+    : initialSelectedProtocols[0];
+  const activeConfig =
+    initialProtocolConfigs[initialActiveProtocol] ?? createDefaultProtocolSpecificConfig();
 
   return {
     basic: {
@@ -448,12 +635,15 @@ export function createInitialState(
           : String(sourceProvider.newApiUserId),
     },
     routing: {
-      providerType: sourceProvider?.providerType ?? preset?.providerType ?? "claude",
+      providerType: initialActiveProtocol,
+      selectedProtocols: initialSelectedProtocols,
+      activeProtocol: initialActiveProtocol,
+      protocolConfigs: initialProtocolConfigs,
       groupTag: parseProviderGroups(sourceProvider?.groupTag),
       preserveClientIp: sourceProvider?.preserveClientIp ?? false,
       disableSessionReuse: sourceProvider?.disableSessionReuse ?? false,
-      modelRedirects: normalizeProviderModelRedirectRules(sourceProvider?.modelRedirects) ?? [],
-      allowedModels: normalizeAllowedModelRules(sourceProvider?.allowedModels) ?? [],
+      modelRedirects: activeConfig.modelRedirects,
+      allowedModels: activeConfig.allowedModels,
       allowedClients: sourceProvider?.allowedClients ?? [],
       blockedClients: sourceProvider?.blockedClients ?? [],
       priority: sourceProvider?.priority ?? 0,
@@ -462,18 +652,16 @@ export function createInitialState(
       costMultiplier: sourceProvider?.costMultiplier ?? 1.0,
       cacheTtlPreference: sourceProvider?.cacheTtlPreference ?? "inherit",
       swapCacheTtlBilling: sourceProvider?.swapCacheTtlBilling ?? false,
-      codexReasoningEffortPreference: sourceProvider?.codexReasoningEffortPreference ?? "inherit",
-      codexReasoningSummaryPreference: sourceProvider?.codexReasoningSummaryPreference ?? "inherit",
-      codexTextVerbosityPreference: sourceProvider?.codexTextVerbosityPreference ?? "inherit",
-      codexParallelToolCallsPreference:
-        sourceProvider?.codexParallelToolCallsPreference ?? "inherit",
-      codexImageGenerationPreference: sourceProvider?.codexImageGenerationPreference ?? "inherit",
-      codexServiceTierPreference: sourceProvider?.codexServiceTierPreference ?? "inherit",
-      anthropicMaxTokensPreference: sourceProvider?.anthropicMaxTokensPreference ?? "inherit",
-      anthropicThinkingBudgetPreference:
-        sourceProvider?.anthropicThinkingBudgetPreference ?? "inherit",
-      anthropicAdaptiveThinking: sourceProvider?.anthropicAdaptiveThinking ?? null,
-      geminiGoogleSearchPreference: sourceProvider?.geminiGoogleSearchPreference ?? "inherit",
+      codexReasoningEffortPreference: activeConfig.codexReasoningEffortPreference,
+      codexReasoningSummaryPreference: activeConfig.codexReasoningSummaryPreference,
+      codexTextVerbosityPreference: activeConfig.codexTextVerbosityPreference,
+      codexParallelToolCallsPreference: activeConfig.codexParallelToolCallsPreference,
+      codexImageGenerationPreference: activeConfig.codexImageGenerationPreference,
+      codexServiceTierPreference: activeConfig.codexServiceTierPreference,
+      anthropicMaxTokensPreference: activeConfig.anthropicMaxTokensPreference,
+      anthropicThinkingBudgetPreference: activeConfig.anthropicThinkingBudgetPreference,
+      anthropicAdaptiveThinking: activeConfig.anthropicAdaptiveThinking,
+      geminiGoogleSearchPreference: activeConfig.geminiGoogleSearchPreference,
       activeTimeStart: sourceProvider?.activeTimeStart ?? null,
       activeTimeEnd: sourceProvider?.activeTimeEnd ?? null,
       customHeadersText: stringifyCustomHeadersForTextarea(
@@ -525,6 +713,7 @@ export function createInitialState(
       activeSubTab: null,
       isPending: false,
       showFailureThresholdConfirm: false,
+      showRemoveProtocolConfirm: false,
     },
   };
 }
@@ -573,8 +762,151 @@ export function providerFormReducer(
       return { ...state, basic: { ...state.basic, newApiUserId: action.payload } };
 
     // Routing
-    case "SET_PROVIDER_TYPE":
-      return { ...state, routing: { ...state.routing, providerType: action.payload } };
+    case "SET_PROVIDER_TYPE": {
+      const nextProtocol = action.payload;
+      const savedConfigs = {
+        ...state.routing.protocolConfigs,
+        [state.routing.activeProtocol]: extractCurrentProtocolConfig(state.routing),
+      };
+      const targetConfig = savedConfigs[nextProtocol] ?? createDefaultProtocolSpecificConfig();
+      const nextSelected =
+        state.routing.selectedProtocols.length <= 1
+          ? [nextProtocol]
+          : state.routing.selectedProtocols.includes(nextProtocol)
+            ? state.routing.selectedProtocols
+            : sortProtocolsByDisplayOrder([...state.routing.selectedProtocols, nextProtocol]);
+      const nextRouting = applyProtocolConfigToRouting(
+        {
+          ...state.routing,
+          selectedProtocols: nextSelected,
+          protocolConfigs: {
+            ...savedConfigs,
+            [nextProtocol]: targetConfig,
+          },
+        },
+        nextProtocol,
+        targetConfig
+      );
+      return { ...state, routing: nextRouting };
+    }
+    case "SET_ACTIVE_PROTOCOL": {
+      const nextProtocol = action.payload;
+      if (nextProtocol === state.routing.activeProtocol) {
+        return state;
+      }
+      if (!state.routing.selectedProtocols.includes(nextProtocol)) {
+        return state;
+      }
+      const savedConfigs = {
+        ...state.routing.protocolConfigs,
+        [state.routing.activeProtocol]: extractCurrentProtocolConfig(state.routing),
+      };
+      const nextConfig = savedConfigs[nextProtocol] ?? createDefaultProtocolSpecificConfig();
+      return {
+        ...state,
+        routing: applyProtocolConfigToRouting(
+          {
+            ...state.routing,
+            protocolConfigs: {
+              ...savedConfigs,
+              [nextProtocol]: nextConfig,
+            },
+          },
+          nextProtocol,
+          nextConfig
+        ),
+      };
+    }
+    case "TOGGLE_PROTOCOL": {
+      const { protocol, adoptProviders } = action.payload;
+      const savedConfigs = {
+        ...state.routing.protocolConfigs,
+        [state.routing.activeProtocol]: extractCurrentProtocolConfig(state.routing),
+      };
+      const isSelected = state.routing.selectedProtocols.includes(protocol);
+
+      if (isSelected) {
+        // 至少保留一个已选协议
+        if (state.routing.selectedProtocols.length <= 1) {
+          return state;
+        }
+        const nextSelected = state.routing.selectedProtocols.filter((item) => item !== protocol);
+        const nextActive =
+          state.routing.activeProtocol === protocol
+            ? nextSelected[0]
+            : state.routing.activeProtocol;
+        const nextActiveConfig = savedConfigs[nextActive] ?? createDefaultProtocolSpecificConfig();
+        return {
+          ...state,
+          routing: applyProtocolConfigToRouting(
+            {
+              ...state.routing,
+              selectedProtocols: nextSelected,
+              protocolConfigs: savedConfigs,
+            },
+            nextActive,
+            nextActiveConfig
+          ),
+        };
+      }
+
+      // 勾选新协议
+      const nextSelected = sortProtocolsByDisplayOrder([
+        ...state.routing.selectedProtocols,
+        protocol,
+      ]);
+      const existingConfig = savedConfigs[protocol];
+      const nextProtoConfig =
+        existingConfig ??
+        (adoptProviders && adoptProviders.length > 0
+          ? mergeAdoptedProvidersIntoConfig(adoptProviders)
+          : createDefaultProtocolSpecificConfig());
+
+      return {
+        ...state,
+        routing: applyProtocolConfigToRouting(
+          {
+            ...state.routing,
+            selectedProtocols: nextSelected,
+            protocolConfigs: {
+              ...savedConfigs,
+              [protocol]: nextProtoConfig,
+            },
+          },
+          protocol,
+          nextProtoConfig
+        ),
+      };
+    }
+    case "SET_ADOPT_PROTOCOL_PROVIDERS": {
+      const { protocol, providers } = action.payload;
+      const savedConfigs = {
+        ...state.routing.protocolConfigs,
+        [state.routing.activeProtocol]: extractCurrentProtocolConfig(state.routing),
+      };
+      const nextConfig =
+        providers.length > 0
+          ? mergeAdoptedProvidersIntoConfig(providers)
+          : {
+              ...(savedConfigs[protocol] ?? createDefaultProtocolSpecificConfig()),
+              adoptProviderIds: [],
+            };
+      const nextProtocolConfigs = {
+        ...savedConfigs,
+        [protocol]: nextConfig,
+      };
+      const baseRouting: RoutingState = {
+        ...state.routing,
+        protocolConfigs: nextProtocolConfigs,
+      };
+      return {
+        ...state,
+        routing:
+          state.routing.activeProtocol === protocol
+            ? applyProtocolConfigToRouting(baseRouting, protocol, nextConfig)
+            : baseRouting,
+      };
+    }
     case "SET_GROUP_TAG":
       return { ...state, routing: { ...state.routing, groupTag: action.payload } };
     case "SET_PRESERVE_CLIENT_IP":
@@ -582,9 +914,9 @@ export function providerFormReducer(
     case "SET_DISABLE_SESSION_REUSE":
       return { ...state, routing: { ...state.routing, disableSessionReuse: action.payload } };
     case "SET_MODEL_REDIRECTS":
-      return { ...state, routing: { ...state.routing, modelRedirects: action.payload } };
+      return updateActiveProtocolField(state, { modelRedirects: action.payload });
     case "SET_ALLOWED_MODELS":
-      return { ...state, routing: { ...state.routing, allowedModels: action.payload } };
+      return updateActiveProtocolField(state, { allowedModels: action.payload });
     case "SET_ALLOWED_CLIENTS":
       return { ...state, routing: { ...state.routing, allowedClients: action.payload } };
     case "SET_BLOCKED_CLIENTS":
@@ -602,104 +934,58 @@ export function providerFormReducer(
     case "SET_SWAP_CACHE_TTL_BILLING":
       return { ...state, routing: { ...state.routing, swapCacheTtlBilling: action.payload } };
     case "SET_CODEX_REASONING_EFFORT":
-      return {
-        ...state,
-        routing: { ...state.routing, codexReasoningEffortPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, { codexReasoningEffortPreference: action.payload });
     case "SET_CODEX_REASONING_SUMMARY":
-      return {
-        ...state,
-        routing: { ...state.routing, codexReasoningSummaryPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, { codexReasoningSummaryPreference: action.payload });
     case "SET_CODEX_TEXT_VERBOSITY":
-      return {
-        ...state,
-        routing: { ...state.routing, codexTextVerbosityPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, { codexTextVerbosityPreference: action.payload });
     case "SET_CODEX_PARALLEL_TOOL_CALLS":
-      return {
-        ...state,
-        routing: { ...state.routing, codexParallelToolCallsPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, {
+        codexParallelToolCallsPreference: action.payload,
+      });
     case "SET_CODEX_IMAGE_GENERATION":
-      return {
-        ...state,
-        routing: { ...state.routing, codexImageGenerationPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, { codexImageGenerationPreference: action.payload });
     case "SET_CODEX_SERVICE_TIER":
-      return {
-        ...state,
-        routing: { ...state.routing, codexServiceTierPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, { codexServiceTierPreference: action.payload });
     case "SET_ANTHROPIC_MAX_TOKENS":
-      return {
-        ...state,
-        routing: { ...state.routing, anthropicMaxTokensPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, { anthropicMaxTokensPreference: action.payload });
     case "SET_ANTHROPIC_THINKING_BUDGET":
-      return {
-        ...state,
-        routing: {
-          ...state.routing,
-          anthropicThinkingBudgetPreference: action.payload,
-        },
-      };
+      return updateActiveProtocolField(state, {
+        anthropicThinkingBudgetPreference: action.payload,
+      });
     case "SET_ADAPTIVE_THINKING_ENABLED":
       if (action.payload) {
-        return {
-          ...state,
-          routing: {
-            ...state.routing,
-            anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking ?? {
-              effort: "high",
-              modelMatchMode: "specific",
-              models: ["claude-opus-4-6"],
-            },
+        return updateActiveProtocolField(state, {
+          anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking ?? {
+            effort: "high",
+            modelMatchMode: "specific",
+            models: ["claude-opus-4-6"],
           },
-        };
+        });
       }
-      return {
-        ...state,
-        routing: {
-          ...state.routing,
-          anthropicAdaptiveThinking: null,
-        },
-      };
+      return updateActiveProtocolField(state, {
+        anthropicAdaptiveThinking: null,
+      });
     case "SET_ADAPTIVE_THINKING_EFFORT":
-      return {
-        ...state,
-        routing: {
-          ...state.routing,
-          anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking
-            ? { ...state.routing.anthropicAdaptiveThinking, effort: action.payload }
-            : null,
-        },
-      };
+      return updateActiveProtocolField(state, {
+        anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking
+          ? { ...state.routing.anthropicAdaptiveThinking, effort: action.payload }
+          : null,
+      });
     case "SET_ADAPTIVE_THINKING_MODEL_MATCH_MODE":
-      return {
-        ...state,
-        routing: {
-          ...state.routing,
-          anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking
-            ? { ...state.routing.anthropicAdaptiveThinking, modelMatchMode: action.payload }
-            : null,
-        },
-      };
+      return updateActiveProtocolField(state, {
+        anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking
+          ? { ...state.routing.anthropicAdaptiveThinking, modelMatchMode: action.payload }
+          : null,
+      });
     case "SET_ADAPTIVE_THINKING_MODELS":
-      return {
-        ...state,
-        routing: {
-          ...state.routing,
-          anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking
-            ? { ...state.routing.anthropicAdaptiveThinking, models: action.payload }
-            : null,
-        },
-      };
+      return updateActiveProtocolField(state, {
+        anthropicAdaptiveThinking: state.routing.anthropicAdaptiveThinking
+          ? { ...state.routing.anthropicAdaptiveThinking, models: action.payload }
+          : null,
+      });
     case "SET_GEMINI_GOOGLE_SEARCH":
-      return {
-        ...state,
-        routing: { ...state.routing, geminiGoogleSearchPreference: action.payload },
-      };
+      return updateActiveProtocolField(state, { geminiGoogleSearchPreference: action.payload });
     case "SET_ACTIVE_TIME_START":
       return {
         ...state,
@@ -812,6 +1098,8 @@ export function providerFormReducer(
       return { ...state, ui: { ...state.ui, isPending: action.payload } };
     case "SET_SHOW_FAILURE_THRESHOLD_CONFIRM":
       return { ...state, ui: { ...state.ui, showFailureThresholdConfirm: action.payload } };
+    case "SET_SHOW_REMOVE_PROTOCOL_CONFIRM":
+      return { ...state, ui: { ...state.ui, showRemoveProtocolConfirm: action.payload } };
 
     // Reset
     case "RESET_FORM": {
@@ -839,6 +1127,9 @@ export function ProviderFormProvider({
   children,
   mode,
   provider,
+  bundleProviders,
+  allProviders,
+  allowedProviderTypes,
   cloneProvider,
   enableMultiProviderTypes,
   hideUrl = false,
@@ -850,6 +1141,9 @@ export function ProviderFormProvider({
   children: ReactNode;
   mode: FormMode;
   provider?: ProviderDisplay;
+  bundleProviders?: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
+  allowedProviderTypes?: ProviderType[];
   cloneProvider?: ProviderDisplay;
   enableMultiProviderTypes: boolean;
   hideUrl?: boolean;
@@ -865,8 +1159,20 @@ export function ProviderFormProvider({
 }) {
   const [state, rawDispatch] = useReducer(
     providerFormReducer,
-    createInitialState(mode, provider, cloneProvider, preset, batchProviders)
+    createInitialState(mode, provider, cloneProvider, preset, batchProviders, bundleProviders)
   );
+
+  const initialProtocols = useMemo(() => {
+    if (mode !== "edit") return [];
+    const sourceList =
+      bundleProviders && bundleProviders.length > 0 ? bundleProviders : provider ? [provider] : [];
+    return sortProtocolsByDisplayOrder(Array.from(new Set(sourceList.map((p) => p.providerType))));
+  }, [mode, bundleProviders, provider]);
+
+  const removedProtocols = useMemo(() => {
+    if (mode !== "edit") return [];
+    return initialProtocols.filter((proto) => !state.routing.selectedProtocols.includes(proto));
+  }, [mode, initialProtocols, state.routing.selectedProtocols]);
 
   const dirtyFieldsRef = useRef(new Set<string>());
   const isBatch = mode === "batch";
@@ -899,6 +1205,11 @@ export function ProviderFormProvider({
       dispatch: dispatch as Dispatch<ProviderFormAction>,
       mode,
       provider,
+      bundleProviders,
+      allProviders,
+      allowedProviderTypes,
+      initialProtocols,
+      removedProtocols,
       enableMultiProviderTypes,
       hideUrl,
       hideWebsiteUrl,
@@ -912,6 +1223,11 @@ export function ProviderFormProvider({
       dispatch,
       mode,
       provider,
+      bundleProviders,
+      allProviders,
+      allowedProviderTypes,
+      initialProtocols,
+      removedProtocols,
       enableMultiProviderTypes,
       hideUrl,
       hideWebsiteUrl,

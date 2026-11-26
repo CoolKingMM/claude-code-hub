@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { getProviderEndpoints } from "@/lib/api-client/v1/actions/provider-endpoints";
 import {
   addProvider,
+  batchDeleteProviders,
   editProvider,
   removeProvider,
   undoProviderDelete,
@@ -36,7 +37,12 @@ import {
   validateProviderKeys,
 } from "@/lib/provider-key-batch";
 import { isValidUrl } from "@/lib/utils/validation";
-import type { ProviderDisplay, ProviderEndpoint, ProviderType } from "@/types/provider";
+import type {
+  ProviderDisplay,
+  ProviderEndpoint,
+  ProviderProtocolConfigInput,
+  ProviderType,
+} from "@/types/provider";
 import { invalidateProviderQueries } from "../../invalidate-provider-queries";
 import { FormTabNav, NAV_ORDER, PARENT_MAP, TAB_ORDER } from "./components/form-tab-nav";
 import { buildNewApiAccessTokenEditPayload, parseNewApiUserIdInput } from "./new-api-access";
@@ -53,6 +59,8 @@ export interface ProviderFormProps {
   mode: "create" | "edit";
   onSuccess?: () => void;
   provider?: ProviderDisplay;
+  bundleProviders?: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
   cloneProvider?: ProviderDisplay;
   enableMultiProviderTypes: boolean;
   hideUrl?: boolean;
@@ -92,12 +100,102 @@ function ProviderFormContent({
 }) {
   const t = useTranslations("settings.providers.form");
   const tBatchEdit = useTranslations("settings.providers.batchEdit");
-  const { state, dispatch, mode, provider, hideUrl } = useProviderForm();
+  const { state, dispatch, mode, provider, bundleProviders, removedProtocols, hideUrl } =
+    useProviderForm();
   const rateLimit = state.rateLimit as typeof state.rateLimit & {
     limit5hResetMode?: "fixed" | "rolling";
   };
   const [isPending, startTransition] = useTransition();
   const isEdit = mode === "edit";
+
+  const renderProtocolName = useCallback(
+    (type: ProviderType) => {
+      switch (type) {
+        case "claude":
+          return t("providerTypes.claude");
+        case "claude-auth":
+          return t("providerTypes.claudeAuth");
+        case "codex":
+          return t("providerTypes.codex");
+        case "gemini":
+          return t("providerTypes.gemini");
+        case "gemini-cli":
+          return t("providerTypes.geminiCli");
+        case "openai-compatible":
+          return t("providerTypes.openaiCompatible");
+        default:
+          return type;
+      }
+    },
+    [t]
+  );
+
+  const isMultiProtocolBundle = useMemo(() => {
+    if (state.routing.selectedProtocols.length > 1) return true;
+    if (isEdit && provider?.protocolGroupId) return true;
+    if (isEdit && bundleProviders && new Set(bundleProviders.map((p) => p.providerType)).size > 1) {
+      return true;
+    }
+    return state.routing.selectedProtocols.some(
+      (protocol) => (state.routing.protocolConfigs[protocol]?.adoptProviderIds.length ?? 0) > 0
+    );
+  }, [
+    state.routing.selectedProtocols,
+    state.routing.protocolConfigs,
+    isEdit,
+    provider?.protocolGroupId,
+    bundleProviders,
+  ]);
+
+  const buildProtocolConfigsPayload = useCallback((): ProviderProtocolConfigInput[] | undefined => {
+    if (!isMultiProtocolBundle) return undefined;
+    return state.routing.selectedProtocols.map((protocol) => {
+      const stored = state.routing.protocolConfigs[protocol];
+      const isActive = protocol === state.routing.activeProtocol;
+      const allowedModels = isActive ? state.routing.allowedModels : (stored?.allowedModels ?? []);
+      const modelRedirects = isActive
+        ? state.routing.modelRedirects
+        : (stored?.modelRedirects ?? []);
+      const adoptIds = stored?.adoptProviderIds ?? [];
+
+      return {
+        provider_type: protocol,
+        allowed_models: allowedModels.length > 0 ? allowedModels : null,
+        model_redirects: modelRedirects.length > 0 ? modelRedirects : null,
+        anthropic_max_tokens_preference: isActive
+          ? state.routing.anthropicMaxTokensPreference
+          : (stored?.anthropicMaxTokensPreference ?? "inherit"),
+        anthropic_thinking_budget_preference: isActive
+          ? state.routing.anthropicThinkingBudgetPreference
+          : (stored?.anthropicThinkingBudgetPreference ?? "inherit"),
+        anthropic_adaptive_thinking: isActive
+          ? state.routing.anthropicAdaptiveThinking
+          : (stored?.anthropicAdaptiveThinking ?? null),
+        codex_reasoning_effort_preference: isActive
+          ? state.routing.codexReasoningEffortPreference
+          : (stored?.codexReasoningEffortPreference ?? "inherit"),
+        codex_reasoning_summary_preference: isActive
+          ? state.routing.codexReasoningSummaryPreference
+          : (stored?.codexReasoningSummaryPreference ?? "inherit"),
+        codex_text_verbosity_preference: isActive
+          ? state.routing.codexTextVerbosityPreference
+          : (stored?.codexTextVerbosityPreference ?? "inherit"),
+        codex_parallel_tool_calls_preference: isActive
+          ? state.routing.codexParallelToolCallsPreference
+          : (stored?.codexParallelToolCallsPreference ?? "inherit"),
+        codex_image_generation_preference: isActive
+          ? state.routing.codexImageGenerationPreference
+          : (stored?.codexImageGenerationPreference ?? "inherit"),
+        codex_service_tier_preference: isActive
+          ? state.routing.codexServiceTierPreference
+          : (stored?.codexServiceTierPreference ?? "inherit"),
+        gemini_google_search_preference: isActive
+          ? state.routing.geminiGoogleSearchPreference
+          : (stored?.geminiGoogleSearchPreference ?? "inherit"),
+        ...(adoptIds.length > 0 ? { adopt_provider_ids: adoptIds } : {}),
+      };
+    });
+  }, [isMultiProtocolBundle, state.routing]);
 
   const queryClient = useQueryClient();
 
@@ -353,12 +451,19 @@ function ProviderFormContent({
         const newApiUserId = parseNewApiUserIdInput(state.basic.newApiUserId) ?? null;
         const trimmedNewApiAccessToken = state.basic.newApiAccessToken.trim();
 
+        const protocolConfigsPayload = buildProtocolConfigsPayload();
+        const primaryProviderType =
+          isEdit && provider && state.routing.selectedProtocols.includes(provider.providerType)
+            ? provider.providerType
+            : (state.routing.selectedProtocols[0] ?? state.routing.providerType);
+
         const baseFormData = {
           name: state.basic.name.trim(),
           url: effectiveProviderUrl,
           website_url: state.basic.websiteUrl?.trim() || null,
           new_api_user_id: newApiUserId,
-          provider_type: state.routing.providerType,
+          provider_type: primaryProviderType,
+          ...(protocolConfigsPayload ? { protocol_configs: protocolConfigsPayload } : {}),
           preserve_client_ip: state.routing.preserveClientIp,
           disable_session_reuse: state.routing.disableSessionReuse,
           model_redirects:
@@ -518,6 +623,12 @@ function ProviderFormContent({
       return;
     }
 
+    // Check if edit removes existing protocols (requires confirmation before soft-delete)
+    if (isEdit && removedProtocols.length > 0) {
+      dispatch({ type: "SET_SHOW_REMOVE_PROTOCOL_CONFIRM", payload: true });
+      return;
+    }
+
     // Check if failureThreshold needs confirmation
     if (needsFailureThresholdConfirm()) {
       dispatch({ type: "SET_SHOW_FAILURE_THRESHOLD_CONFIRM", payload: true });
@@ -527,11 +638,22 @@ function ProviderFormContent({
     performSubmit();
   };
 
+  const bundleDeleteIds = useMemo(() => {
+    if (!provider) return [];
+    if (bundleProviders && bundleProviders.length > 1) {
+      return Array.from(new Set(bundleProviders.map((item) => item.id)));
+    }
+    return [provider.id];
+  }, [provider, bundleProviders]);
+
   const handleDelete = () => {
     if (!provider) return;
     startTransition(async () => {
       try {
-        const res = await removeProvider(provider.id);
+        const res =
+          bundleDeleteIds.length > 1
+            ? await batchDeleteProviders({ providerIds: bundleDeleteIds })
+            : await removeProvider(provider.id);
         if (!res.ok) {
           toast.error(res.error || t("errors.deleteFailed"));
           return;
@@ -581,8 +703,15 @@ function ProviderFormContent({
       status.basic = "warning";
     }
 
-    // Routing - configured if models/redirects set
-    if (state.routing.allowedModels.length > 0 || state.routing.modelRedirects.length > 0) {
+    // Routing - configured if models/redirects set on any selected protocol
+    const hasProtocolRules = state.routing.selectedProtocols.some((proto) => {
+      if (proto === state.routing.activeProtocol) {
+        return state.routing.allowedModels.length > 0 || state.routing.modelRedirects.length > 0;
+      }
+      const cfg = state.routing.protocolConfigs[proto];
+      return Boolean(cfg && (cfg.allowedModels.length > 0 || cfg.modelRedirects.length > 0));
+    });
+    if (hasProtocolRules) {
       status.routing = "configured";
     }
 
@@ -781,7 +910,12 @@ function ProviderFormContent({
                 <AlertHeader>
                   <AlertTitle>{t("deleteDialog.title")}</AlertTitle>
                   <AlertDialogDescription>
-                    {t("deleteDialog.description", { name: provider?.name ?? "" })}
+                    {bundleDeleteIds.length > 1
+                      ? t("deleteDialog.bundleDescription", {
+                          name: provider?.name ?? "",
+                          count: bundleDeleteIds.length,
+                        })
+                      : t("deleteDialog.description", { name: provider?.name ?? "" })}
                   </AlertDialogDescription>
                 </AlertHeader>
                 <AlertDialogFooter>
@@ -805,6 +939,40 @@ function ProviderFormContent({
           </div>
         )}
       </div>
+
+      {/* Remove Protocol Confirmation Dialog */}
+      <AlertDialog
+        open={state.ui.showRemoveProtocolConfirm}
+        onOpenChange={(open) =>
+          dispatch({ type: "SET_SHOW_REMOVE_PROTOCOL_CONFIRM", payload: open })
+        }
+      >
+        <AlertDialogContent>
+          <AlertHeader>
+            <AlertTitle>{t("deleteDialog.removeProtocolTitle")}</AlertTitle>
+            <AlertDialogDescription>
+              {t("deleteDialog.removeProtocolDescription", {
+                protocols: removedProtocols.map(renderProtocolName).join(", "),
+              })}
+            </AlertDialogDescription>
+          </AlertHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("deleteDialog.removeProtocolCancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                dispatch({ type: "SET_SHOW_REMOVE_PROTOCOL_CONFIRM", payload: false });
+                if (needsFailureThresholdConfirm()) {
+                  dispatch({ type: "SET_SHOW_FAILURE_THRESHOLD_CONFIRM", payload: true });
+                } else {
+                  performSubmit();
+                }
+              }}
+            >
+              {t("deleteDialog.removeProtocolConfirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Failure Threshold Confirmation Dialog */}
       <AlertDialog
@@ -859,13 +1027,15 @@ export function ProviderForm({
   mode,
   onSuccess,
   provider,
+  bundleProviders,
+  allProviders,
   cloneProvider,
   enableMultiProviderTypes,
   hideUrl = false,
   hideWebsiteUrl = false,
   preset,
   urlResolver,
-  allowedProviderTypes: _allowedProviderTypes,
+  allowedProviderTypes,
 }: ProviderFormProps) {
   const [groupSuggestions, setGroupSuggestions] = useState<string[]>([]);
   const [autoUrlPending, setAutoUrlPending] = useState(false);
@@ -917,6 +1087,9 @@ export function ProviderForm({
     <ProviderFormProvider
       mode={mode}
       provider={provider}
+      bundleProviders={bundleProviders}
+      allProviders={allProviders}
+      allowedProviderTypes={allowedProviderTypes}
       cloneProvider={cloneProvider}
       enableMultiProviderTypes={enableMultiProviderTypes}
       hideUrl={hideUrl}

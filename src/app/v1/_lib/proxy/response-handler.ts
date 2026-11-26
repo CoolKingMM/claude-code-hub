@@ -12,6 +12,7 @@ import { logger } from "@/lib/logger";
 import { recordDiscoveryControlEvent } from "@/lib/observability/discovery-metrics";
 import { requestCloudPriceTableSync } from "@/lib/price-sync/cloud-price-updater";
 import { DEFAULT_PROVIDER_OUTPUT_SAFETY_FILTER_RULES } from "@/lib/provider-output-safety-rules";
+import { getProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import { ProxyStatusTracker } from "@/lib/proxy-status-tracker";
 import { RateLimitService } from "@/lib/rate-limit";
 import type { SessionBindingSnapshot } from "@/lib/redis/session-binding";
@@ -383,14 +384,27 @@ async function releaseOwnedProviderSessionRef(
   retainAsBaseline: boolean
 ): Promise<void> {
   if (retainAsBaseline || meta?.providerSessionRefOwned !== true || !session.sessionId) return;
-  if (!session.consumeProviderSessionRef(meta.providerId)) return;
+  const scopedConsumer = (
+    session as {
+      consumeProviderSessionRefWithScope?: (id: number) => { quotaScopeId: number | string } | null;
+    }
+  ).consumeProviderSessionRefWithScope;
+  let quotaScopeId: number | string = meta.providerId;
+  if (scopedConsumer) {
+    const consumed = scopedConsumer.call(session, meta.providerId);
+    if (!consumed) return;
+    quotaScopeId = consumed.quotaScopeId;
+  } else if (!session.consumeProviderSessionRef(meta.providerId)) {
+    return;
+  }
 
   try {
-    await RateLimitService.releaseProviderSession(meta.providerId, session.sessionId);
+    await RateLimitService.releaseProviderSession(quotaScopeId, session.sessionId);
   } catch (error) {
     logger.warn("[ResponseHandler] Failed to release Discovery Provider session reference", {
       sessionId: session.sessionId,
       providerId: meta.providerId,
+      quotaScopeId,
       error: error instanceof Error ? error.message : String(error),
     });
   }
@@ -7312,22 +7326,29 @@ async function trackCostToRedis(
     if (cost.lte(0)) return;
 
     const costFloat = parseFloat(cost.toString());
+    const providerQuotaScopeId = getProviderQuotaScopeId(provider);
 
     // 追踪到 Redis（使用 session.sessionId）
-    await RateLimitService.trackCost(key.id, provider.id, session.sessionId ?? "", costFloat, {
-      userId: user.id,
-      key5hResetMode: key.limit5hResetMode,
-      keyResetTime: key.dailyResetTime,
-      keyResetMode: key.dailyResetMode,
-      provider5hResetMode: provider.limit5hResetMode,
-      providerResetTime: provider.dailyResetTime,
-      providerResetMode: provider.dailyResetMode,
-      user5hResetMode: user.limit5hResetMode,
-      userResetTime: user.dailyResetTime,
-      userResetMode: user.dailyResetMode,
-      requestId: eventId,
-      createdAtMs,
-    });
+    await RateLimitService.trackCost(
+      key.id,
+      providerQuotaScopeId,
+      session.sessionId ?? "",
+      costFloat,
+      {
+        userId: user.id,
+        key5hResetMode: key.limit5hResetMode,
+        keyResetTime: key.dailyResetTime,
+        keyResetMode: key.dailyResetMode,
+        provider5hResetMode: provider.limit5hResetMode,
+        providerResetTime: provider.dailyResetTime,
+        providerResetMode: provider.dailyResetMode,
+        user5hResetMode: user.limit5hResetMode,
+        userResetTime: user.dailyResetTime,
+        userResetMode: user.dailyResetMode,
+        requestId: eventId,
+        createdAtMs,
+      }
+    );
 
     await RateLimitService.settleLeaseBudgets({
       requestId: eventId,
@@ -7345,7 +7366,7 @@ async function trackCostToRedis(
           },
         },
         provider: {
-          id: provider.id,
+          id: providerQuotaScopeId,
           resetModes: {
             "5h": provider.limit5hResetMode,
             daily: provider.dailyResetMode,
@@ -7356,11 +7377,14 @@ async function trackCostToRedis(
 
     // 刷新 session 时间戳（滑动窗口）
     if (session.sessionId && session.shouldTrackSessionObservability()) {
-      void SessionTracker.refreshSession(session.sessionId, key.id, provider.id, user.id).catch(
-        (error) => {
-          logger.error("[ResponseHandler] Failed to refresh session tracker:", error);
-        }
-      );
+      void SessionTracker.refreshSession(
+        session.sessionId,
+        key.id,
+        providerQuotaScopeId,
+        user.id
+      ).catch((error) => {
+        logger.error("[ResponseHandler] Failed to refresh session tracker:", error);
+      });
     }
     if (session.shouldTrackSessionObservability()) {
       const observedIdentity = session.getSessionIdentityMetadata().identity;

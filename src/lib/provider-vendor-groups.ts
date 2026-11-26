@@ -39,15 +39,17 @@ export function groupProvidersByVendor<T extends Pick<ProviderDisplay, "id" | "p
   return Array.from(groups, ([vendorId, items]) => ({ vendorId, providers: items }));
 }
 
-// 同一供应商按接口类型及模型配置分别显示，多密钥仍共享对应配置的列表行。
+// 同一供应商按接口类型及模型配置分别显示，多密钥仍共享对应配置的列表行；
+// 绑定了 protocolGroupId 的多协议逻辑渠道则按 protocolGroupId 聚合成单一列表行。
 export function groupProvidersByChannel<
-  T extends Pick<ProviderDisplay, "id" | "providerVendorId" | "providerType"> &
+  T extends Pick<ProviderDisplay, "id" | "providerVendorId" | "providerType" | "protocolGroupId"> &
     ChannelConfiguration,
 >(providers: readonly T[]): Array<{ channelId: string; providers: T[] }> {
   const groups = new Map<string, T[]>();
   for (const provider of providers) {
-    const channelId =
-      provider.providerVendorId && provider.providerVendorId > 0
+    const channelId = provider.protocolGroupId
+      ? `bundle:${provider.protocolGroupId}`
+      : provider.providerVendorId && provider.providerVendorId > 0
         ? `${provider.providerVendorId}:${provider.providerType}${configurationKey(provider)}`
         : `provider:${provider.id}`;
     const keys = groups.get(channelId) ?? [];

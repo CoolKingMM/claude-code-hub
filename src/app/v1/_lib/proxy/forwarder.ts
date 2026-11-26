@@ -40,6 +40,7 @@ import {
   getEndpointFilterStats,
   getPreferredProviderEndpoints,
 } from "@/lib/provider-endpoints/endpoint-selector";
+import { getProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import {
   fetchWithDispatcher,
   getGlobalAgentPool,
@@ -6343,8 +6344,9 @@ export class ProxyForwarder {
 
       if (!useOriginalSession && session.sessionId) {
         const limit = provider.limitConcurrentSessions || 0;
+        const quotaScopeId = getProviderQuotaScopeId(provider);
         const checkResult = await RateLimitService.checkAndTrackProviderSession(
-          provider.id,
+          quotaScopeId,
           session.sessionId,
           limit
         );
@@ -6363,6 +6365,7 @@ export class ProxyForwarder {
         if (checkResult.referenced) {
           session.recordProviderSessionRef(provider.id, {
             retainOnSuccess: checkResult.tracked,
+            quotaScopeId,
           });
         }
       }
@@ -7562,8 +7565,9 @@ export class ProxyForwarder {
       }
       if (!retrySetupReservation && !providerSessionRefTracked && session.sessionId) {
         const limit = provider.limitConcurrentSessions || 0;
+        const quotaScopeId = getProviderQuotaScopeId(provider);
         const admissionPromise = RateLimitService.checkAndTrackProviderSession(
-          provider.id,
+          quotaScopeId,
           session.sessionId,
           limit
         );
@@ -7577,6 +7581,7 @@ export class ProxyForwarder {
               if (setupReservation.controller.signal.aborted && lateCheck.referenced) {
                 session.recordProviderSessionRef(provider.id, {
                   retainOnSuccess: lateCheck.tracked,
+                  quotaScopeId,
                 });
                 ProxyForwarder.releaseProviderSessionRef(session, provider.id);
               }
@@ -7598,6 +7603,7 @@ export class ProxyForwarder {
         if (check.referenced) {
           session.recordProviderSessionRef(provider.id, {
             retainOnSuccess: check.tracked,
+            quotaScopeId,
           });
           providerSessionRefTracked = true;
           providerSessionRefRetainOnSuccess = check.tracked;
@@ -9277,13 +9283,28 @@ export class ProxyForwarder {
 
   private static releaseProviderSessionRef(session: ProxySession, providerId: number): boolean {
     if (!session.sessionId) return false;
-    const providerSessionRefConsumer = (
-      session as { consumeProviderSessionRef?: (id: number) => boolean }
-    ).consumeProviderSessionRef;
-    if (!providerSessionRefConsumer?.call(session, providerId)) return false;
-    void RateLimitService.releaseProviderSession(providerId, session.sessionId).catch((error) => {
+    const scopedConsumer = (
+      session as {
+        consumeProviderSessionRefWithScope?: (
+          id: number
+        ) => { quotaScopeId: number | string } | null;
+      }
+    ).consumeProviderSessionRefWithScope;
+    let quotaScopeId: number | string = providerId;
+    if (scopedConsumer) {
+      const consumed = scopedConsumer.call(session, providerId);
+      if (!consumed) return false;
+      quotaScopeId = consumed.quotaScopeId;
+    } else {
+      const providerSessionRefConsumer = (
+        session as { consumeProviderSessionRef?: (id: number) => boolean }
+      ).consumeProviderSessionRef;
+      if (!providerSessionRefConsumer?.call(session, providerId)) return false;
+    }
+    void RateLimitService.releaseProviderSession(quotaScopeId, session.sessionId).catch((error) => {
       logger.warn("ProxyForwarder: Failed to release Provider session reference", {
         providerId,
+        quotaScopeId,
         sessionId: session.sessionId,
         error: error instanceof Error ? error.message : String(error),
       });

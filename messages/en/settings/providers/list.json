@@ -43,5 +43,6 @@
   "actionDelete": "Delete",
   "selectProvider": "Select {name}",
   "schedule": "Schedule",
-  "proxyEnabled": "Proxy enabled"
+  "proxyEnabled": "Proxy enabled",
+  "confirmDeleteBundleMessage": "Are you sure you want to delete channel \"{name}\" and all {count} associated protocol records? Historical request logs will be preserved."
 }

@@ -1,4 +1,5 @@
 import { logger } from "@/lib/logger";
+import type { ProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import {
   getGlobalActiveSessionsKey,
   getKeyActiveSessionsKey,
@@ -11,7 +12,7 @@ import {
   mutateLegacySessionBindingSafely,
 } from "./redis/session-binding";
 
-const PROVIDER_ACTIVE_SESSIONS_PATTERN = /^provider:(\d+):active_sessions$/;
+const PROVIDER_ACTIVE_SESSIONS_PATTERN = /^provider:(\d+|pg_[A-Za-z0-9-]+):active_sessions$/;
 
 function getProviderActiveSessionRefsKey(activeSessionsKey: string): string | null {
   const match = PROVIDER_ACTIVE_SESSIONS_PATTERN.exec(activeSessionsKey);
@@ -202,7 +203,7 @@ export class SessionTracker {
    * @param sessionId - Session ID
    * @param providerId - Provider ID
    */
-  static async updateProvider(sessionId: string, providerId: number): Promise<void> {
+  static async updateProvider(sessionId: string, providerId: ProviderQuotaScopeId): Promise<void> {
     const redis = getRedisClient();
     if (redis?.status !== "ready") return;
 
@@ -256,7 +257,7 @@ export class SessionTracker {
   static async refreshSession(
     sessionId: string,
     keyId: number,
-    providerId: number,
+    providerId: ProviderQuotaScopeId,
     userId?: number
   ): Promise<void> {
     const redis = getRedisClient();
@@ -440,7 +441,7 @@ export class SessionTracker {
    * @param providerId - Provider ID
    * @returns 活跃 session 数量
    */
-  static async getProviderSessionCount(providerId: number): Promise<number> {
+  static async getProviderSessionCount(providerId: ProviderQuotaScopeId): Promise<number> {
     const redis = getRedisClient();
     if (redis?.status !== "ready") return 0;
 
@@ -507,8 +508,10 @@ export class SessionTracker {
    * @param providerIds - Provider ID 列表
    * @returns Map<providerId, count>
    */
-  static async getProviderSessionCountBatch(providerIds: number[]): Promise<Map<number, number>> {
-    const result = new Map<number, number>();
+  static async getProviderSessionCountBatch<T extends ProviderQuotaScopeId>(
+    providerIds: T[]
+  ): Promise<Map<T, number>> {
+    const result = new Map<T, number>();
 
     // 初始化结果（默认为 0）
     for (const providerId of providerIds) {
@@ -545,9 +548,9 @@ export class SessionTracker {
       }
 
       // 收集需要验证的 session IDs
-      const providerSessionMap = new Map<number, string[]>();
+      const providerSessionMap = new Map<T, string[]>();
       const allSessionIds: string[] = [];
-      const expiredProviderSessions = new Map<number, string[]>();
+      const expiredProviderSessions = new Map<T, string[]>();
 
       for (let i = 0; i < providerIds.length; i++) {
         const providerId = providerIds[i];

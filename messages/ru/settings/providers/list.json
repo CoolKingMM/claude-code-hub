@@ -43,5 +43,6 @@
   "actionDelete": "Удалить",
   "selectProvider": "Выбрать {name}",
   "schedule": "Расписание",
-  "proxyEnabled": "Прокси включен"
+  "proxyEnabled": "Прокси включен",
+  "confirmDeleteBundleMessage": "Вы уверены, что хотите удалить канал \"{name}\" и все {count} связанных записей протоколов? История запросов будет сохранена."
 }

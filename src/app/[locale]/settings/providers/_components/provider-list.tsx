@@ -110,17 +110,46 @@ export function ProviderList({
           const channelKeys = allGroupsByChannel.get(channelId) ?? visibleKeys;
           const provider = channelKeys[0];
           const selectedCount = visibleKeys.filter((key) => selectedProviderIds.has(key.id)).length;
+          const mergedEndpointCircuitInfo =
+            channelKeys.length === 1
+              ? endpointCircuitInfo[provider.id]
+              : Array.from(
+                  new Map(
+                    channelKeys
+                      .flatMap((key) => endpointCircuitInfo[key.id] ?? [])
+                      .map((ep) => [ep.endpointId, ep])
+                  ).values()
+                );
+          let latestCallTime: string | null =
+            statistics[provider.id]?.lastCallTime ?? provider.lastCallTime ?? null;
+          let latestCallModel: string | null =
+            statistics[provider.id]?.lastCallModel ?? provider.lastCallModel ?? null;
+          if (channelKeys.length > 1) {
+            let latestTs = latestCallTime ? Date.parse(latestCallTime) : -1;
+            for (const key of channelKeys) {
+              const candidateTime = statistics[key.id]?.lastCallTime ?? key.lastCallTime ?? null;
+              if (!candidateTime) continue;
+              const ts = Date.parse(candidateTime);
+              if (!Number.isNaN(ts) && ts > latestTs) {
+                latestTs = ts;
+                latestCallTime = candidateTime;
+                latestCallModel = statistics[key.id]?.lastCallModel ?? key.lastCallModel ?? null;
+              }
+            }
+          }
           return (
             <ProviderRichListItem
               key={channelId}
               provider={provider}
               channelProviders={channelKeys.length > 1 ? channelKeys : undefined}
+              allProviders={allProviders}
+              channelHealthStatuses={healthStatus}
               vendor={
                 provider.providerVendorId ? vendorById.get(provider.providerVendorId) : undefined
               }
               currentUser={currentUser}
               healthStatus={healthStatus[provider.id]}
-              endpointCircuitInfo={endpointCircuitInfo[provider.id]}
+              endpointCircuitInfo={mergedEndpointCircuitInfo}
               statistics={
                 channelKeys.length === 1
                   ? statistics[provider.id]
@@ -140,10 +169,8 @@ export function ProviderList({
                           0
                         )
                       ),
-                      lastCallTime:
-                        statistics[provider.id]?.lastCallTime ?? provider.lastCallTime ?? null,
-                      lastCallModel:
-                        statistics[provider.id]?.lastCallModel ?? provider.lastCallModel ?? null,
+                      lastCallTime: latestCallTime,
+                      lastCallModel: latestCallModel,
                     }
               }
               statisticsLoading={statisticsLoading}

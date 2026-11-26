@@ -196,6 +196,8 @@ export const providers = pgTable('providers', {
     .references(() => providerVendors.id, {
       onDelete: 'restrict',
     }),
+  // 多协议逻辑渠道归组 ID（可空）：同组记录在 UI 聚合为单一渠道，并在限流中共享预算与并发上限
+  protocolGroupId: varchar('protocol_group_id', { length: 36 }),
   isEnabled: boolean('is_enabled').notNull().default(true),
   weight: integer('weight').notNull().default(1),
 
@@ -378,6 +380,7 @@ export const providers = pgTable('providers', {
   // 基础索引
   providersCreatedAtIdx: index('idx_providers_created_at').on(table.createdAt),
   providersDeletedAtIdx: index('idx_providers_deleted_at').on(table.deletedAt),
+  providersProtocolGroupIdx: index('idx_providers_protocol_group').on(table.protocolGroupId),
   providersVendorTypeIdx: index('idx_providers_vendor_type').on(table.providerVendorId, table.providerType).where(sql`${table.deletedAt} IS NULL`),
   // #779/#781：Dashboard/Probe scheduler 的 enabled vendor/type 去重热路径
   providersEnabledVendorTypeIdx: index('idx_providers_enabled_vendor_type').on(

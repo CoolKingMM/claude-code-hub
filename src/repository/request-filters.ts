@@ -188,3 +188,54 @@ export async function deleteRequestFilter(id: number): Promise<boolean> {
 
   return false;
 }
+
+/**
+ * 当旧渠道升级为多协议渠道或新增/并入协议记录时，
+ * 自动把新加入该逻辑渠道的 providerId 同步到已按 providerIds 绑定旧记录的请求过滤器中，
+ * 避免同一渠道切换协议调用时漏过过滤规则。
+ */
+export async function syncRequestFilterProviderIdsForBundle(
+  existingProviderIds: readonly number[],
+  addedProviderIds: readonly number[]
+): Promise<number> {
+  const existingSet = new Set(existingProviderIds.filter((id) => Number.isInteger(id) && id > 0));
+  const addedList = Array.from(
+    new Set(addedProviderIds.filter((id) => Number.isInteger(id) && id > 0))
+  );
+  if (existingSet.size === 0 || addedList.length === 0) {
+    return 0;
+  }
+
+  const rows = await db
+    .select({
+      id: requestFilters.id,
+      providerIds: requestFilters.providerIds,
+    })
+    .from(requestFilters)
+    .where(eq(requestFilters.bindingType, "providers"));
+
+  let updatedCount = 0;
+  for (const row of rows) {
+    const currentIds = Array.isArray(row.providerIds) ? (row.providerIds as number[]) : [];
+    if (!currentIds.some((id) => existingSet.has(id))) {
+      continue;
+    }
+
+    const nextIds = Array.from(new Set([...currentIds, ...addedList]));
+    if (nextIds.length === currentIds.length) {
+      continue;
+    }
+
+    await db
+      .update(requestFilters)
+      .set({ providerIds: nextIds, updatedAt: new Date() })
+      .where(eq(requestFilters.id, row.id));
+    updatedCount++;
+  }
+
+  if (updatedCount > 0) {
+    await emitRequestFiltersUpdated();
+  }
+
+  return updatedCount;
+}

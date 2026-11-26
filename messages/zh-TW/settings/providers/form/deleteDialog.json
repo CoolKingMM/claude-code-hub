@@ -2,5 +2,10 @@
   "cancel": "關閉",
   "confirm": "確認刪除",
   "description": "確定要刪除供應商「{name}」嗎？此操作不可復原。",
-  "title": "刪除供應商"
+  "title": "刪除供應商",
+  "bundleDescription": "確定要刪除邏輯渠道 \"{name}\" 及其包含的全部 {count} 筆協定子記錄嗎？歷史請求日誌將會保留。",
+  "removeProtocolTitle": "確認移除已取消勾選的協定",
+  "removeProtocolDescription": "儲存後將軟刪除以下協定對應的子渠道：{protocols}。歷史呼叫日誌會被保留，且已移除協定上的黏性會話會被終止。",
+  "removeProtocolCancel": "取消",
+  "removeProtocolConfirm": "確認並儲存"
 }

@@ -10,6 +10,29 @@ export type ProviderType =
   | "gemini-cli"
   | "openai-compatible";
 
+export type UserFacingProviderType = "claude" | "codex" | "openai-compatible" | "gemini";
+
+export interface ProviderProtocolConfigInput {
+  provider_type: UserFacingProviderType;
+  allowed_models?: AllowedModelRuleInput[] | null;
+  model_redirects?: ProviderModelRedirectRule[] | null;
+  cache_ttl_preference?: CacheTtlPreference | null;
+  swap_cache_ttl_billing?: boolean;
+  context_1m_preference?: string | null;
+  anthropic_max_tokens_preference?: AnthropicMaxTokensPreference | null;
+  anthropic_thinking_budget_preference?: AnthropicThinkingBudgetPreference | null;
+  anthropic_adaptive_thinking?: AnthropicAdaptiveThinkingConfig | null;
+  codex_reasoning_effort_preference?: CodexReasoningEffortPreference | null;
+  codex_reasoning_summary_preference?: CodexReasoningSummaryPreference | null;
+  codex_text_verbosity_preference?: CodexTextVerbosityPreference | null;
+  codex_parallel_tool_calls_preference?: CodexParallelToolCallsPreference | null;
+  codex_image_generation_preference?: CodexImageGenerationPreference | null;
+  codex_service_tier_preference?: CodexServiceTierPreference | null;
+  gemini_google_search_preference?: GeminiGoogleSearchPreference | null;
+  /** 可选：将同站点已存在的独立协议渠道直接并入当前多协议逻辑渠道 */
+  adopt_provider_ids?: number[];
+}
+
 // Codex（Responses API）请求参数覆写偏好
 // - "inherit": 遵循客户端请求（默认）
 // - 其他值: 强制覆写 reasoning.effort；具体模型可能只支持其中一部分档位
@@ -326,6 +349,8 @@ export interface Provider {
   newApiUserId: number | null;
   // 供应商聚合实体（按官网域名归一）
   providerVendorId: number | null;
+  // 多协议逻辑渠道归组 ID（可空）：同组记录在 UI 合并为单一渠道并共享预算与并发上限
+  protocolGroupId?: string | null;
   // 是否启用
   isEnabled: boolean;
   // 权重（0-100）
@@ -467,6 +492,8 @@ export interface ProviderDisplay {
   providerType: ProviderType;
   // 供应商聚合实体（按官网域名归一）
   providerVendorId: number | null;
+  // 多协议逻辑渠道归组 ID（可空）
+  protocolGroupId?: string | null;
   // 是否透传客户端 IP
   preserveClientIp: boolean;
   // 是否跳过当前供应商的 sticky session 复用
@@ -577,6 +604,7 @@ export interface CreateProviderData {
   key: string;
   new_api_access_token?: string | null;
   new_api_user_id?: number | null;
+  protocol_group_id?: string | null;
   // 是否启用（默认 true）- 数据库字段名
   is_enabled?: boolean;
   // 权重（默认 1）
@@ -664,6 +692,7 @@ export interface UpdateProviderData {
   key?: string;
   new_api_access_token?: string | null;
   new_api_user_id?: number | null;
+  protocol_group_id?: string | null;
   // 是否启用 - 数据库字段名
   is_enabled?: boolean;
   // 权重（0-100）

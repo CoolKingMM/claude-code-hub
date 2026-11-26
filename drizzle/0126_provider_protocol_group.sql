@@ -1,0 +1,2 @@
+ALTER TABLE "providers" ADD COLUMN IF NOT EXISTS "protocol_group_id" varchar(36);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_providers_protocol_group" ON "providers" USING btree ("protocol_group_id");

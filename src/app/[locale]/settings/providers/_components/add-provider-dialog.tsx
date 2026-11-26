@@ -1,11 +1,13 @@
 "use client";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { useQueryClient } from "@tanstack/react-query";
 import { ServerCog } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { FormErrorBoundary } from "@/components/form-error-boundary";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import type { ProviderDisplay } from "@/types/provider";
 import { ProviderForm } from "./forms/provider-form";
 import { ProviderFormDialogContent } from "./provider-form-dialog-content";
 
@@ -15,7 +17,11 @@ interface AddProviderDialogProps {
 
 export function AddProviderDialog({ enableMultiProviderTypes }: AddProviderDialogProps) {
   const t = useTranslations("settings.providers");
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const cachedProviders = open
+    ? queryClient.getQueryData<ProviderDisplay[]>(["providers"])
+    : undefined;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -30,6 +36,7 @@ export function AddProviderDialog({ enableMultiProviderTypes }: AddProviderDialo
         <FormErrorBoundary>
           <ProviderForm
             mode="create"
+            allProviders={cachedProviders}
             enableMultiProviderTypes={enableMultiProviderTypes}
             onSuccess={() => {
               setOpen(false);

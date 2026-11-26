@@ -27,6 +27,7 @@ import type {
 } from "@/types/provider";
 import { AdaptiveThinkingEditor } from "../../../adaptive-thinking-editor";
 import { ThinkingBudgetEditor } from "../../../thinking-budget-editor";
+import { ProtocolSubTabs } from "../components/protocol-sub-tabs";
 import { SectionCard, SmartInputWrapper, ToggleRow } from "../components/section-card";
 import { useProviderForm } from "../provider-form-context";
 
@@ -154,6 +155,18 @@ export function OptionsSection({ subSectionRefs }: OptionsSectionProps) {
               </SmartInputWrapper>
             </div>
           </SectionCard>
+
+          {/* Multi-protocol switcher for protocol-specific overrides */}
+          {!isBatch && (state.routing.selectedProtocols?.length ?? 1) >= 2 && (
+            <div className="space-y-2">
+              <ProtocolSubTabs />
+              {providerType === "openai-compatible" && (
+                <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+                  {t("sections.routing.multiProtocol.noProtocolOverrides")}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Codex Overrides - Codex type only (or batch mode) */}
           {(providerType === "codex" || isBatch) && (

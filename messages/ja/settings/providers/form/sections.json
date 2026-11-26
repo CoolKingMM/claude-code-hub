@@ -168,7 +168,9 @@
         "fixed": "最初の成功課金から 5 時間の固定ウィンドウを開始します",
         "rolling": "直近5時間のローリングウィンドウで集計します"
       }
-    }
+    },
+    "sharedMultiProtocolNoticeTitle": "複数プロトコル間で利用上限・同時実行数を共有",
+    "sharedMultiProtocolNoticeDesc": "以下の金額上限および同時セッション上限は、このチャネルで有効な {count} 個のプロトコル全体で合算されます。"
   },
   "limits": {
     "timeBased": "時間ベースの制限",
@@ -447,7 +449,21 @@
       "none": "未設定",
       "redirects": "リダイレクト {count} 件"
     },
-    "title": "ルーティング"
+    "title": "ルーティング",
+    "multiProtocol": {
+      "selectDesc": "このチャネルでサポートする API プロトコルを 1 つ以上選択できます。複数プロトコルは URL・API キー・利用上限を共有し、モデルルールやプロトコル固有設定は個別に構成できます。",
+      "subTabsLabel": "プロトコル設定の切り替え",
+      "editingProtocol": "設定中のプロトコル",
+      "adoptedBadge": "統合",
+      "willSoftDelete": "保存時にソフト削除されます",
+      "selectedSummary": "{count} 個のプロトコルが選択されています。以下のモデルルール・プロトコル固有設定・接続テストをプロトコルごとに切り替えられます。",
+      "adoptAvailableTitle": "同じベンダーに既存の独立した {protocol} チャネルが見つかりました（{count} 件）",
+      "adoptActiveTitle": "保存時に既存の {protocol} チャネル {count} 件をこのチャネルに統合します",
+      "adoptAvailableDesc": "対象チャネル: {names}（モデル/リダイレクトルール計 {rulesCount} 件）。統合すると既存のモデル許可リストとリダイレクト設定が保持されます。",
+      "confirmAdopt": "このチャネルに統合",
+      "cancelAdopt": "新規作成にする",
+      "noProtocolOverrides": "OpenAI Compatible には上記の共通オプション以外の追加プロトコル固有設定はありません。"
+    }
   },
   "timeout": {
     "desc": "リクエストのタイムアウト時間を設定します。0 は無効を意味します",

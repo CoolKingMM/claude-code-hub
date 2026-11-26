@@ -73,6 +73,7 @@ export function VendorKeysCompactList(props: {
   vendorWebsiteDomain: string;
   vendorWebsiteUrl?: string | null;
   providers: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
   currentUser?: User;
   enableMultiProviderTypes: boolean;
   statistics?: ProviderStatisticsMap;
@@ -115,6 +116,7 @@ export function VendorKeysCompactList(props: {
               <FormErrorBoundary>
                 <ProviderForm
                   mode="create"
+                  allProviders={props.allProviders ?? props.providers}
                   enableMultiProviderTypes={props.enableMultiProviderTypes}
                   hideUrl
                   hideWebsiteUrl
@@ -190,18 +192,26 @@ export function VendorKeysCompactList(props: {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {props.providers.map((provider) => (
-                <VendorKeyRow
-                  key={provider.id}
-                  provider={provider}
-                  canEdit={canEdit}
-                  statistics={statistics[provider.id]}
-                  statisticsLoading={statisticsLoading}
-                  currencyCode={currencyCode}
-                  allowedProviderTypes={vendorAllowedTypes}
-                  enableMultiProviderTypes={props.enableMultiProviderTypes}
-                />
-              ))}
+              {props.providers.map((provider) => {
+                const fullPool = props.allProviders ?? props.providers;
+                const bundle = provider.protocolGroupId
+                  ? fullPool.filter((item) => item.protocolGroupId === provider.protocolGroupId)
+                  : undefined;
+                return (
+                  <VendorKeyRow
+                    key={provider.id}
+                    provider={provider}
+                    bundleProviders={bundle && bundle.length > 1 ? bundle : undefined}
+                    allProviders={fullPool}
+                    canEdit={canEdit}
+                    statistics={statistics[provider.id]}
+                    statisticsLoading={statisticsLoading}
+                    currencyCode={currencyCode}
+                    allowedProviderTypes={vendorAllowedTypes}
+                    enableMultiProviderTypes={props.enableMultiProviderTypes}
+                  />
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -212,6 +222,8 @@ export function VendorKeysCompactList(props: {
 
 function VendorKeyRow(props: {
   provider: ProviderDisplay;
+  bundleProviders?: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
   canEdit: boolean;
   statistics?: {
     todayCost: string;
@@ -520,6 +532,8 @@ function VendorKeyRow(props: {
                     <ProviderForm
                       mode="edit"
                       provider={props.provider}
+                      bundleProviders={props.bundleProviders}
+                      allProviders={props.allProviders}
                       enableMultiProviderTypes={props.enableMultiProviderTypes}
                       hideUrl
                       hideWebsiteUrl

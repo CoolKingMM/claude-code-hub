@@ -14,14 +14,16 @@ import {
   matchesProviderRequestFilter,
 } from "@/lib/provider-key-groups";
 import { normalizeProviderGroup } from "@/lib/utils/provider-group";
-import type { ProviderDisplay } from "@/types/provider";
+import type { ProviderDisplay, ProviderType } from "@/types/provider";
 import { invalidateProviderQueries } from "../../../invalidate-provider-queries";
 
 export function ExistingProviderKeys({
   provider,
+  activeProtocol,
   disabled = false,
 }: {
   provider: ProviderDisplay;
+  activeProtocol?: ProviderType;
   disabled?: boolean;
 }) {
   const t = useTranslations("settings.providers.form.key");
@@ -39,15 +41,30 @@ export function ExistingProviderKeys({
     staleTime: 0,
     refetchOnWindowFocus: false,
   });
-  const keys = (providers ?? [provider])
-    .filter((key) =>
-      provider.providerVendorId
-        ? key.providerVendorId === provider.providerVendorId &&
-          key.providerType === provider.providerType &&
-          normalizeProviderGroup(key.groupTag) === normalizeProviderGroup(provider.groupTag)
-        : key.id === provider.id
-    )
-    .toSorted((left, right) => left.id - right.id);
+  const sourceProviders = providers ?? [provider];
+  const keys = (() => {
+    if (provider.protocolGroupId) {
+      const groupItems = sourceProviders.filter(
+        (item) => item.protocolGroupId === provider.protocolGroupId
+      );
+      const targetProto = activeProtocol ?? provider.providerType;
+      const protoItems = groupItems.filter((item) => item.providerType === targetProto);
+      const effectiveItems =
+        protoItems.length > 0
+          ? protoItems
+          : groupItems.filter((item) => item.providerType === provider.providerType);
+      return effectiveItems.toSorted((left, right) => left.id - right.id);
+    }
+    return sourceProviders
+      .filter((key) =>
+        provider.providerVendorId
+          ? key.providerVendorId === provider.providerVendorId &&
+            key.providerType === provider.providerType &&
+            normalizeProviderGroup(key.groupTag) === normalizeProviderGroup(provider.groupTag)
+          : key.id === provider.id
+      )
+      .toSorted((left, right) => left.id - right.id);
+  })();
   const keyGroups = groupProviderKeyConfigurations(keys);
   const filters = useRequestFilters({ enabled: keyGroups.some((group) => group.length > 1) });
 

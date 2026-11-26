@@ -2956,6 +2956,8 @@ export interface operations {
                             providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                             /** @description Provider vendor id. */
                             providerVendorId: number | null;
+                            /** @description Optional logical multi-protocol bundle identifier shared across protocol records. */
+                            protocolGroupId?: string | null;
                             /** @description First configuration id sharing this credential within the same channel and group. */
                             keyGroupId?: number;
                             /** @description Whether client IP is preserved upstream. */
@@ -3282,6 +3284,49 @@ export interface operations {
                      * @enum {string}
                      */
                     provider_type?: "claude" | "codex" | "gemini" | "openai-compatible";
+                    /** @description Optional multi-protocol configurations sharing the same URL, keys, and quota limits. */
+                    protocol_configs?: {
+                        /**
+                         * @description Protocol type enabled in this channel bundle.
+                         * @enum {string}
+                         */
+                        provider_type: "claude" | "codex" | "gemini" | "openai-compatible";
+                        /** @description Protocol-specific allowed model rules. */
+                        allowed_models?: unknown[] | null;
+                        /** @description Protocol-specific model redirect rules. */
+                        model_redirects?: unknown[] | null;
+                        /** @description Claude cache TTL preference. */
+                        cache_ttl_preference?: string | null;
+                        /** @description Whether Claude cache TTL billing swap is enabled. */
+                        swap_cache_ttl_billing?: boolean;
+                        /** @description Claude 1M context preference. */
+                        context_1m_preference?: string | null;
+                        /** @description Anthropic max tokens preference. */
+                        anthropic_max_tokens_preference?: string | null;
+                        /** @description Anthropic thinking budget preference. */
+                        anthropic_thinking_budget_preference?: string | null;
+                        /** @description Anthropic adaptive thinking config. */
+                        anthropic_adaptive_thinking?: unknown;
+                        /** @description Codex reasoning effort. */
+                        codex_reasoning_effort_preference?: string | null;
+                        /** @description Codex reasoning summary. */
+                        codex_reasoning_summary_preference?: string | null;
+                        /** @description Codex text verbosity. */
+                        codex_text_verbosity_preference?: string | null;
+                        /** @description Codex parallel tool calls preference. */
+                        codex_parallel_tool_calls_preference?: string | null;
+                        /**
+                         * @description Codex image generation tool preference.
+                         * @enum {string|null}
+                         */
+                        codex_image_generation_preference?: "inherit" | "true" | "false" | null;
+                        /** @description Codex service tier preference. */
+                        codex_service_tier_preference?: string | null;
+                        /** @description Gemini Google Search preference. */
+                        gemini_google_search_preference?: string | null;
+                        /** @description Optional standalone provider ids of the same protocol to adopt into this multi-protocol channel. */
+                        adopt_provider_ids?: number[];
+                    }[];
                     /** @description Whether client IP is preserved upstream. */
                     preserve_client_ip?: boolean;
                     /** @description Whether sticky session reuse is disabled. */
@@ -3437,6 +3482,8 @@ export interface operations {
                         providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                         /** @description Provider vendor id. */
                         providerVendorId: number | null;
+                        /** @description Optional logical multi-protocol bundle identifier shared across protocol records. */
+                        protocolGroupId?: string | null;
                         /** @description First configuration id sharing this credential within the same channel and group. */
                         keyGroupId?: number;
                         /** @description Whether client IP is preserved upstream. */
@@ -3765,6 +3812,8 @@ export interface operations {
                         providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                         /** @description Provider vendor id. */
                         providerVendorId: number | null;
+                        /** @description Optional logical multi-protocol bundle identifier shared across protocol records. */
+                        protocolGroupId?: string | null;
                         /** @description First configuration id sharing this credential within the same channel and group. */
                         keyGroupId?: number;
                         /** @description Whether client IP is preserved upstream. */
@@ -4260,6 +4309,49 @@ export interface operations {
                      * @enum {string}
                      */
                     provider_type?: "claude" | "codex" | "gemini" | "openai-compatible";
+                    /** @description Optional multi-protocol configurations sharing the same URL, keys, and quota limits. */
+                    protocol_configs?: {
+                        /**
+                         * @description Protocol type enabled in this channel bundle.
+                         * @enum {string}
+                         */
+                        provider_type: "claude" | "codex" | "gemini" | "openai-compatible";
+                        /** @description Protocol-specific allowed model rules. */
+                        allowed_models?: unknown[] | null;
+                        /** @description Protocol-specific model redirect rules. */
+                        model_redirects?: unknown[] | null;
+                        /** @description Claude cache TTL preference. */
+                        cache_ttl_preference?: string | null;
+                        /** @description Whether Claude cache TTL billing swap is enabled. */
+                        swap_cache_ttl_billing?: boolean;
+                        /** @description Claude 1M context preference. */
+                        context_1m_preference?: string | null;
+                        /** @description Anthropic max tokens preference. */
+                        anthropic_max_tokens_preference?: string | null;
+                        /** @description Anthropic thinking budget preference. */
+                        anthropic_thinking_budget_preference?: string | null;
+                        /** @description Anthropic adaptive thinking config. */
+                        anthropic_adaptive_thinking?: unknown;
+                        /** @description Codex reasoning effort. */
+                        codex_reasoning_effort_preference?: string | null;
+                        /** @description Codex reasoning summary. */
+                        codex_reasoning_summary_preference?: string | null;
+                        /** @description Codex text verbosity. */
+                        codex_text_verbosity_preference?: string | null;
+                        /** @description Codex parallel tool calls preference. */
+                        codex_parallel_tool_calls_preference?: string | null;
+                        /**
+                         * @description Codex image generation tool preference.
+                         * @enum {string|null}
+                         */
+                        codex_image_generation_preference?: "inherit" | "true" | "false" | null;
+                        /** @description Codex service tier preference. */
+                        codex_service_tier_preference?: string | null;
+                        /** @description Gemini Google Search preference. */
+                        gemini_google_search_preference?: string | null;
+                        /** @description Optional standalone provider ids of the same protocol to adopt into this multi-protocol channel. */
+                        adopt_provider_ids?: number[];
+                    }[];
                     /** @description Whether client IP is preserved upstream. */
                     preserve_client_ip?: boolean;
                     /** @description Whether sticky session reuse is disabled. */
@@ -4427,6 +4519,8 @@ export interface operations {
                         providerType: "claude" | "codex" | "gemini" | "openai-compatible";
                         /** @description Provider vendor id. */
                         providerVendorId: number | null;
+                        /** @description Optional logical multi-protocol bundle identifier shared across protocol records. */
+                        protocolGroupId?: string | null;
                         /** @description First configuration id sharing this credential within the same channel and group. */
                         keyGroupId?: number;
                         /** @description Whether client IP is preserved upstream. */

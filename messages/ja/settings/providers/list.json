@@ -43,5 +43,6 @@
   "actionDelete": "削除",
   "selectProvider": "{name} を選択",
   "schedule": "スケジュール",
-  "proxyEnabled": "プロキシ有効"
+  "proxyEnabled": "プロキシ有効",
+  "confirmDeleteBundleMessage": "チャネル \"{name}\" と関連する {count} 件のプロトコルレコードをすべて削除してもよろしいですか？過去のリクエストログは保持されます。"
 }

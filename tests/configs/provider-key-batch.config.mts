@@ -4,6 +4,7 @@ export default createCoverageConfig({
   name: "provider-key-batch",
   environment: "happy-dom",
   testFiles: [
+    "tests/unit/providers/provider-protocol-bundle.test.ts",
     "tests/unit/providers/provider-vendor-groups.test.ts",
     "tests/unit/providers/provider-vendor-key.test.ts",
     "tests/unit/providers/provider-key-groups.test.ts",
@@ -39,6 +40,9 @@ export default createCoverageConfig({
     "tests/unit/repository/system-config-update-missing-columns.test.ts",
   ],
   sourceFiles: [
+    "src/lib/provider-quota-scope.ts",
+    "src/lib/provider-protocol-bundle.ts",
+    "src/lib/validation/provider-protocol-configs.ts",
     "src/lib/provider-vendor-groups.ts",
     "src/lib/provider-vendor-key.ts",
     "src/lib/provider-key-groups.ts",

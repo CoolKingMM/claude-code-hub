@@ -37,6 +37,7 @@ import { VendorKeysCompactList } from "./vendor-keys-compact-list";
 
 interface ProviderVendorViewProps {
   providers: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
   currentUser?: User;
   enableMultiProviderTypes: boolean;
   healthStatus: Record<number, any>;
@@ -49,6 +50,7 @@ interface ProviderVendorViewProps {
 export function ProviderVendorView(props: ProviderVendorViewProps) {
   const {
     providers,
+    allProviders = providers,
     currentUser,
     enableMultiProviderTypes,
     statistics,
@@ -91,6 +93,7 @@ export function ProviderVendorView(props: ProviderVendorViewProps) {
             vendor={vendor}
             vendorId={vendorId}
             providers={vendorProviders}
+            allProviders={allProviders}
             currentUser={currentUser}
             enableMultiProviderTypes={enableMultiProviderTypes}
             statistics={statistics}
@@ -108,6 +111,7 @@ function VendorCard({
   vendor,
   vendorId,
   providers,
+  allProviders,
   currentUser,
   enableMultiProviderTypes,
   statistics,
@@ -118,6 +122,7 @@ function VendorCard({
   vendor?: ProviderVendor;
   vendorId: number;
   providers: ProviderDisplay[];
+  allProviders: ProviderDisplay[];
   currentUser?: User;
   enableMultiProviderTypes: boolean;
   statistics: Record<number, any>;
@@ -211,6 +216,7 @@ function VendorCard({
               vendorWebsiteDomain={vendor?.websiteDomain ?? ""}
               vendorWebsiteUrl={vendor?.websiteUrl ?? null}
               providers={providers}
+              allProviders={allProviders}
               currentUser={currentUser}
               enableMultiProviderTypes={enableMultiProviderTypes}
               statistics={statistics}

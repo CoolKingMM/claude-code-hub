@@ -26,6 +26,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useDebounce } from "@/lib/hooks/use-debounce";
+import { groupProvidersByChannel } from "@/lib/provider-vendor-groups";
 import type { CurrencyCode } from "@/lib/utils/currency";
 import { parseProviderGroups, resolveProviderGroupsWithDefault } from "@/lib/utils/provider-group";
 import type {
@@ -268,6 +269,15 @@ export function ProviderManager({
     if (editingProviderId == null) return null;
     return providers.find((provider) => provider.id === editingProviderId) ?? null;
   }, [editingProviderId, providers]);
+
+  // 编辑任意逻辑渠道时，从全量 providers（不受协议筛选过滤）加载完整多协议组
+  const editingBundleProviders = useMemo(() => {
+    if (!editingProvider) return undefined;
+    const channel = groupProvidersByChannel(providers).find((group) =>
+      group.providers.some((item) => item.id === editingProvider.id)
+    );
+    return channel && channel.providers.length > 1 ? channel.providers : undefined;
+  }, [editingProvider, providers]);
 
   // Batch selection handlers
   const handleSelectAll = useCallback(
@@ -701,6 +711,7 @@ export function ProviderManager({
               <ProviderVendorView
                 collapseKeysByDefault
                 providers={filteredProviders}
+                allProviders={providers}
                 currentUser={currentUser}
                 enableMultiProviderTypes={enableMultiProviderTypes}
                 healthStatus={healthStatus}
@@ -747,6 +758,8 @@ export function ProviderManager({
             <ProviderForm
               mode="edit"
               provider={editingProvider}
+              bundleProviders={editingBundleProviders}
+              allProviders={providers}
               enableMultiProviderTypes={enableMultiProviderTypes}
               onSuccess={() => {
                 setEditingProviderId(null);

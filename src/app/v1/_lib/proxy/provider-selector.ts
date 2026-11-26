@@ -3,6 +3,7 @@ import { getCircuitState, isCircuitOpen } from "@/lib/circuit-breaker";
 import { getEnvConfig } from "@/lib/config/env.schema";
 import { PROVIDER_GROUP } from "@/lib/constants/provider.constants";
 import { logger } from "@/lib/logger";
+import { getProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import { RateLimitService } from "@/lib/rate-limit";
 import { buildPublicSessionIdentity, buildScopeTag } from "@/lib/request-identity";
 import { SessionManager } from "@/lib/session-manager";
@@ -319,10 +320,11 @@ export class ProxyProviderResolver {
       // 选定供应商后，进行原子性并发检查并追踪
       if (session.sessionId) {
         const limit = session.provider.limitConcurrentSessions || 0;
+        const quotaScopeId = getProviderQuotaScopeId(session.provider);
 
         // 使用原子性检查并追踪（解决竞态条件）
         const checkResult = await RateLimitService.checkAndTrackProviderSession(
-          session.provider.id,
+          quotaScopeId,
           session.sessionId,
           limit
         );
@@ -399,6 +401,7 @@ export class ProxyProviderResolver {
         if (checkResult.referenced) {
           session.recordProviderSessionRef(session.provider.id, {
             retainOnSuccess: checkResult.tracked,
+            quotaScopeId,
           });
         }
 
@@ -765,7 +768,8 @@ export class ProxyProviderResolver {
     }
 
     // 亲和提名同样不得绕过金额限额（5h/日/周/月 + 总额），与 findReusable 一致
-    const costCheck = await RateLimitService.checkCostLimitsWithLease(provider.id, "provider", {
+    const quotaScopeId = getProviderQuotaScopeId(provider);
+    const costCheck = await RateLimitService.checkCostLimitsWithLease(quotaScopeId, "provider", {
       limit_5h_usd: provider.limit5hUsd,
       limit_5h_reset_mode: provider.limit5hResetMode,
       limit_daily_usd: provider.limitDailyUsd,
@@ -777,7 +781,7 @@ export class ProxyProviderResolver {
     if (!costCheck.allowed) return null;
 
     const totalCheck = await RateLimitService.checkTotalCostLimit(
-      provider.id,
+      quotaScopeId,
       "provider",
       provider.limitTotalUsd,
       {
@@ -1056,7 +1060,8 @@ export class ProxyProviderResolver {
     // No auth group info (effectiveGroup is null) can reuse any provider
 
     // 会话复用也必须遵守限额（否则会绕过"达到限额即禁用"的语义）
-    const costCheck = await RateLimitService.checkCostLimitsWithLease(provider.id, "provider", {
+    const quotaScopeId = getProviderQuotaScopeId(provider);
+    const costCheck = await RateLimitService.checkCostLimitsWithLease(quotaScopeId, "provider", {
       limit_5h_usd: provider.limit5hUsd,
       limit_5h_reset_mode: provider.limit5hResetMode,
       limit_daily_usd: provider.limitDailyUsd,
@@ -1075,7 +1080,7 @@ export class ProxyProviderResolver {
     }
 
     const totalCheck = await RateLimitService.checkTotalCostLimit(
-      provider.id,
+      quotaScopeId,
       "provider",
       provider.limitTotalUsd,
       {
@@ -1457,15 +1462,20 @@ export class ProxyProviderResolver {
         }
 
         // 1. 检查金额限制
-        const costCheck = await RateLimitService.checkCostLimitsWithLease(p.id, "provider", {
-          limit_5h_usd: p.limit5hUsd,
-          limit_5h_reset_mode: p.limit5hResetMode,
-          limit_daily_usd: p.limitDailyUsd,
-          daily_reset_mode: p.dailyResetMode,
-          daily_reset_time: p.dailyResetTime,
-          limit_weekly_usd: p.limitWeeklyUsd,
-          limit_monthly_usd: p.limitMonthlyUsd,
-        });
+        const quotaScopeId = getProviderQuotaScopeId(p);
+        const costCheck = await RateLimitService.checkCostLimitsWithLease(
+          quotaScopeId,
+          "provider",
+          {
+            limit_5h_usd: p.limit5hUsd,
+            limit_5h_reset_mode: p.limit5hResetMode,
+            limit_daily_usd: p.limitDailyUsd,
+            daily_reset_mode: p.dailyResetMode,
+            daily_reset_time: p.dailyResetTime,
+            limit_weekly_usd: p.limitWeeklyUsd,
+            limit_monthly_usd: p.limitMonthlyUsd,
+          }
+        );
 
         if (!costCheck.allowed) {
           logger.debug("ProviderSelector: Provider cost limit exceeded", {
@@ -1476,7 +1486,7 @@ export class ProxyProviderResolver {
 
         // 2. 检查总消费上限（无重置窗口，达到后需要管理员取消限额或手动重置）
         const totalCheck = await RateLimitService.checkTotalCostLimit(
-          p.id,
+          quotaScopeId,
           "provider",
           p.limitTotalUsd,
           {

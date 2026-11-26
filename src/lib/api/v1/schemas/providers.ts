@@ -59,6 +59,9 @@ export const ProviderSummarySchema = z
     groupTag: NullableStringSchema.describe("Provider group tag."),
     providerType: ProviderTypeSchema,
     providerVendorId: z.number().int().nullable().describe("Provider vendor id."),
+    protocolGroupId: NullableStringSchema.optional().describe(
+      "Optional logical multi-protocol bundle identifier shared across protocol records."
+    ),
     keyGroupId: z
       .number()
       .int()
@@ -426,6 +429,88 @@ const TimeOfDaySchema = z
   .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)
   .describe("Time of day in HH:mm format.");
 
+const ProviderProtocolConfigSchema = z
+  .object({
+    provider_type: ProviderTypeSchema.describe("Protocol type enabled in this channel bundle."),
+    allowed_models: z
+      .array(z.unknown())
+      .nullable()
+      .optional()
+      .describe("Protocol-specific allowed model rules."),
+    model_redirects: z
+      .array(z.unknown())
+      .nullable()
+      .optional()
+      .describe("Protocol-specific model redirect rules."),
+    cache_ttl_preference: z.string().nullable().optional().describe("Claude cache TTL preference."),
+    swap_cache_ttl_billing: z
+      .boolean()
+      .optional()
+      .describe("Whether Claude cache TTL billing swap is enabled."),
+    context_1m_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Claude 1M context preference."),
+    anthropic_max_tokens_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Anthropic max tokens preference."),
+    anthropic_thinking_budget_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Anthropic thinking budget preference."),
+    anthropic_adaptive_thinking: z
+      .unknown()
+      .nullable()
+      .optional()
+      .describe("Anthropic adaptive thinking config."),
+    codex_reasoning_effort_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Codex reasoning effort."),
+    codex_reasoning_summary_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Codex reasoning summary."),
+    codex_text_verbosity_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Codex text verbosity."),
+    codex_parallel_tool_calls_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Codex parallel tool calls preference."),
+    codex_image_generation_preference: CodexImageGenerationPreferenceSchema.nullable()
+      .optional()
+      .describe("Codex image generation tool preference."),
+    codex_service_tier_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Codex service tier preference."),
+    gemini_google_search_preference: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("Gemini Google Search preference."),
+    adopt_provider_ids: z
+      .array(z.number().int().positive())
+      .max(100)
+      .optional()
+      .describe(
+        "Optional standalone provider ids of the same protocol to adopt into this multi-protocol channel."
+      ),
+  })
+  .strict()
+  .describe("Per-protocol configuration inside a multi-protocol channel.");
+
 export const ProviderCreateSchema = z
   .object({
     name: z.string().trim().min(1).max(64).describe("Provider display name."),
@@ -463,6 +548,14 @@ export const ProviderCreateSchema = z
       .optional()
       .describe("Per-group priority overrides."),
     provider_type: ProviderTypeSchema.optional().default("claude"),
+    protocol_configs: z
+      .array(ProviderProtocolConfigSchema)
+      .min(1)
+      .max(4)
+      .optional()
+      .describe(
+        "Optional multi-protocol configurations sharing the same URL, keys, and quota limits."
+      ),
     preserve_client_ip: z.boolean().optional().describe("Whether client IP is preserved upstream."),
     disable_session_reuse: z
       .boolean()

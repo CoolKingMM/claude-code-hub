@@ -106,6 +106,7 @@ export function toProvider(dbProvider: any): Provider {
     newApiAccessToken: dbProvider?.newApiAccessToken ?? null,
     newApiUserId: dbProvider?.newApiUserId ?? null,
     providerVendorId: dbProvider?.providerVendorId ?? null,
+    protocolGroupId: dbProvider?.protocolGroupId ?? null,
     isEnabled: dbProvider?.isEnabled ?? true,
     weight: dbProvider?.weight ?? 1,
     priority: dbProvider?.priority ?? 0,

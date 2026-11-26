@@ -21,6 +21,7 @@ import { detectApiKeyWarnings } from "@/lib/utils/validation/api-key-warnings";
 import type { ProviderType } from "@/types/provider";
 import { UrlPreview } from "../../url-preview";
 import { ExistingProviderKeys } from "../components/existing-provider-keys";
+import { ProtocolSubTabs } from "../components/protocol-sub-tabs";
 import { ProviderKeysInput } from "../components/provider-keys-input";
 import { QuickPasteDialog } from "../components/quick-paste-dialog";
 import { SectionCard, SmartInputWrapper } from "../components/section-card";
@@ -199,13 +200,16 @@ export function BasicInfoSection({ autoUrlPending, endpointPool }: BasicInfoSect
           description={t("sections.basic.endpointPool.desc")}
           icon={Globe}
         >
-          <div className="-mx-5 -mb-5">
-            <ProviderEndpointsSection
-              vendorId={endpointPool.vendorId}
-              providerType={endpointPool.providerType}
-              hideTypeColumn={true}
-              queryKeySuffix="provider-form"
-            />
+          <div className="space-y-3">
+            <ProtocolSubTabs />
+            <div className="-mx-5 -mb-5">
+              <ProviderEndpointsSection
+                vendorId={endpointPool.vendorId}
+                providerType={endpointPool.providerType}
+                hideTypeColumn={true}
+                queryKeySuffix="provider-form"
+              />
+            </div>
           </div>
         </SectionCard>
       ) : null}
@@ -244,7 +248,9 @@ export function BasicInfoSection({ autoUrlPending, endpointPool }: BasicInfoSect
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
+                className="space-y-2"
               >
+                <ProtocolSubTabs />
                 <UrlPreview baseUrl={state.basic.url} providerType={state.routing.providerType} />
               </motion.div>
             )}
@@ -331,7 +337,11 @@ export function BasicInfoSection({ autoUrlPending, endpointPool }: BasicInfoSect
           {isEdit && (
             <div className="space-y-2 border-t pt-4">
               {provider && (
-                <ExistingProviderKeys provider={provider} disabled={state.ui.isPending} />
+                <ExistingProviderKeys
+                  provider={provider}
+                  activeProtocol={state.routing.activeProtocol}
+                  disabled={state.ui.isPending}
+                />
               )}
               <p className="text-sm font-medium">{t("key.additionalTitle")}</p>
               <p className="text-xs text-muted-foreground">{t("key.additionalDesc")}</p>

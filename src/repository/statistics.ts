@@ -4,8 +4,12 @@ import { fromZonedTime } from "date-fns-tz";
 import type { SQL } from "drizzle-orm";
 import { and, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/drizzle/db";
-import { keys, messageRequest, usageLedger } from "@/drizzle/schema";
+import { keys, messageRequest, providers, usageLedger } from "@/drizzle/schema";
 import { TTLMap } from "@/lib/cache/ttl-map";
+import {
+  extractProtocolGroupIdFromScope,
+  type ProviderQuotaScopeId,
+} from "@/lib/provider-quota-scope";
 import { resolveSystemTimezone } from "@/lib/utils/timezone";
 import type {
   DatabaseKey,
@@ -788,8 +792,25 @@ export async function sumKeyTotalCostBatchByIds(
  * @param providerId - 供应商 ID
  * @param resetAt - 手动重置时间（用于实现“从 0 重新累计”）
  */
+function buildProviderQuotaScopeCondition(
+  column: typeof usageLedger.finalProviderId | typeof messageRequest.providerId,
+  providerIdOrScope: ProviderQuotaScopeId
+): SQL {
+  const protocolGroupId = extractProtocolGroupIdFromScope(providerIdOrScope);
+  if (protocolGroupId) {
+    // 包含已软删除但曾属于该多协议组的记录，防止通过取消勾选协议重置当期共享预算
+    const groupProviderIds = db
+      .select({ id: providers.id })
+      .from(providers)
+      .where(eq(providers.protocolGroupId, protocolGroupId));
+    return inArray(column, groupProviderIds);
+  }
+
+  return eq(column, Number(providerIdOrScope));
+}
+
 export async function sumProviderTotalCost(
-  providerId: number,
+  providerId: ProviderQuotaScopeId,
   resetAt?: Date | null
 ): Promise<number> {
   const effectiveStart =
@@ -800,7 +821,7 @@ export async function sumProviderTotalCost(
     .from(usageLedger)
     .where(
       and(
-        eq(usageLedger.finalProviderId, providerId),
+        buildProviderQuotaScopeCondition(usageLedger.finalProviderId, providerId),
         LEDGER_BILLING_CONDITION,
         ...(effectiveStart ? [gte(usageLedger.createdAt, effectiveStart)] : [])
       )
@@ -1072,7 +1093,7 @@ export async function findUserCostEntriesInTimeRange(
  * 查询供应商在指定时间范围内的消费明细（用于滚动窗口 Redis 恢复）
  */
 export async function findProviderCostEntriesInTimeRange(
-  providerId: number,
+  providerId: ProviderQuotaScopeId,
   startTime: Date,
   endTime: Date
 ): Promise<CostEntryInTimeRange[]> {
@@ -1085,7 +1106,7 @@ export async function findProviderCostEntriesInTimeRange(
     .from(messageRequest)
     .where(
       and(
-        eq(messageRequest.providerId, providerId),
+        buildProviderQuotaScopeCondition(messageRequest.providerId, providerId),
         gte(messageRequest.createdAt, startTime),
         lt(messageRequest.createdAt, endTime),
         isNull(messageRequest.deletedAt),
@@ -1295,7 +1316,7 @@ export async function getRateLimitEventStats(
  * 用于 Provider 层限额检查（Redis 降级）
  */
 export async function sumProviderCostInTimeRange(
-  providerId: number,
+  providerId: ProviderQuotaScopeId,
   startTime: Date,
   endTime: Date
 ): Promise<number> {
@@ -1304,7 +1325,7 @@ export async function sumProviderCostInTimeRange(
     .from(usageLedger)
     .where(
       and(
-        eq(usageLedger.finalProviderId, providerId),
+        buildProviderQuotaScopeCondition(usageLedger.finalProviderId, providerId),
         gte(usageLedger.createdAt, startTime),
         lt(usageLedger.createdAt, endTime),
         LEDGER_BILLING_CONDITION

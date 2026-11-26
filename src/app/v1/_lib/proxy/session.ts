@@ -316,7 +316,10 @@ export class ProxySession {
   // 本请求已通过 Provider 并发检查获得的引用。tracked=true 表示这次
   // acquire 同时创建了 Provider Session 基线；Sticky CAS 成功时只有
   // 该引用可以保留，已有基线上的普通 attempt 引用必须在终态释放。
-  private providerSessionRefs = new Map<number, Array<{ retainOnSuccess: boolean }>>();
+  private providerSessionRefs = new Map<
+    number,
+    Array<{ retainOnSuccess: boolean; quotaScopeId: number | string }>
+  >();
 
   // Snapshot captured during provider selection. Discovery reuses this exact
   // generation for timeout cleanup/finalization instead of performing a
@@ -593,24 +596,37 @@ export class ProxySession {
     return this.sessionBindingSnapshot;
   }
 
-  recordProviderSessionRef(providerId: number, options: { retainOnSuccess?: boolean } = {}): void {
+  recordProviderSessionRef(
+    providerId: number,
+    options: { retainOnSuccess?: boolean; quotaScopeId?: number | string } = {}
+  ): void {
     if (!this.providerSessionRefs) {
-      this.providerSessionRefs = new Map<number, Array<{ retainOnSuccess: boolean }>>();
+      this.providerSessionRefs = new Map<
+        number,
+        Array<{ retainOnSuccess: boolean; quotaScopeId: number | string }>
+      >();
     }
 
     if (Number.isInteger(providerId) && providerId > 0) {
       const refs = this.providerSessionRefs.get(providerId) ?? [];
-      refs.push({ retainOnSuccess: options.retainOnSuccess === true });
+      refs.push({
+        retainOnSuccess: options.retainOnSuccess === true,
+        quotaScopeId: options.quotaScopeId ?? providerId,
+      });
       this.providerSessionRefs.set(providerId, refs);
     }
   }
 
-  consumeProviderSessionRef(providerId: number): boolean {
+  consumeProviderSessionRefWithScope(providerId: number): { quotaScopeId: number | string } | null {
     const refs = this.providerSessionRefs?.get(providerId);
-    if (!refs || refs.length === 0) return false;
-    refs.shift();
+    if (!refs || refs.length === 0) return null;
+    const consumed = refs.shift();
     if (refs.length === 0) this.providerSessionRefs.delete(providerId);
-    return true;
+    return consumed ? { quotaScopeId: consumed.quotaScopeId } : null;
+  }
+
+  consumeProviderSessionRef(providerId: number): boolean {
+    return this.consumeProviderSessionRefWithScope(providerId) !== null;
   }
 
   hasProviderSessionRef(providerId: number): boolean {

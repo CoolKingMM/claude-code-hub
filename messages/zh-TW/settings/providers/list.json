@@ -43,5 +43,6 @@
   "actionDelete": "刪除",
   "selectProvider": "選擇 {name}",
   "schedule": "排程",
-  "proxyEnabled": "已啟用代理"
+  "proxyEnabled": "已啟用代理",
+  "confirmDeleteBundleMessage": "確定要刪除邏輯渠道 \"{name}\" 及其包含的全部 {count} 筆協定子記錄嗎？歷史請求日誌將會保留。"
 }

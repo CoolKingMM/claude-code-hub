@@ -29,6 +29,7 @@ import {
   DISCOVERY_WINDOW_INVALID_ERROR_CODE,
 } from "@/lib/validation/discovery-settings";
 import { ADDITIONAL_PROVIDER_KEYS_SCHEMA } from "@/lib/validation/provider-keys";
+import { PROVIDER_PROTOCOL_CONFIGS_SCHEMA } from "@/lib/validation/provider-protocol-configs";
 import {
   REPLAY_CACHE_TTL_INVALID_ERROR_CODE,
   REPLAY_CACHE_TTL_MINUTES_MAX,
@@ -548,6 +549,7 @@ export const CreateProviderSchema = z
       .enum(["claude", "claude-auth", "codex", "gemini", "gemini-cli", "openai-compatible"])
       .optional()
       .default("claude"),
+    protocol_configs: PROVIDER_PROTOCOL_CONFIGS_SCHEMA,
     preserve_client_ip: z.boolean().optional().default(false),
     disable_session_reuse: z.boolean().optional().default(false),
     model_redirects: PROVIDER_MODEL_REDIRECT_RULES_SCHEMA,
@@ -813,6 +815,7 @@ export const UpdateProviderSchema = z
     provider_type: z
       .enum(["claude", "claude-auth", "codex", "gemini", "gemini-cli", "openai-compatible"])
       .optional(),
+    protocol_configs: PROVIDER_PROTOCOL_CONFIGS_SCHEMA,
     preserve_client_ip: z.boolean().optional(),
     disable_session_reuse: z.boolean().optional(),
     model_redirects: PROVIDER_MODEL_REDIRECT_RULES_SCHEMA,

@@ -13,6 +13,7 @@
 
 import { getCachedSystemSettings } from "@/lib/config/system-settings-cache";
 import { logger } from "@/lib/logger";
+import type { ProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import { getRedisClient } from "@/lib/redis";
 import {
   sumKeyCostInTimeRange,
@@ -38,7 +39,7 @@ import type { DailyResetMode } from "./time-utils";
  */
 export interface GetCostLeaseParams {
   entityType: LeaseEntityTypeType;
-  entityId: number;
+  entityId: ProviderQuotaScopeId;
   window: LeaseWindowType;
   limitAmount: number;
   resetTime?: string;
@@ -51,7 +52,7 @@ export interface GetCostLeaseParams {
  */
 export interface DecrementLeaseBudgetParams {
   entityType: LeaseEntityTypeType;
-  entityId: number;
+  entityId: ProviderQuotaScopeId;
   window: LeaseWindowType;
   cost: number;
   resetMode?: DailyResetMode;
@@ -67,7 +68,7 @@ export interface DecrementLeaseBudgetResult {
 }
 
 export interface LeaseSettlementEntity {
-  id: number;
+  id: ProviderQuotaScopeId;
   resetModes?: Partial<Record<"5h" | "daily", DailyResetMode>>;
 }
 
@@ -85,7 +86,7 @@ export type LeaseBudgetSettlementStatus = "decremented" | "missing" | "insuffici
 
 export interface LeaseBudgetSettlement {
   entityType: LeaseEntityTypeType;
-  entityId: number;
+  entityId: ProviderQuotaScopeId;
   window: LeaseWindowType;
   status: LeaseBudgetSettlementStatus;
   newRemaining: number;
@@ -100,7 +101,7 @@ export interface SettleLeaseBudgetsResult {
 
 interface LeaseSettlementTarget {
   entityType: LeaseEntityTypeType;
-  entityId: number;
+  entityId: ProviderQuotaScopeId;
   window: LeaseWindowType;
   resetMode?: DailyResetMode;
 }
@@ -119,13 +120,16 @@ export class LeaseService {
     return getRedisClient();
   }
 
-  private static getFixed5hCostKey(entityType: LeaseEntityTypeType, entityId: number): string {
+  private static getFixed5hCostKey(
+    entityType: LeaseEntityTypeType,
+    entityId: ProviderQuotaScopeId
+  ): string {
     return `${entityType}:${entityId}:cost_5h_fixed`;
   }
 
   private static async readFixed5hWindowState(
     entityType: LeaseEntityTypeType,
-    entityId: number
+    entityId: ProviderQuotaScopeId
   ): Promise<{ currentUsage: number; windowResetAtMs: number | null }> {
     const redis = LeaseService.redis;
     if (redis?.status !== "ready") {
@@ -373,15 +377,15 @@ export class LeaseService {
    */
   private static async queryDbUsage(
     entityType: LeaseEntityTypeType,
-    entityId: number,
+    entityId: ProviderQuotaScopeId,
     startTime: Date,
     endTime: Date
   ): Promise<number> {
     switch (entityType) {
       case "key":
-        return await sumKeyCostInTimeRange(entityId, startTime, endTime);
+        return await sumKeyCostInTimeRange(Number(entityId), startTime, endTime);
       case "user":
-        return await sumUserCostInTimeRange(entityId, startTime, endTime);
+        return await sumUserCostInTimeRange(Number(entityId), startTime, endTime);
       case "provider":
         return await sumProviderCostInTimeRange(entityId, startTime, endTime);
       default:

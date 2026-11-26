@@ -1,30 +1,30 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Info, Layers, Route, Scale } from "lucide-react";
+import { Check, GitMerge, Info, Layers, Route, Scale } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { RuleTesterDialogTrigger } from "@/app/[locale]/settings/providers/_components/rule-tester-dialog-trigger";
 import { ClientRestrictionsEditor } from "@/components/form/client-restrictions-editor";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TagInput } from "@/components/ui/tag-input";
+import {
+  findAdoptableProtocolCandidates,
+  isUserFacingProtocolType,
+} from "@/lib/provider-protocol-bundle";
 import { getProviderTypeConfig } from "@/lib/provider-type-utils";
-import type { ProviderType } from "@/types/provider";
+import { cn } from "@/lib/utils";
+import type { ProviderDisplay, ProviderType } from "@/types/provider";
 import { AllowedModelRuleEditor } from "../../../allowed-model-rule-editor";
 import { AllowedModelTester } from "../../../allowed-model-tester";
 import { MixedValueIndicator } from "../../../batch-edit/mixed-value-indicator";
 import { ModelRedirectEditor } from "../../../model-redirect-editor";
 import { ModelRedirectTester } from "../../../model-redirect-tester";
+import { ProtocolSubTabs } from "../components/protocol-sub-tabs";
 import { FieldGroup, SectionCard, SmartInputWrapper, ToggleRow } from "../components/section-card";
 import { useProviderForm } from "../provider-form-context";
 
@@ -45,6 +45,10 @@ export function RoutingSection({ subSectionRefs }: RoutingSectionProps) {
     dispatch,
     mode,
     provider,
+    bundleProviders,
+    allProviders,
+    allowedProviderTypes,
+    initialProtocols,
     enableMultiProviderTypes,
     groupSuggestions,
     batchAnalysis,
@@ -56,10 +60,14 @@ export function RoutingSection({ subSectionRefs }: RoutingSectionProps) {
     switch (type) {
       case "claude":
         return t("providerTypes.claude");
+      case "claude-auth":
+        return t("providerTypes.claudeAuth");
       case "codex":
         return t("providerTypes.codex");
       case "gemini":
         return t("providerTypes.gemini");
+      case "gemini-cli":
+        return t("providerTypes.geminiCli");
       case "openai-compatible":
         return t("providerTypes.openaiCompatible");
       default:
@@ -76,7 +84,84 @@ export function RoutingSection({ subSectionRefs }: RoutingSectionProps) {
     dispatch({ type: "SET_GROUP_TAG", payload: nextTags });
   };
 
-  const providerTypes: ProviderType[] = ["claude", "codex", "gemini", "openai-compatible"];
+  const selectedProtocols = useMemo(
+    () => state.routing.selectedProtocols ?? [state.routing.providerType],
+    [state.routing.selectedProtocols, state.routing.providerType]
+  );
+  const activeProtocol = state.routing.activeProtocol ?? state.routing.providerType;
+  const protocolConfigs = state.routing.protocolConfigs ?? {};
+
+  const providerTypes = useMemo<ProviderType[]>(() => {
+    const base: ProviderType[] =
+      allowedProviderTypes && allowedProviderTypes.length > 0
+        ? [...allowedProviderTypes]
+        : ["claude", "codex", "gemini", "openai-compatible"];
+    for (const selected of selectedProtocols) {
+      if (!base.includes(selected)) {
+        base.push(selected);
+      }
+    }
+    return base;
+  }, [allowedProviderTypes, selectedProtocols]);
+
+  const currentBundleIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (provider) ids.add(provider.id);
+    for (const item of bundleProviders ?? []) {
+      ids.add(item.id);
+    }
+    return ids;
+  }, [provider, bundleProviders]);
+
+  // 检测同供应商（编辑模式用 vendorId，新建模式用 URL origin）下可并入的独立协议渠道
+  const adoptableByProtocol = useMemo(() => {
+    const result = new Map<ProviderType, ProviderDisplay[]>();
+    if (!allProviders || allProviders.length === 0 || isBatch) {
+      return result;
+    }
+
+    const excludeProviderIds = Array.from(currentBundleIds);
+    const effectiveUrl = state.basic.url.trim() || provider?.url || null;
+
+    for (const protocol of selectedProtocols) {
+      // 编辑模式下原本就在当前组里的协议无需再提示并入
+      if (isEdit && initialProtocols.includes(protocol)) {
+        continue;
+      }
+      if (!isUserFacingProtocolType(protocol)) {
+        continue;
+      }
+      const candidates = findAdoptableProtocolCandidates(allProviders, {
+        targetProtocol: protocol,
+        excludeProviderIds,
+        currentProtocolGroupId: provider?.protocolGroupId ?? null,
+        providerVendorId: provider?.providerVendorId ?? null,
+        url: effectiveUrl,
+      });
+      const candidateProviders = candidates.flatMap((candidate) => candidate.providers);
+      if (candidateProviders.length > 0) {
+        result.set(protocol, candidateProviders);
+      }
+    }
+
+    return result;
+  }, [
+    allProviders,
+    isBatch,
+    provider?.providerVendorId,
+    provider?.protocolGroupId,
+    provider?.url,
+    state.basic.url,
+    selectedProtocols,
+    isEdit,
+    initialProtocols,
+    currentBundleIds,
+  ]);
+
+  const activeProtocolProviderId = useMemo(() => {
+    const matched = (bundleProviders ?? []).find((item) => item.providerType === activeProtocol);
+    return matched?.id ?? provider?.id;
+  }, [bundleProviders, provider?.id, activeProtocol]);
   const allowedClients = state.routing.allowedClients;
   const blockedClients = state.routing.blockedClients;
   const hasAnyClientRestrictions = allowedClients.length > 0 || blockedClients.length > 0;
@@ -114,38 +199,171 @@ export function RoutingSection({ subSectionRefs }: RoutingSectionProps) {
           variant="highlight"
         >
           <div className="space-y-4">
-            <SmartInputWrapper label={t("sections.routing.providerType.label")}>
-              <Select
-                value={state.routing.providerType}
-                onValueChange={(value) =>
-                  dispatch({ type: "SET_PROVIDER_TYPE", payload: value as ProviderType })
-                }
-                disabled={state.ui.isPending}
+            <SmartInputWrapper
+              label={t("sections.routing.providerType.label")}
+              description={t("sections.routing.multiProtocol.selectDesc")}
+            >
+              <div
+                id={isEdit ? "edit-provider-type" : "provider-type"}
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                role="group"
+                aria-label={t("sections.routing.providerType.label")}
               >
-                <SelectTrigger id={isEdit ? "edit-provider-type" : "provider-type"}>
-                  <SelectValue placeholder={t("sections.routing.providerType.placeholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerTypes.map((type) => {
-                    const typeConfig = getProviderTypeConfig(type);
-                    const TypeIcon = typeConfig.icon;
-                    const label = renderProviderTypeLabel(type);
-                    return (
-                      <SelectItem key={type} value={type}>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded ${typeConfig.bgColor}`}
-                          >
-                            <TypeIcon className={`h-3.5 w-3.5 ${typeConfig.iconColor}`} />
-                          </span>
-                          <span>{label}</span>
+                {providerTypes.map((type) => {
+                  const typeConfig = getProviderTypeConfig(type);
+                  const TypeIcon = typeConfig.icon;
+                  const label = renderProviderTypeLabel(type);
+                  const isSelected = selectedProtocols.includes(type);
+                  const isOnlySelected = isSelected && selectedProtocols.length === 1;
+                  const isRemovedExisting =
+                    isEdit && initialProtocols.includes(type) && !isSelected;
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={isSelected}
+                      disabled={state.ui.isPending || isOnlySelected}
+                      onClick={() =>
+                        dispatch({
+                          type: "TOGGLE_PROTOCOL",
+                          payload: { protocol: type },
+                        })
+                      }
+                      className={cn(
+                        "flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-all",
+                        isSelected
+                          ? "border-primary/60 bg-primary/5 shadow-xs"
+                          : isRemovedExisting
+                            ? "border-destructive/40 bg-destructive/5 text-muted-foreground"
+                            : "border-border/70 bg-card/40 hover:border-border hover:bg-muted/30",
+                        isOnlySelected && "cursor-not-allowed opacity-90"
+                      )}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={cn(
+                            "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                            typeConfig.bgColor
+                          )}
+                        >
+                          <TypeIcon className={cn("h-3.5 w-3.5", typeConfig.iconColor)} />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{label}</div>
+                          {isRemovedExisting && (
+                            <div className="text-[11px] text-destructive">
+                              {t("sections.routing.multiProtocol.willSoftDelete")}
+                            </div>
+                          )}
                         </div>
-                      </SelectItem>
+                      </div>
+                      <span
+                        className={cn(
+                          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                          isSelected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/40 bg-background"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3 w-3" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedProtocols.length > 1 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {t("sections.routing.multiProtocol.selectedSummary", {
+                    count: selectedProtocols.length,
+                  })}
+                </p>
+              )}
+
+              {/* 同供应商独立协议渠道检测与一键并入提示 */}
+              {adoptableByProtocol.size > 0 && (
+                <div className="mt-3 space-y-2">
+                  {Array.from(adoptableByProtocol.entries()).map(([protocol, candidates]) => {
+                    const currentAdoptIds = protocolConfigs[protocol]?.adoptProviderIds ?? [];
+                    const isAdopted =
+                      currentAdoptIds.length > 0 &&
+                      candidates.every((item) => currentAdoptIds.includes(item.id));
+                    const candidateNames = candidates.map((item) => item.name).join(", ");
+                    const totalRulesCount = candidates.reduce(
+                      (sum, item) =>
+                        sum +
+                        (item.allowedModels?.length ?? 0) +
+                        (item.modelRedirects?.length ?? 0),
+                      0
+                    );
+
+                    return (
+                      <div
+                        key={protocol}
+                        className={cn(
+                          "flex flex-col gap-2 rounded-lg border p-3 text-xs sm:flex-row sm:items-center sm:justify-between",
+                          isAdopted
+                            ? "border-emerald-500/40 bg-emerald-500/5"
+                            : "border-amber-500/40 bg-amber-500/5"
+                        )}
+                      >
+                        <div className="flex items-start gap-2 min-w-0">
+                          <GitMerge
+                            className={cn(
+                              "mt-0.5 h-4 w-4 shrink-0",
+                              isAdopted
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-amber-600 dark:text-amber-400"
+                            )}
+                          />
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="font-medium text-foreground">
+                              {isAdopted
+                                ? t("sections.routing.multiProtocol.adoptActiveTitle", {
+                                    protocol: renderProviderTypeLabel(protocol),
+                                    count: candidates.length,
+                                  })
+                                : t("sections.routing.multiProtocol.adoptAvailableTitle", {
+                                    protocol: renderProviderTypeLabel(protocol),
+                                    count: candidates.length,
+                                  })}
+                            </div>
+                            <p className="break-all text-muted-foreground">
+                              {t("sections.routing.multiProtocol.adoptAvailableDesc", {
+                                names: candidateNames,
+                                rulesCount: totalRulesCount,
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={isAdopted ? "outline" : "secondary"}
+                          disabled={state.ui.isPending}
+                          onClick={() =>
+                            dispatch({
+                              type: "SET_ADOPT_PROTOCOL_PROVIDERS",
+                              payload: {
+                                protocol,
+                                providers: isAdopted ? [] : candidates,
+                              },
+                            })
+                          }
+                          className="shrink-0 h-7 text-xs"
+                        >
+                          {isAdopted
+                            ? t("sections.routing.multiProtocol.cancelAdopt")
+                            : t("sections.routing.multiProtocol.confirmAdopt")}
+                        </Button>
+                      </div>
                     );
                   })}
-                </SelectContent>
-              </Select>
-              {!enableMultiProviderTypes && state.routing.providerType === "openai-compatible" && (
+                </div>
+              )}
+
+              {!enableMultiProviderTypes && selectedProtocols.includes("openai-compatible") && (
                 <p className="text-xs text-amber-600">
                   {t("sections.routing.providerTypeDisabledNote")}
                 </p>
@@ -188,6 +406,7 @@ export function RoutingSection({ subSectionRefs }: RoutingSectionProps) {
         icon={Layers}
       >
         <div className="space-y-3">
+          <ProtocolSubTabs showRuleCounts />
           {/* Model Redirects */}
           <FieldGroup
             label={t("sections.routing.modelRedirects.label")}
@@ -240,7 +459,7 @@ export function RoutingSection({ subSectionRefs }: RoutingSectionProps) {
                 value={state.routing.allowedModels}
                 onChange={(value) => dispatch({ type: "SET_ALLOWED_MODELS", payload: value })}
                 disabled={state.ui.isPending}
-                providerId={provider?.id}
+                providerId={activeProtocolProviderId}
                 providerUrl={state.basic.url ?? provider?.url}
                 apiKey={state.basic.key}
                 proxyUrl={state.network.proxyUrl}

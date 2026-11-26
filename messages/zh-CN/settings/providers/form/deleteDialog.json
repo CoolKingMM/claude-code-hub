@@ -2,5 +2,10 @@
   "title": "删除服务商",
   "description": "确定要删除服务商 \"{name}\" 吗？此操作不可恢复。",
   "cancel": "取消",
-  "confirm": "确认删除"
+  "confirm": "确认删除",
+  "bundleDescription": "确定要删除逻辑渠道 \"{name}\" 及其包含的全部 {count} 条协议子记录吗？历史请求日志将被保留。",
+  "removeProtocolTitle": "确认移除已取消勾选的协议",
+  "removeProtocolDescription": "保存后将软删除以下协议对应的子渠道：{protocols}。历史调用日志会被保留，且已移除协议上的粘性会话会被终止。",
+  "removeProtocolCancel": "取消",
+  "removeProtocolConfirm": "确认并保存"
 }

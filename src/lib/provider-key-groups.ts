@@ -3,10 +3,13 @@ import { normalizeProviderGroup, resolveProviderGroupsWithDefault } from "./util
 
 type ChannelProvider = Pick<
   ProviderDisplay,
-  "id" | "providerVendorId" | "providerType" | "groupTag"
+  "id" | "providerVendorId" | "providerType" | "groupTag" | "protocolGroupId"
 >;
 
 function channelScope(provider: ChannelProvider): unknown[] {
+  if (provider.protocolGroupId) {
+    return [`bundle:${provider.protocolGroupId}`];
+  }
   return [
     provider.providerVendorId ?? -provider.id,
     provider.providerType,

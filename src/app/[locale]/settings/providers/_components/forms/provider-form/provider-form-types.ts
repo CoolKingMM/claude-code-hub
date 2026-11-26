@@ -56,8 +56,27 @@ export interface BasicInfoState {
   newApiUserId: string;
 }
 
+export interface ProtocolSpecificConfigState {
+  allowedModels: AllowedModelRule[];
+  modelRedirects: ProviderModelRedirectRule[];
+  anthropicMaxTokensPreference: AnthropicMaxTokensPreference;
+  anthropicThinkingBudgetPreference: AnthropicThinkingBudgetPreference;
+  anthropicAdaptiveThinking: AnthropicAdaptiveThinkingConfig | null;
+  codexReasoningEffortPreference: CodexReasoningEffortPreference;
+  codexReasoningSummaryPreference: CodexReasoningSummaryPreference;
+  codexTextVerbosityPreference: CodexTextVerbosityPreference;
+  codexParallelToolCallsPreference: CodexParallelToolCallsPreference;
+  codexImageGenerationPreference: CodexImageGenerationPreference;
+  codexServiceTierPreference: CodexServiceTierPreference;
+  geminiGoogleSearchPreference: GeminiGoogleSearchPreference;
+  adoptProviderIds: number[];
+}
+
 export interface RoutingState {
   providerType: ProviderType;
+  selectedProtocols: ProviderType[];
+  activeProtocol: ProviderType;
+  protocolConfigs: Partial<Record<ProviderType, ProtocolSpecificConfigState>>;
   groupTag: string[];
   preserveClientIp: boolean;
   disableSessionReuse: boolean;
@@ -131,6 +150,7 @@ export interface UIState {
   activeSubTab: SubTabId | null;
   isPending: boolean;
   showFailureThresholdConfirm: boolean;
+  showRemoveProtocolConfirm: boolean;
 }
 
 // Complete form state
@@ -159,6 +179,15 @@ export type ProviderFormAction =
   | { type: "SET_NEW_API_USER_ID"; payload: string }
   // Routing actions
   | { type: "SET_PROVIDER_TYPE"; payload: ProviderType }
+  | { type: "SET_ACTIVE_PROTOCOL"; payload: ProviderType }
+  | {
+      type: "TOGGLE_PROTOCOL";
+      payload: { protocol: ProviderType; adoptProviders?: ProviderDisplay[] };
+    }
+  | {
+      type: "SET_ADOPT_PROTOCOL_PROVIDERS";
+      payload: { protocol: ProviderType; providers: ProviderDisplay[] };
+    }
   | { type: "SET_GROUP_TAG"; payload: string[] }
   | { type: "SET_PRESERVE_CLIENT_IP"; payload: boolean }
   | { type: "SET_DISABLE_SESSION_REUSE"; payload: boolean }
@@ -219,6 +248,7 @@ export type ProviderFormAction =
   | { type: "SET_ACTIVE_NAV"; payload: { tab: TabId; subTab: SubTabId | null } }
   | { type: "SET_IS_PENDING"; payload: boolean }
   | { type: "SET_SHOW_FAILURE_THRESHOLD_CONFIRM"; payload: boolean }
+  | { type: "SET_SHOW_REMOVE_PROTOCOL_CONFIRM"; payload: boolean }
   // Bulk actions
   | { type: "RESET_FORM" }
   | { type: "LOAD_PROVIDER"; payload: ProviderDisplay }
@@ -230,6 +260,8 @@ export interface ProviderFormProps {
   mode: FormMode;
   onSuccess?: () => void;
   provider?: ProviderDisplay;
+  bundleProviders?: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
   cloneProvider?: ProviderDisplay;
   enableMultiProviderTypes: boolean;
   hideUrl?: boolean;
@@ -250,6 +282,11 @@ export interface ProviderFormContextValue {
   dispatch: Dispatch<ProviderFormAction>;
   mode: FormMode;
   provider?: ProviderDisplay;
+  bundleProviders?: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
+  allowedProviderTypes?: ProviderType[];
+  initialProtocols: ProviderType[];
+  removedProtocols: ProviderType[];
   enableMultiProviderTypes: boolean;
   hideUrl: boolean;
   hideWebsiteUrl: boolean;

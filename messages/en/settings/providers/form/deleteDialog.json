@@ -2,5 +2,10 @@
   "cancel": "Cancel",
   "confirm": "Confirm Delete",
   "description": "Are you sure you want to delete provider \"{name}\"? This action cannot be undone.",
-  "title": "Delete Provider"
+  "title": "Delete Provider",
+  "bundleDescription": "Are you sure you want to delete channel \"{name}\" and all {count} associated protocol records? Historical request logs will be preserved.",
+  "removeProtocolTitle": "Confirm Protocol Removal",
+  "removeProtocolDescription": "Saving will soft-delete the following unchecked protocol(s): {protocols}. Historical logs will be preserved and active sticky sessions for removed protocols will be terminated.",
+  "removeProtocolCancel": "Cancel",
+  "removeProtocolConfirm": "Confirm and Save"
 }

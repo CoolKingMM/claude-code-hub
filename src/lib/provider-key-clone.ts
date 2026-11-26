@@ -19,6 +19,7 @@ export function buildAdditionalProviderData(
     cost_multiplier: provider.costMultiplier,
     group_tag: provider.groupTag,
     provider_type: provider.providerType,
+    protocol_group_id: provider.protocolGroupId ?? null,
     preserve_client_ip: provider.preserveClientIp,
     disable_session_reuse: provider.disableSessionReuse,
     model_redirects: provider.modelRedirects,

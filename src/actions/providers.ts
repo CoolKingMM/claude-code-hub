@@ -40,6 +40,7 @@ import {
   normalizeProviderBatchPatchDraft,
   PROVIDER_PATCH_ERROR_CODES,
 } from "@/lib/provider-patch-contract";
+import { getProviderQuotaScopeId, type ProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import {
   executeProviderTest,
   type ProviderTestConfig,
@@ -75,6 +76,7 @@ import {
   applyProviderBatchOperationIfUnchanged,
   type BatchProviderUpdates,
   createProvider,
+  createProviderProtocolBundle,
   createProviders,
   deleteProvider,
   findAllProviders,
@@ -86,6 +88,7 @@ import {
   type ProviderBatchExpectedPreimage,
   type ProviderBatchUpdateGroup,
   resetProviderTotalCostResetAt,
+  syncProviderProtocolBundle,
   undoProviderBatchOperation,
   updateProvider,
   updateProviderChannel,
@@ -101,6 +104,7 @@ import {
   tryDeleteProviderVendorIfEmpty,
 } from "@/repository/provider-endpoints";
 import { ensureProviderGroupsExist } from "@/repository/provider-groups";
+import { syncRequestFilterProviderIdsForBundle } from "@/repository/request-filters";
 import type { CacheTtlPreference } from "@/types/cache";
 import type {
   AllowedModelRuleInput,
@@ -113,6 +117,7 @@ import type {
   CodexReasoningSummaryPreference,
   CodexServiceTierPreference,
   CodexTextVerbosityPreference,
+  GeminiGoogleSearchPreference,
   Provider,
   ProviderBatchApplyUpdates,
   ProviderBatchPatch,
@@ -120,6 +125,7 @@ import type {
   ProviderDisplay,
   ProviderModelRedirectRule,
   ProviderPatchOperation,
+  ProviderProtocolConfigInput,
   ProviderStatisticsMap,
   ProviderType,
 } from "@/types/provider";
@@ -355,6 +361,7 @@ export async function getProviders(): Promise<ProviderDisplay[]> {
         groupTag: provider.groupTag,
         providerType: provider.providerType,
         providerVendorId: provider.providerVendorId,
+        protocolGroupId: provider.protocolGroupId ?? null,
         preserveClientIp: provider.preserveClientIp,
         disableSessionReuse: provider.disableSessionReuse,
         modelRedirects: provider.modelRedirects,
@@ -559,6 +566,7 @@ export async function addProvider(data: {
   cost_multiplier?: number;
   group_tag?: string | null;
   provider_type?: ProviderType;
+  protocol_configs?: ProviderProtocolConfigInput[];
   preserve_client_ip?: boolean;
   disable_session_reuse?: boolean;
   model_redirects?: ProviderModelRedirectRule[] | null;
@@ -577,6 +585,7 @@ export async function addProvider(data: {
   limit_total_usd?: number | null;
   limit_concurrent_sessions?: number | null;
   cache_ttl_preference?: CacheTtlPreference | null;
+  swap_cache_ttl_billing?: boolean;
   context_1m_preference?: string | null;
   codex_reasoning_effort_preference?: CodexReasoningEffortPreference | null;
   codex_reasoning_summary_preference?: CodexReasoningSummaryPreference | null;
@@ -587,6 +596,7 @@ export async function addProvider(data: {
   anthropic_max_tokens_preference?: AnthropicMaxTokensPreference | null;
   anthropic_thinking_budget_preference?: AnthropicThinkingBudgetPreference | null;
   anthropic_adaptive_thinking?: AnthropicAdaptiveThinkingConfig | null;
+  gemini_google_search_preference?: GeminiGoogleSearchPreference | null;
   max_retry_attempts?: number | null;
   circuit_breaker_failure_threshold?: number;
   circuit_breaker_open_duration?: number;
@@ -646,7 +656,11 @@ export async function addProvider(data: {
       }
     }
 
-    const { additional_keys: additionalKeys, ...providerData } = validated;
+    const {
+      additional_keys: additionalKeys,
+      protocol_configs: protocolConfigs,
+      ...providerData
+    } = validated;
     const payload = {
       ...providerData,
       key: additionalKeys?.length ? validated.key.trim() : validated.key,
@@ -692,22 +706,46 @@ export async function addProvider(data: {
       cc: validated.cc ?? null,
     };
 
-    const createdProviders = additionalKeys?.length
-      ? await createProviders([
-          payload,
-          ...additionalKeys.map((entry, index) => {
-            const suffix = `-${index + 2}`;
-            return {
-              ...payload,
-              key: entry.key,
-              is_enabled: entry.is_enabled,
-              name: `${validated.name.slice(0, 64 - suffix.length)}${suffix}`,
-            };
-          }),
-        ])
-      : [await createProvider(payload)];
+    const hasMultiProtocolBundle =
+      Array.isArray(protocolConfigs) &&
+      (protocolConfigs.length > 1 ||
+        protocolConfigs.some((config) => (config.adopt_provider_ids?.length ?? 0) > 0));
 
-    for (const provider of createdProviders) {
+    let createdProviders: Provider[];
+    let adoptedProviders: Provider[] = [];
+    let primaryCreatedProvider: Provider;
+    let createdProtocolGroupId: string | null = null;
+
+    if (hasMultiProtocolBundle && protocolConfigs) {
+      const bundleResult = await createProviderProtocolBundle(
+        payload,
+        protocolConfigs as ProviderProtocolConfigInput[],
+        additionalKeys ?? []
+      );
+      createdProviders = bundleResult.createdProviders;
+      adoptedProviders = bundleResult.adoptedProviders;
+      primaryCreatedProvider = bundleResult.primaryProvider;
+      createdProtocolGroupId = bundleResult.protocolGroupId;
+    } else {
+      createdProviders = additionalKeys?.length
+        ? await createProviders([
+            payload,
+            ...additionalKeys.map((entry, index) => {
+              const suffix = `-${index + 2}`;
+              return {
+                ...payload,
+                key: entry.key,
+                is_enabled: entry.is_enabled,
+                name: `${validated.name.slice(0, 64 - suffix.length)}${suffix}`,
+              };
+            }),
+          ])
+        : [await createProvider(payload)];
+      primaryCreatedProvider = createdProviders[0];
+    }
+
+    const allAffectedProviders = [...createdProviders, ...adoptedProviders];
+    for (const provider of allAffectedProviders) {
       logger.trace("addProvider:created_success", {
         name: validated.name,
         providerId: provider.id,
@@ -746,7 +784,9 @@ export async function addProvider(data: {
 
       emitActionAudit({
         category: "provider",
-        action: "provider.create",
+        action: adoptedProviders.some((item) => item.id === provider.id)
+          ? "provider.update"
+          : "provider.create",
         targetType: "provider",
         targetId: String(provider.id),
         targetName: provider.name,
@@ -759,7 +799,36 @@ export async function addProvider(data: {
         success: true,
       });
     }
-    return { ok: true, data: { id: createdProviders[0].id } };
+
+    if (adoptedProviders.length > 0 && createdProviders.length > 0) {
+      try {
+        await syncRequestFilterProviderIdsForBundle(
+          adoptedProviders.map((item) => item.id),
+          createdProviders.map((item) => item.id)
+        );
+      } catch (error) {
+        logger.warn("addProvider:request_filters_sync_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    if (createdProtocolGroupId && adoptedProviders.length > 0) {
+      try {
+        const { RateLimitService } = await import("@/lib/rate-limit");
+        await RateLimitService.invalidateProviderQuotaCache([
+          ...adoptedProviders.map((item) => item.id),
+          `pg_${createdProtocolGroupId}`,
+        ]);
+      } catch (error) {
+        logger.warn("addProvider:quota_cache_invalidation_failed", {
+          protocolGroupId: createdProtocolGroupId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return { ok: true, data: { id: primaryCreatedProvider.id } };
   } catch (error) {
     logger.trace("addProvider:error", {
       message: error instanceof Error ? error.message : String(error),
@@ -796,6 +865,7 @@ export async function editProvider(
     group_tag?: string | null;
     group_priorities?: Record<string, number> | null;
     provider_type?: ProviderType;
+    protocol_configs?: ProviderProtocolConfigInput[];
     preserve_client_ip?: boolean;
     disable_session_reuse?: boolean;
     model_redirects?: ProviderModelRedirectRule[] | null;
@@ -825,6 +895,7 @@ export async function editProvider(
     anthropic_max_tokens_preference?: AnthropicMaxTokensPreference | null;
     anthropic_thinking_budget_preference?: AnthropicThinkingBudgetPreference | null;
     anthropic_adaptive_thinking?: AnthropicAdaptiveThinkingConfig | null;
+    gemini_google_search_preference?: GeminiGoogleSearchPreference | null;
     max_retry_attempts?: number | null;
     circuit_breaker_failure_threshold?: number;
     circuit_breaker_open_duration?: number;
@@ -858,7 +929,11 @@ export async function editProvider(
       };
     }
 
-    const { additional_keys: additionalKeys, ...validated } = UpdateProviderSchema.parse(data);
+    const {
+      additional_keys: additionalKeys,
+      protocol_configs: protocolConfigs,
+      ...validated
+    } = UpdateProviderSchema.parse(data);
 
     // 如果 website_url 被更新，重新生成 favicon URL
     let faviconUrl: string | null | undefined; // undefined 表示不更新
@@ -898,36 +973,66 @@ export async function editProvider(
     }
 
     const sharedPayload = getSharedProviderUpdate(payload);
-    const channel =
-      currentProvider.providerVendorId && Object.keys(sharedPayload).length > 0
-        ? (groupProvidersByChannel(await findAllProvidersFresh()).find((group) =>
-            group.providers.some((provider) => provider.id === providerId)
-          )?.providers ?? [currentProvider])
-        : [currentProvider];
-    const channelUpdate =
-      channel.length > 1
-        ? await updateProviderChannel(
-            providerId,
-            channel.map((provider) => provider.id),
-            payload,
-            additionalKeys ?? []
-          )
-        : null;
-    const appended =
-      channelUpdate ??
-      (additionalKeys?.length
-        ? await updateProviderWithKeys(providerId, payload, additionalKeys)
-        : null);
-    const provider =
-      appended?.provider ??
-      (channelUpdate || additionalKeys?.length ? null : await updateProvider(providerId, payload));
+    let provider: Provider | null = null;
+    let previousProviders: Provider[] = [currentProvider];
+    let updatedProviders: Provider[] = [];
+    let addedProviders: Provider[] = [];
+    let adoptedProviders: Provider[] = [];
+    let removedProviders: Provider[] = [];
+    let syncedProtocolGroupId: string | null = currentProvider.protocolGroupId ?? null;
+
+    if (Array.isArray(protocolConfigs) && protocolConfigs.length > 0) {
+      const bundleSync = await syncProviderProtocolBundle(
+        providerId,
+        payload,
+        protocolConfigs as ProviderProtocolConfigInput[],
+        additionalKeys ?? []
+      );
+      if (!bundleSync) {
+        return { ok: false, error: "供应商不存在" };
+      }
+      provider = bundleSync.primaryProvider;
+      previousProviders = bundleSync.previousProviders;
+      updatedProviders = bundleSync.updatedProviders;
+      addedProviders = bundleSync.addedProviders;
+      adoptedProviders = bundleSync.adoptedProviders;
+      removedProviders = bundleSync.removedProviders;
+      syncedProtocolGroupId = bundleSync.protocolGroupId;
+    } else {
+      const channel =
+        currentProvider.providerVendorId && Object.keys(sharedPayload).length > 0
+          ? (groupProvidersByChannel(await findAllProvidersFresh()).find((group) =>
+              group.providers.some((item) => item.id === providerId)
+            )?.providers ?? [currentProvider])
+          : [currentProvider];
+      const channelUpdate =
+        channel.length > 1
+          ? await updateProviderChannel(
+              providerId,
+              channel.map((item) => item.id),
+              payload,
+              additionalKeys ?? []
+            )
+          : null;
+      const appended =
+        channelUpdate ??
+        (additionalKeys?.length
+          ? await updateProviderWithKeys(providerId, payload, additionalKeys)
+          : null);
+      provider =
+        appended?.provider ??
+        (channelUpdate || additionalKeys?.length
+          ? null
+          : await updateProvider(providerId, payload));
+      previousProviders = channelUpdate?.previousProviders ?? [currentProvider];
+      updatedProviders = channelUpdate?.updatedProviders ?? (provider ? [provider] : []);
+      addedProviders = appended?.addedProviders ?? [];
+    }
 
     if (!provider) {
       return { ok: false, error: "供应商不存在" };
     }
 
-    const previousProviders = channelUpdate?.previousProviders ?? [currentProvider];
-    const updatedProviders = channelUpdate?.updatedProviders ?? [provider];
     const preimage: Record<number, Record<string, unknown>> = {};
     for (const previous of previousProviders) {
       const changes: Record<string, unknown> = {};
@@ -943,7 +1048,7 @@ export async function editProvider(
     }
     const preimageFields = preimage[providerId];
 
-    for (const added of appended?.addedProviders ?? []) {
+    for (const added of addedProviders) {
       try {
         await saveProviderCircuitConfig(added.id, {
           failureThreshold: added.circuitBreakerFailureThreshold,
@@ -965,6 +1070,84 @@ export async function editProvider(
         after: { id: added.id, name: added.name, isEnabled: added.isEnabled },
         success: true,
       });
+    }
+
+    if (removedProviders.length > 0) {
+      const removedIds = removedProviders.map((item) => item.id);
+      const removedQuotaScopes = syncedProtocolGroupId ? [`pg_${syncedProtocolGroupId}`] : [];
+      await SessionManager.terminateStickySessionsForProviders(
+        removedIds,
+        "editProvider:removed_protocols",
+        removedQuotaScopes
+      );
+      for (const removed of removedProviders) {
+        clearConfigCache(removed.id);
+        await clearProviderState(removed.id);
+        try {
+          await deleteProviderCircuitConfig(removed.id);
+        } catch (error) {
+          logger.warn("editProvider:removed_protocol_circuit_cleanup_failed", {
+            providerId: removed.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        emitActionAudit({
+          category: "provider",
+          action: "provider.delete",
+          targetType: "provider",
+          targetId: String(removed.id),
+          targetName: removed.name,
+          before: { id: removed.id, name: removed.name, providerType: removed.providerType },
+          success: true,
+        });
+      }
+    }
+
+    const newlyLinkedIds = [
+      ...addedProviders.map((item) => item.id),
+      ...adoptedProviders.map((item) => item.id),
+    ];
+    if (newlyLinkedIds.length > 0) {
+      try {
+        await syncRequestFilterProviderIdsForBundle(
+          previousProviders.map((item) => item.id),
+          newlyLinkedIds
+        );
+      } catch (error) {
+        logger.warn("editProvider:request_filters_sync_failed", {
+          providerId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // 首次升级为多协议组、并入已有渠道、或发生协议增删时，失效相关预算缓存，使下一次立即从 DB 权威汇总共享额度
+    const protocolBundleChanged =
+      (syncedProtocolGroupId ?? null) !== (currentProvider.protocolGroupId ?? null) ||
+      addedProviders.length > 0 ||
+      adoptedProviders.length > 0 ||
+      removedProviders.length > 0;
+    if (protocolBundleChanged) {
+      try {
+        const { RateLimitService } = await import("@/lib/rate-limit");
+        const scopesToInvalidate: ProviderQuotaScopeId[] = [
+          ...previousProviders.map((item) => item.id),
+          ...adoptedProviders.map((item) => item.id),
+          ...addedProviders.map((item) => item.id),
+        ];
+        if (currentProvider.protocolGroupId) {
+          scopesToInvalidate.push(`pg_${currentProvider.protocolGroupId}`);
+        }
+        if (syncedProtocolGroupId) {
+          scopesToInvalidate.push(`pg_${syncedProtocolGroupId}`);
+        }
+        await RateLimitService.invalidateProviderQuotaCache(scopesToInvalidate);
+      } catch (error) {
+        logger.warn("editProvider:quota_cache_invalidation_failed", {
+          providerId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     // 同步 provider_groups 表（系统级，失败不影响主流程）
@@ -1011,6 +1194,10 @@ export async function editProvider(
           });
           return null;
         });
+      }
+      if (syncedProtocolGroupId) {
+        const { RateLimitService } = await import("@/lib/rate-limit");
+        await RateLimitService.invalidateProviderQuotaCache([`pg_${syncedProtocolGroupId}`]);
       }
     }
 
@@ -1081,6 +1268,7 @@ export async function editProvider(
       data: {
         undoToken,
         operationId,
+        primaryProviderId: provider.id,
       },
     };
   } catch (error) {
@@ -1407,9 +1595,19 @@ export async function resetProviderTotalUsage(providerId: number): Promise<Actio
       return { ok: false, error: "无权限执行此操作" };
     }
 
+    const existingProvider = await findProviderById(providerId);
     const ok = await resetProviderTotalCostResetAt(providerId, new Date());
     if (!ok) {
       return { ok: false, error: "供应商不存在" };
+    }
+
+    if (existingProvider) {
+      const { RateLimitService } = await import("@/lib/rate-limit");
+      const scopesToClear: ProviderQuotaScopeId[] = [existingProvider.id];
+      if (existingProvider.protocolGroupId) {
+        scopesToClear.push(getProviderQuotaScopeId(existingProvider));
+      }
+      await RateLimitService.invalidateProviderQuotaCache(scopesToClear);
     }
 
     try {
@@ -1512,6 +1710,7 @@ export interface UndoProviderPatchResult {
 export interface EditProviderResult {
   undoToken: string;
   operationId: string;
+  primaryProviderId?: number;
 }
 
 export interface RemoveProviderResult {
@@ -3020,9 +3219,26 @@ export async function batchDeleteProviders(
 
     const snapshotProviderIds = dedupeProviderIds(providerIds);
 
+    const existingBeforeDelete = await Promise.all(
+      snapshotProviderIds.map((id) => findProviderById(id))
+    );
+    const deleteQuotaScopes = Array.from(
+      new Set(
+        existingBeforeDelete
+          .map((item) => (item?.protocolGroupId ? `pg_${item.protocolGroupId}` : null))
+          .filter((scope): scope is string => scope !== null)
+      )
+    );
+
     const { deleteProvidersBatch } = await import("@/repository/provider");
 
     const deletedCount = await deleteProvidersBatch(snapshotProviderIds);
+
+    await SessionManager.terminateStickySessionsForProviders(
+      snapshotProviderIds,
+      "batchDeleteProviders",
+      deleteQuotaScopes
+    );
 
     const undoToken = createProviderPatchUndoToken();
     const operationId = createProviderPatchOperationId();
@@ -3204,12 +3420,13 @@ export async function getProviderLimitUsage(providerId: number): Promise<
       "@/repository/statistics"
     );
     const limit5hResetMode = provider.limit5hResetMode ?? "rolling";
+    const quotaScopeId = getProviderQuotaScopeId(provider);
 
     // 计算各周期的时间范围
     const [range5h, resetAt5h, rangeDaily, rangeWeekly, rangeMonthly] = await Promise.all([
       getTimeRangeForPeriod("5h"),
       limit5hResetMode === "fixed"
-        ? RateLimitService.get5hWindowResetAt(providerId, "provider", limit5hResetMode)
+        ? RateLimitService.get5hWindowResetAt(quotaScopeId, "provider", limit5hResetMode)
         : Promise.resolve(null),
       getTimeRangeForPeriodWithMode(
         "daily",
@@ -3225,18 +3442,18 @@ export async function getProviderLimitUsage(providerId: number): Promise<
       await Promise.all([
         limit5hResetMode === "fixed"
           ? RateLimitService.getCurrentCost(
-              providerId,
+              quotaScopeId,
               "provider",
               "5h",
               undefined,
               limit5hResetMode
             )
-          : sumProviderCostInTimeRange(providerId, range5h.startTime, range5h.endTime),
-        sumProviderCostInTimeRange(providerId, rangeDaily.startTime, rangeDaily.endTime),
-        sumProviderCostInTimeRange(providerId, rangeWeekly.startTime, rangeWeekly.endTime),
-        sumProviderCostInTimeRange(providerId, rangeMonthly.startTime, rangeMonthly.endTime),
-        sumProviderTotalCost(providerId, provider.totalCostResetAt),
-        SessionTracker.getProviderSessionCount(providerId),
+          : sumProviderCostInTimeRange(quotaScopeId, range5h.startTime, range5h.endTime),
+        sumProviderCostInTimeRange(quotaScopeId, rangeDaily.startTime, rangeDaily.endTime),
+        sumProviderCostInTimeRange(quotaScopeId, rangeWeekly.startTime, rangeWeekly.endTime),
+        sumProviderCostInTimeRange(quotaScopeId, rangeMonthly.startTime, rangeMonthly.endTime),
+        sumProviderTotalCost(quotaScopeId, provider.totalCostResetAt),
+        SessionTracker.getProviderSessionCount(quotaScopeId),
       ]);
 
     // 获取重置时间信息
@@ -3316,6 +3533,7 @@ export type ProviderLimitUsageData = {
 export async function getProviderLimitUsageBatch(
   providers: Array<{
     id: number;
+    protocolGroupId?: string | null;
     dailyResetTime?: string | null;
     dailyResetMode?: string | null;
     limit5hResetMode?: string | null;
@@ -3354,10 +3572,10 @@ export async function getProviderLimitUsageBatch(
       "@/repository/statistics"
     );
 
-    const providerIds = providers.map((p) => p.id);
+    const uniqueQuotaScopeIds = [...new Set(providers.map((p) => getProviderQuotaScopeId(p)))];
 
-    // 获取并发 session 计数（仍使用 Redis，这是实时数据）
-    const sessionCountMap = await SessionTracker.getProviderSessionCountBatch(providerIds);
+    // 获取并发 session 计数（仍使用 Redis，这是实时数据；多协议同组共用同一个 scopeId）
+    const sessionCountMap = await SessionTracker.getProviderSessionCountBatch(uniqueQuotaScopeIds);
 
     // 获取各周期的时间范围（这些范围对所有供应商是相同的，除了 daily 需要根据每个供应商的配置）
     const [range5h, rangeWeekly, rangeMonthly] = await Promise.all([
@@ -3366,9 +3584,15 @@ export async function getProviderLimitUsageBatch(
       getTimeRangeForPeriod("monthly"),
     ]);
 
+    const scopeCostCache = new Map<
+      string,
+      Promise<[number, Date | null, number, number, number, number]>
+    >();
+
     // 组装结果
     for (const provider of providers) {
       // 获取该供应商的 daily 时间范围（根据其 dailyResetMode 配置）
+      const quotaScopeId = getProviderQuotaScopeId(provider);
       const dailyResetMode = (provider.dailyResetMode ?? "fixed") as "fixed" | "rolling";
       const limit5hResetMode = (provider.limit5hResetMode ?? "rolling") as "fixed" | "rolling";
       const rangeDaily = await getTimeRangeForPeriodWithMode(
@@ -3376,28 +3600,40 @@ export async function getProviderLimitUsageBatch(
         provider.dailyResetTime ?? undefined,
         dailyResetMode
       );
+      const resetAtKey =
+        provider.totalCostResetAt instanceof Date &&
+        !Number.isNaN(provider.totalCostResetAt.getTime())
+          ? provider.totalCostResetAt.getTime()
+          : "none";
+      const cacheKey = `${quotaScopeId}:${limit5hResetMode}:${dailyResetMode}:${provider.dailyResetTime ?? "00:00"}:${resetAtKey}`;
 
-      // 并行查询该供应商的各周期消费（直接查询数据库）
-      const [cost5h, resetAt5h, costDaily, costWeekly, costMonthly, totalCost] = await Promise.all([
-        limit5hResetMode === "fixed"
-          ? RateLimitService.getCurrentCost(
-              provider.id,
-              "provider",
-              "5h",
-              undefined,
-              limit5hResetMode
-            )
-          : sumProviderCostInTimeRange(provider.id, range5h.startTime, range5h.endTime),
-        limit5hResetMode === "fixed"
-          ? RateLimitService.get5hWindowResetAt(provider.id, "provider", limit5hResetMode)
-          : Promise.resolve(null),
-        sumProviderCostInTimeRange(provider.id, rangeDaily.startTime, rangeDaily.endTime),
-        sumProviderCostInTimeRange(provider.id, rangeWeekly.startTime, rangeWeekly.endTime),
-        sumProviderCostInTimeRange(provider.id, rangeMonthly.startTime, rangeMonthly.endTime),
-        sumProviderTotalCost(provider.id, provider.totalCostResetAt ?? null),
-      ]);
+      // 并行查询该供应商作用域的各周期消费（多协议同组只查一次）
+      let costPromise = scopeCostCache.get(cacheKey);
+      if (!costPromise) {
+        costPromise = Promise.all([
+          limit5hResetMode === "fixed"
+            ? RateLimitService.getCurrentCost(
+                quotaScopeId,
+                "provider",
+                "5h",
+                undefined,
+                limit5hResetMode
+              )
+            : sumProviderCostInTimeRange(quotaScopeId, range5h.startTime, range5h.endTime),
+          limit5hResetMode === "fixed"
+            ? RateLimitService.get5hWindowResetAt(quotaScopeId, "provider", limit5hResetMode)
+            : Promise.resolve(null),
+          sumProviderCostInTimeRange(quotaScopeId, rangeDaily.startTime, rangeDaily.endTime),
+          sumProviderCostInTimeRange(quotaScopeId, rangeWeekly.startTime, rangeWeekly.endTime),
+          sumProviderCostInTimeRange(quotaScopeId, rangeMonthly.startTime, rangeMonthly.endTime),
+          sumProviderTotalCost(quotaScopeId, provider.totalCostResetAt ?? null),
+        ]);
+        scopeCostCache.set(cacheKey, costPromise);
+      }
 
-      const sessionCount = sessionCountMap.get(provider.id) || 0;
+      const [cost5h, resetAt5h, costDaily, costWeekly, costMonthly, totalCost] = await costPromise;
+
+      const sessionCount = sessionCountMap.get(quotaScopeId) || 0;
 
       // 获取重置时间信息
       const resetDaily = await getResetInfoWithMode(

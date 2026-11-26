@@ -50,6 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  batchDeleteProviders,
   batchUpdateProviders,
   editProvider,
   getUnmaskedProviderKey,
@@ -64,6 +65,7 @@ import {
   PROVIDER_TIMEOUT_DEFAULTS,
 } from "@/lib/constants/provider.constants";
 import { PROVIDER_BATCH_PATCH_ERROR_CODES } from "@/lib/provider-batch-patch-error-codes";
+import { sortProtocolsByDisplayOrder } from "@/lib/provider-protocol-bundle";
 import { getProviderTypeConfig, getProviderTypeTranslationKey } from "@/lib/provider-type-utils";
 import { cn } from "@/lib/utils";
 import { copyToClipboard, isClipboardSupported } from "@/lib/utils/clipboard";
@@ -91,6 +93,8 @@ interface ProviderRichListItemProps {
   provider: ProviderDisplay;
   displayName?: string;
   channelProviders?: ProviderDisplay[];
+  allProviders?: ProviderDisplay[];
+  channelHealthStatuses?: Record<number, ProviderCircuitHealth>;
   isSelectionIndeterminate?: boolean;
   vendor?: ProviderVendor;
   currentUser?: User;
@@ -122,6 +126,8 @@ function ProviderRichListItemInner({
   provider,
   displayName = provider.name,
   channelProviders,
+  allProviders,
+  channelHealthStatuses,
   isSelectionIndeterminate = false,
   vendor,
   currentUser,
@@ -231,12 +237,80 @@ function ProviderRichListItemInner({
     return null;
   };
 
-  // 获取供应商类型配置
+  // 获取供应商类型配置（支持多协议逻辑渠道）
+  const bundleMembers =
+    channelProviders && channelProviders.length > 0 ? channelProviders : [provider];
+  const bundleProtocols = sortProtocolsByDisplayOrder(
+    Array.from(new Set(bundleMembers.map((item) => item.providerType)))
+  );
+  const isMultiProtocolChannel = bundleProtocols.length > 1;
+  const openCircuitProviderIds = bundleMembers
+    .filter((member) => {
+      const memberHealth =
+        channelHealthStatuses?.[member.id] ??
+        (member.id === provider.id ? healthStatus : undefined);
+      return memberHealth?.circuitState === "open";
+    })
+    .map((member) => member.id);
+  const openCircuitProtocolSet = new Set(
+    bundleMembers
+      .filter((member) => openCircuitProviderIds.includes(member.id))
+      .map((member) => member.providerType)
+  );
+
   const typeConfig = getProviderTypeConfig(provider.providerType);
   const TypeIcon = typeConfig.icon;
   const typeKey = getProviderTypeTranslationKey(provider.providerType);
   const typeLabel = tTypes(`${typeKey}.label`);
   const typeDescription = tTypes(`${typeKey}.description`);
+
+  const renderProtocolIndicators = () => {
+    if (!isMultiProtocolChannel) {
+      return (
+        <div
+          className={`flex items-center justify-center w-6 h-6 rounded ${typeConfig.bgColor} flex-shrink-0`}
+          title={`${typeLabel} - ${typeDescription}`}
+          aria-label={typeLabel}
+        >
+          <TypeIcon className="h-3.5 w-3.5" aria-hidden />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {bundleProtocols.map((protocol) => {
+          const cfg = getProviderTypeConfig(protocol);
+          const ProtoIcon = cfg.icon;
+          const protoKey = getProviderTypeTranslationKey(protocol);
+          const protoLabel = tTypes(`${protoKey}.label`);
+          const isProtoBroken = openCircuitProtocolSet.has(protocol);
+          return (
+            <Tooltip key={protocol} delayDuration={200}>
+              <TooltipTrigger asChild>
+                <div
+                  className={cn(
+                    `relative flex items-center justify-center w-6 h-6 rounded ${cfg.bgColor} flex-shrink-0`,
+                    isProtoBroken && "ring-1 ring-destructive"
+                  )}
+                  aria-label={protoLabel}
+                >
+                  <ProtoIcon className="h-3.5 w-3.5" aria-hidden />
+                  {isProtoBroken && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-1 ring-background" />
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {protoLabel}
+                {isProtoBroken ? ` · ${tList("keyCircuitBroken")}` : ""}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    );
+  };
 
   useEffect(() => {
     setClipboardAvailable(isClipboardSupported());
@@ -260,14 +334,22 @@ function ProviderRichListItemInner({
     }
   };
 
-  // 处理删除
+  // 处理删除（多协议整组删除全部子协议记录，单协议保持单条删除）
+  const shouldDeleteEntireBundle =
+    Boolean(channelProviders && channelProviders.length > 1) &&
+    (isMultiProtocolChannel || Boolean(provider.protocolGroupId));
+
   const handleDelete = () => {
     if (onDeleteProp) {
       onDeleteProp();
     } else {
       startDeleteTransition(async () => {
         try {
-          const res = await removeProvider(provider.id);
+          const res = shouldDeleteEntireBundle
+            ? await batchDeleteProviders({
+                providerIds: bundleMembers.map((member) => member.id),
+              })
+            : await removeProvider(provider.id);
           if (res.ok) {
             const undoToken = res.data.undoToken;
             const operationId = res.data.operationId;
@@ -356,19 +438,22 @@ function ProviderRichListItemInner({
     setCopied(false);
   };
 
-  // 处理手动解除熔断
+  // 处理手动解除熔断（多协议渠道时一并解除所有处于熔断状态的子协议）
   const handleResetCircuit = () => {
     startResetTransition(async () => {
       try {
-        const res = await resetProviderCircuit(provider.id);
-        if (res.ok) {
+        const targetIds =
+          openCircuitProviderIds.length > 0 ? openCircuitProviderIds : [provider.id];
+        const results = await Promise.all(targetIds.map((id) => resetProviderCircuit(id)));
+        const failed = results.find((res) => !res.ok);
+        if (!failed) {
           toast.success(tList("resetCircuitSuccess"), {
             description: tList("resetCircuitSuccessDesc", { name: provider.name }),
           });
           doInvalidate();
         } else {
           toast.error(tList("resetCircuitFailed"), {
-            description: res.error || tList("unknownError"),
+            description: failed.error || tList("unknownError"),
           });
         }
       } catch (error) {
@@ -503,7 +588,8 @@ function ProviderRichListItemInner({
     }
   };
 
-  const hasKeyCircuitOpen = healthStatus?.circuitState === "open";
+  const hasKeyCircuitOpen =
+    openCircuitProviderIds.length > 0 || healthStatus?.circuitState === "open";
   const hasEndpointCircuitOpen = endpointCircuitInfo?.some((ep) => ep.circuitState === "open");
   const accentColor = hasKeyCircuitOpen
     ? "border-l-red-500"
@@ -544,13 +630,7 @@ function ProviderRichListItemInner({
             ) : (
               <XCircle className="h-4 w-4 text-gray-400 flex-shrink-0" />
             )}
-            <div
-              className={`flex items-center justify-center w-6 h-6 rounded ${typeConfig.bgColor} flex-shrink-0`}
-              title={`${typeLabel} - ${typeDescription}`}
-              aria-label={typeLabel}
-            >
-              <TypeIcon className="h-3.5 w-3.5" aria-hidden />
-            </div>
+            {renderProtocolIndicators()}
             <span className="font-semibold truncate">{displayName}</span>
           </div>
           {canEdit && (
@@ -591,7 +671,7 @@ function ProviderRichListItemInner({
             <Badge variant="outline">{PROVIDER_GROUP.DEFAULT}</Badge>
           )}
           {/* Key-level circuit badge */}
-          {healthStatus?.circuitState === "open" && (
+          {hasKeyCircuitOpen && (
             <Badge variant="destructive" className="flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
               {tList("keyCircuitBroken")}
@@ -693,7 +773,7 @@ function ProviderRichListItemInner({
                   <Copy className="mr-2 h-4 w-4" />
                   {tList("actionClone")}
                 </DropdownMenuItem>
-                {healthStatus?.circuitState === "open" && (
+                {hasKeyCircuitOpen && (
                   <DropdownMenuItem onClick={handleResetCircuit} disabled={resetPending}>
                     <RotateCcw className="mr-2 h-4 w-4 text-orange-600" />
                     {tList("actionResetCircuit")}
@@ -724,7 +804,12 @@ function ProviderRichListItemInner({
               <AlertDialogHeader>
                 <AlertDialogTitle>{tList("confirmDeleteTitle")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {tList("confirmDeleteMessage", { name: provider.name })}
+                  {shouldDeleteEntireBundle
+                    ? tList("confirmDeleteBundleMessage", {
+                        name: provider.name,
+                        count: bundleMembers.length,
+                      })
+                    : tList("confirmDeleteMessage", { name: provider.name })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="flex justify-end gap-2">
@@ -748,13 +833,7 @@ function ProviderRichListItemInner({
           ) : (
             <XCircle className="h-4 w-4 text-gray-400 flex-shrink-0" />
           )}
-          <div
-            className={`flex items-center justify-center w-6 h-6 rounded ${typeConfig.bgColor} flex-shrink-0`}
-            title={`${typeLabel} - ${typeDescription}`}
-            aria-label={typeLabel}
-          >
-            <TypeIcon className="h-3.5 w-3.5" aria-hidden />
-          </div>
+          {renderProtocolIndicators()}
         </div>
 
         <div className="hidden md:block flex-1 min-w-0">
@@ -797,7 +876,7 @@ function ProviderRichListItemInner({
               </Badge>
             )}
             {/* Key-level circuit badge */}
-            {healthStatus?.circuitState === "open" && (
+            {hasKeyCircuitOpen && (
               <Badge variant="destructive" className="flex items-center gap-1 flex-shrink-0">
                 <AlertTriangle className="h-3 w-3" />
                 {tList("keyCircuitBroken")}
@@ -1021,7 +1100,7 @@ function ProviderRichListItemInner({
               <Copy className="h-4 w-4" />
             </Button>
           )}
-          {canEdit && healthStatus?.circuitState === "open" && (
+          {canEdit && hasKeyCircuitOpen && (
             <Button
               size="icon"
               variant="ghost"
@@ -1064,7 +1143,12 @@ function ProviderRichListItemInner({
                 <AlertDialogHeader>
                   <AlertDialogTitle>{tList("confirmDeleteTitle")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {tList("confirmDeleteMessage", { name: provider.name })}
+                    {shouldDeleteEntireBundle
+                      ? tList("confirmDeleteBundleMessage", {
+                          name: provider.name,
+                          count: bundleMembers.length,
+                        })
+                      : tList("confirmDeleteMessage", { name: provider.name })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="flex justify-end gap-2">
@@ -1097,6 +1181,8 @@ function ProviderRichListItemInner({
               <ProviderForm
                 mode="edit"
                 provider={provider}
+                bundleProviders={channelProviders}
+                allProviders={allProviders}
                 onSuccess={() => {
                   setOpenEdit(false);
                 }}
@@ -1120,6 +1206,8 @@ function ProviderRichListItemInner({
               <ProviderForm
                 mode="create"
                 cloneProvider={provider}
+                bundleProviders={channelProviders}
+                allProviders={allProviders}
                 onSuccess={() => {
                   setOpenClone(false);
                 }}
@@ -1174,6 +1262,8 @@ export const ProviderRichListItem = memo(ProviderRichListItemInner, (prev, next)
     prev.provider === next.provider &&
     prev.displayName === next.displayName &&
     prev.channelProviders === next.channelProviders &&
+    prev.allProviders === next.allProviders &&
+    prev.channelHealthStatuses === next.channelHealthStatuses &&
     prev.isSelectionIndeterminate === next.isSelectionIndeterminate &&
     prev.onSelectChange === next.onSelectChange &&
     prev.vendor === next.vendor &&

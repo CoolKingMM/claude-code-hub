@@ -168,7 +168,9 @@
         "fixed": "從首次成功記帳開始鎖定 5 小時固定視窗",
         "rolling": "依最近 5 小時滾動視窗統計額度"
       }
-    }
+    },
+    "sharedMultiProtocolNoticeTitle": "多協定共用消費限額與併發上限",
+    "sharedMultiProtocolNoticeDesc": "下方設定的消費限額與併發 Session 上限將在目前渠道已勾選的 {count} 個協定間共同計算。"
   },
   "limits": {
     "timeBased": "時間維度限制",
@@ -447,7 +449,21 @@
       "none": "未設定",
       "redirects": "{count} 個重定向"
     },
-    "title": "路由設定"
+    "title": "路由設定",
+    "multiProtocol": {
+      "selectDesc": "可為目前渠道勾選一個或多個 API 協定。多協定共用端點位址、API 金鑰與限額併發，並各自獨立設定模型規則與協定覆寫。",
+      "subTabsLabel": "協定獨立設定切換",
+      "editingProtocol": "目前設定協定",
+      "adoptedBadge": "併入",
+      "willSoftDelete": "儲存後將軟刪除",
+      "selectedSummary": "已勾選 {count} 個協定，可在下方依協定切換設定模型規則、協定覆寫與連線測試。",
+      "adoptAvailableTitle": "偵測到同供應商下已有獨立的 {protocol} 渠道（{count} 個）",
+      "adoptActiveTitle": "儲存時將併入 {count} 個已有的 {protocol} 渠道",
+      "adoptAvailableDesc": "涉及渠道：{names}（共 {rulesCount} 條模型/重導向規則）。併入將自動保留原有模型白名單與重導向規則。",
+      "confirmAdopt": "併入目前渠道",
+      "cancelAdopt": "改為新建",
+      "noProtocolOverrides": "OpenAI Compatible 協定除上方通用選項外，無額外協定專屬覆寫項目。"
+    }
   },
   "timeout": {
     "desc": "設定請求超時時間，0 表示禁用超時",

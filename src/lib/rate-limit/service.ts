@@ -67,6 +67,7 @@
 
 import type { ChainableCommander } from "ioredis";
 import { logger } from "@/lib/logger";
+import { isValidProviderQuotaScopeId, type ProviderQuotaScopeId } from "@/lib/provider-quota-scope";
 import { getRedisClient } from "@/lib/redis";
 import {
   getGlobalActiveSessionsKey,
@@ -151,7 +152,7 @@ export class RateLimitService {
 
   private static get5hCostKey(
     type: "key" | "provider" | "user",
-    id: number,
+    id: ProviderQuotaScopeId,
     mode: DailyResetMode = "rolling"
   ): string {
     return `${type}:${id}:cost_5h_${mode}`;
@@ -159,7 +160,7 @@ export class RateLimitService {
 
   private static async getFixed5hWindowState(
     type: "key" | "provider" | "user",
-    id: number
+    id: ProviderQuotaScopeId
   ): Promise<{ current: number; resetAt: Date | null; exists: boolean }> {
     const redis = RateLimitService.redis;
     if (redis?.status !== "ready") {
@@ -183,7 +184,7 @@ export class RateLimitService {
   }
 
   static async get5hWindowResetAt(
-    id: number,
+    id: ProviderQuotaScopeId,
     type: "key" | "provider" | "user",
     resetMode: DailyResetMode = "rolling"
   ): Promise<Date | null> {
@@ -278,7 +279,7 @@ export class RateLimitService {
    * 优先使用 Redis，失败时降级到数据库查询（防止 Redis 清空后超支）
    */
   static async checkCostLimits(
-    id: number,
+    id: ProviderQuotaScopeId,
     type: "key" | "provider" | "user",
     limits: {
       limit_5h_usd: number | null;
@@ -475,7 +476,7 @@ export class RateLimitService {
    * 使用 5 分钟 TTL 缓存减少数据库查询频率
    */
   static async checkTotalCostLimit(
-    entityId: number,
+    entityId: ProviderQuotaScopeId,
     entityType: "key" | "user" | "provider",
     limitTotalUsd: number | null,
     options?: { keyHash?: string; resetAt?: Date | null }
@@ -518,7 +519,7 @@ export class RateLimitService {
               }
               current = await sumKeyTotalCost(options.keyHash, Infinity, options?.resetAt);
             } else if (entityType === "user") {
-              current = await sumUserTotalCost(entityId, Infinity, options?.resetAt);
+              current = await sumUserTotalCost(Number(entityId), Infinity, options?.resetAt);
             } else {
               current = await sumProviderTotalCost(entityId, options?.resetAt ?? null);
             }
@@ -536,7 +537,7 @@ export class RateLimitService {
             }
             current = await sumKeyTotalCost(options.keyHash, Infinity, options?.resetAt);
           } else if (entityType === "user") {
-            current = await sumUserTotalCost(entityId, Infinity, options?.resetAt);
+            current = await sumUserTotalCost(Number(entityId), Infinity, options?.resetAt);
           } else {
             current = await sumProviderTotalCost(entityId, options?.resetAt ?? null);
           }
@@ -550,7 +551,7 @@ export class RateLimitService {
           }
           current = await sumKeyTotalCost(options.keyHash, Infinity, options?.resetAt);
         } else if (entityType === "user") {
-          current = await sumUserTotalCost(entityId, Infinity, options?.resetAt);
+          current = await sumUserTotalCost(Number(entityId), Infinity, options?.resetAt);
         } else {
           current = await sumProviderTotalCost(entityId, options?.resetAt ?? null);
         }
@@ -576,7 +577,7 @@ export class RateLimitService {
    * 从数据库检查金额限制（降级路径）
    */
   private static async checkCostLimitsFromDatabase(
-    id: number,
+    id: ProviderQuotaScopeId,
     type: "key" | "provider" | "user",
     costLimits: CostLimit[],
     costResetAt?: Date | null,
@@ -636,13 +637,21 @@ export class RateLimitService {
       if (isRollingWindow) {
         switch (type) {
           case "key":
-            costEntries = await findKeyCostEntriesInTimeRange(id, effectiveStartTime, endTime);
+            costEntries = await findKeyCostEntriesInTimeRange(
+              Number(id),
+              effectiveStartTime,
+              endTime
+            );
             break;
           case "provider":
             costEntries = await findProviderCostEntriesInTimeRange(id, effectiveStartTime, endTime);
             break;
           case "user":
-            costEntries = await findUserCostEntriesInTimeRange(id, effectiveStartTime, endTime);
+            costEntries = await findUserCostEntriesInTimeRange(
+              Number(id),
+              effectiveStartTime,
+              endTime
+            );
             break;
           default:
             costEntries = [];
@@ -652,13 +661,13 @@ export class RateLimitService {
       } else {
         switch (type) {
           case "key":
-            current = await sumKeyCostInTimeRange(id, effectiveStartTime, endTime);
+            current = await sumKeyCostInTimeRange(Number(id), effectiveStartTime, endTime);
             break;
           case "provider":
             current = await sumProviderCostInTimeRange(id, effectiveStartTime, endTime);
             break;
           case "user":
-            current = await sumUserCostInTimeRange(id, effectiveStartTime, endTime);
+            current = await sumUserCostInTimeRange(Number(id), effectiveStartTime, endTime);
             break;
           default:
             current = 0;
@@ -725,7 +734,7 @@ export class RateLimitService {
    * 供应商级别请使用 checkAndTrackProviderSession 保证原子性
    */
   static async checkSessionLimit(
-    id: number,
+    id: ProviderQuotaScopeId,
     type: "key" | "provider" | "user",
     limit: number
   ): Promise<{ allowed: boolean; reason?: string }> {
@@ -737,10 +746,10 @@ export class RateLimitService {
       // 使用 SessionTracker 的统一计数逻辑
       const count =
         type === "key"
-          ? await SessionTracker.getKeySessionCount(id)
+          ? await SessionTracker.getKeySessionCount(Number(id))
           : type === "provider"
             ? await SessionTracker.getProviderSessionCount(id)
-            : await SessionTracker.getUserSessionCount(id);
+            : await SessionTracker.getUserSessionCount(Number(id));
 
       if (count >= limit) {
         const typeLabel = type === "key" ? "Key" : type === "provider" ? "供应商" : "User";
@@ -855,7 +864,7 @@ export class RateLimitService {
    * @returns { allowed, count, tracked, referenced } - 是否允许、当前并发数、是否新追踪、是否获得释放引用
    */
   static async checkAndTrackProviderSession(
-    providerId: number,
+    providerId: ProviderQuotaScopeId,
     sessionId: string,
     limit: number
   ): Promise<{
@@ -865,7 +874,7 @@ export class RateLimitService {
     referenced: boolean;
     reason?: string;
   }> {
-    if (limit <= 0) {
+    if (limit <= 0 || !isValidProviderQuotaScopeId(providerId)) {
       return { allowed: true, count: 0, tracked: false, referenced: false };
     }
 
@@ -921,8 +930,11 @@ export class RateLimitService {
    * If the provider later fails, the session must be removed immediately instead of waiting
    * for TTL cleanup; otherwise outage storms inflate provider active_sessions ZSETs.
    */
-  static async releaseProviderSession(providerId: number, sessionId: string): Promise<void> {
-    if (!Number.isInteger(providerId) || providerId <= 0 || sessionId.trim().length === 0) {
+  static async releaseProviderSession(
+    providerId: ProviderQuotaScopeId,
+    sessionId: string
+  ): Promise<void> {
+    if (!isValidProviderQuotaScopeId(providerId) || sessionId.trim().length === 0) {
       return;
     }
 
@@ -958,10 +970,10 @@ export class RateLimitService {
 
   /** Remove every provider concurrency reference owned by a terminated physical Session. */
   static async forceTerminateProviderSession(
-    providerId: number,
+    providerId: ProviderQuotaScopeId,
     sessionId: string
   ): Promise<boolean> {
-    if (!Number.isInteger(providerId) || providerId <= 0 || sessionId.trim().length === 0) {
+    if (!isValidProviderQuotaScopeId(providerId) || sessionId.trim().length === 0) {
       return false;
     }
 
@@ -1041,7 +1053,7 @@ export class RateLimitService {
    */
   static async trackCost(
     keyId: number,
-    providerId: number,
+    providerId: ProviderQuotaScopeId,
     _sessionId: string,
     cost: number,
     options?: {
@@ -1243,7 +1255,7 @@ export class RateLimitService {
    * 优先使用 Redis，失败时降级到数据库查询
    */
   static async getCurrentCost(
-    id: number,
+    id: ProviderQuotaScopeId,
     type: "key" | "provider" | "user",
     period: "5h" | "daily" | "weekly" | "monthly",
     resetTime = "00:00",
@@ -1379,13 +1391,21 @@ export class RateLimitService {
       if (isRollingWindow) {
         switch (type) {
           case "key":
-            costEntries = await findKeyCostEntriesInTimeRange(id, effectiveStartTime, endTime);
+            costEntries = await findKeyCostEntriesInTimeRange(
+              Number(id),
+              effectiveStartTime,
+              endTime
+            );
             break;
           case "provider":
             costEntries = await findProviderCostEntriesInTimeRange(id, effectiveStartTime, endTime);
             break;
           case "user":
-            costEntries = await findUserCostEntriesInTimeRange(id, effectiveStartTime, endTime);
+            costEntries = await findUserCostEntriesInTimeRange(
+              Number(id),
+              effectiveStartTime,
+              endTime
+            );
             break;
           default:
             costEntries = [];
@@ -1395,13 +1415,13 @@ export class RateLimitService {
       } else {
         switch (type) {
           case "key":
-            current = await sumKeyCostInTimeRange(id, effectiveStartTime, endTime);
+            current = await sumKeyCostInTimeRange(Number(id), effectiveStartTime, endTime);
             break;
           case "provider":
             current = await sumProviderCostInTimeRange(id, effectiveStartTime, endTime);
             break;
           case "user":
-            current = await sumUserCostInTimeRange(id, effectiveStartTime, endTime);
+            current = await sumUserCostInTimeRange(Number(id), effectiveStartTime, endTime);
             break;
           default:
             current = 0;
@@ -1850,7 +1870,7 @@ export class RateLimitService {
    * @returns Whether the request is allowed and any failure reason
    */
   static async checkCostLimitsWithLease(
-    entityId: number,
+    entityId: ProviderQuotaScopeId,
     entityType: "key" | "user" | "provider",
     limits: {
       limit_5h_usd: number | null;
@@ -1973,7 +1993,7 @@ export class RateLimitService {
    * @returns The decrement result
    */
   static async decrementLeaseBudget(
-    entityId: number,
+    entityId: ProviderQuotaScopeId,
     entityType: "key" | "user" | "provider",
     window: LeaseWindowType,
     cost: number,
@@ -1995,5 +2015,63 @@ export class RateLimitService {
     params: SettleLeaseBudgetsParams
   ): Promise<SettleLeaseBudgetsResult> {
     return LeaseService.settleLeaseBudgets(params);
+  }
+
+  /**
+   * 失效指定 Provider 作用域（单条 providerId 或多协议组 `pg_<uuid>`）的预算缓存，
+   * 以便多协议编排、并入已有渠道或手动重置总额后立即从 DB 权威汇总最新用量。
+   */
+  static async invalidateProviderQuotaCache(
+    scopeIds: readonly ProviderQuotaScopeId[]
+  ): Promise<void> {
+    const redis = RateLimitService.redis;
+    if (redis?.status !== "ready" || scopeIds.length === 0) return;
+
+    const uniqueScopes = [...new Set(scopeIds.filter((id) => isValidProviderQuotaScopeId(id)))];
+    if (uniqueScopes.length === 0) return;
+
+    try {
+      const staticKeys: string[] = [];
+      for (const scopeId of uniqueScopes) {
+        staticKeys.push(
+          `lease:provider:${scopeId}:5h:rolling`,
+          `lease:provider:${scopeId}:5h:fixed`,
+          `lease:provider:${scopeId}:daily:fixed`,
+          `lease:provider:${scopeId}:daily:rolling`,
+          `lease:provider:${scopeId}:weekly`,
+          `lease:provider:${scopeId}:monthly`,
+          `provider:${scopeId}:cost_5h_rolling`,
+          `provider:${scopeId}:cost_daily_rolling`,
+          `provider:${scopeId}:cost_weekly`,
+          `provider:${scopeId}:cost_monthly`,
+          `total_cost:provider:${scopeId}:none`
+        );
+      }
+
+      const pipeline = redis.pipeline();
+      pipeline.del(...staticKeys);
+
+      // 扫描带动态后缀的 key（如 cost_daily_HHmm 与 total_cost:provider:<scope>:<timestamp>）
+      for (const scopeId of uniqueScopes) {
+        const patterns = [`provider:${scopeId}:cost_daily_*`, `total_cost:provider:${scopeId}:*`];
+        for (const pattern of patterns) {
+          let cursor = "0";
+          do {
+            const [nextCursor, keys] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 100);
+            cursor = nextCursor;
+            if (keys.length > 0) {
+              pipeline.del(...keys);
+            }
+          } while (cursor !== "0");
+        }
+      }
+
+      await pipeline.exec();
+    } catch (error) {
+      logger.warn("[RateLimit] Failed to invalidate provider quota cache", {
+        scopeIds: uniqueScopes,
+        error,
+      });
+    }
   }
 }

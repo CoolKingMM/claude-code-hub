@@ -168,7 +168,9 @@
         "fixed": "Start a fixed 5-hour window from the first successful charge",
         "rolling": "Use a rolling 5-hour window from the latest usage"
       }
-    }
+    },
+    "sharedMultiProtocolNoticeTitle": "Shared Quota & Concurrency Across Protocols",
+    "sharedMultiProtocolNoticeDesc": "All spending limits and concurrent session limits below are shared across the {count} enabled protocols in this channel."
   },
   "limits": {
     "timeBased": "Time-based Limits",
@@ -447,7 +449,21 @@
       "none": "Not configured",
       "redirects": "{count} redirects"
     },
-    "title": "Routing"
+    "title": "Routing",
+    "multiProtocol": {
+      "selectDesc": "Select one or more supported API protocols for this channel. Multiple protocols share URL, API keys, and quota limits, with per-protocol model rules and overrides.",
+      "subTabsLabel": "Protocol configuration switcher",
+      "editingProtocol": "Configuring protocol",
+      "adoptedBadge": "Merge",
+      "willSoftDelete": "Will be soft-deleted on save",
+      "selectedSummary": "{count} protocols selected. Model rules, overrides, and connectivity tests can be configured per protocol below.",
+      "adoptAvailableTitle": "Existing standalone {protocol} channel(s) found on this vendor ({count})",
+      "adoptActiveTitle": "Will merge {count} existing {protocol} channel(s) into this channel",
+      "adoptAvailableDesc": "Channels: {names} (total {rulesCount} model/redirect rules). Merging preserves existing model allowlists and redirects.",
+      "confirmAdopt": "Merge into channel",
+      "cancelAdopt": "Create new instead",
+      "noProtocolOverrides": "OpenAI Compatible has no additional protocol-specific overrides beyond the common options above."
+    }
   },
   "timeout": {
     "desc": "Configure request timeout duration, 0 means disable timeout",
