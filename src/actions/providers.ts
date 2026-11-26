@@ -3219,26 +3219,47 @@ export async function batchDeleteProviders(
 
     const snapshotProviderIds = dedupeProviderIds(providerIds);
 
-    const existingBeforeDelete = await Promise.all(
-      snapshotProviderIds.map((id) => findProviderById(id))
-    );
-    const deleteQuotaScopes = Array.from(
-      new Set(
-        existingBeforeDelete
-          .map((item) => (item?.protocolGroupId ? `pg_${item.protocolGroupId}` : null))
-          .filter((scope): scope is string => scope !== null)
-      )
-    );
+    const providerRepo = await import("@/repository/provider");
 
-    const { deleteProvidersBatch } = await import("@/repository/provider");
+    let deleteQuotaScopes: string[] = [];
+    try {
+      const maybeFindById = Object.hasOwn(providerRepo, "findProviderById")
+        ? providerRepo.findProviderById
+        : undefined;
+      if (typeof maybeFindById === "function") {
+        const existingBeforeDelete = await Promise.all(
+          snapshotProviderIds.map((id) => maybeFindById(id))
+        );
+        deleteQuotaScopes = Array.from(
+          new Set(
+            existingBeforeDelete
+              .map((item) => (item?.protocolGroupId ? `pg_${item.protocolGroupId}` : null))
+              .filter((scope): scope is string => scope !== null)
+          )
+        );
+      }
+    } catch (error) {
+      logger.warn("batchDeleteProviders:lookup_protocol_groups_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
-    const deletedCount = await deleteProvidersBatch(snapshotProviderIds);
+    const deletedCount = await providerRepo.deleteProvidersBatch(snapshotProviderIds);
 
-    await SessionManager.terminateStickySessionsForProviders(
-      snapshotProviderIds,
-      "batchDeleteProviders",
-      deleteQuotaScopes
-    );
+    if (
+      deleteQuotaScopes.length > 0 &&
+      typeof SessionManager?.terminateStickySessionsForProviders === "function"
+    ) {
+      await SessionManager.terminateStickySessionsForProviders(
+        snapshotProviderIds,
+        "batchDeleteProviders",
+        deleteQuotaScopes
+      ).catch((error) => {
+        logger.warn("batchDeleteProviders:terminate_sticky_sessions_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
 
     const undoToken = createProviderPatchUndoToken();
     const operationId = createProviderPatchOperationId();

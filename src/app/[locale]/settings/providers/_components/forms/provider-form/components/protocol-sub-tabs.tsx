@@ -2,10 +2,18 @@
 
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
-import { getProviderTypeConfig } from "@/lib/provider-type-utils";
 import { cn } from "@/lib/utils";
 import type { ProviderType } from "@/types/provider";
 import { useProviderForm } from "../provider-form-context";
+
+const PROTOCOL_DOT_CLASS: Record<ProviderType, string> = {
+  claude: "bg-orange-500",
+  "claude-auth": "bg-amber-500",
+  codex: "bg-blue-500",
+  gemini: "bg-purple-500",
+  "gemini-cli": "bg-indigo-500",
+  "openai-compatible": "bg-emerald-500",
+};
 
 interface ProtocolSubTabsProps {
   className?: string;
@@ -55,8 +63,6 @@ export function ProtocolSubTabs({ className, showRuleCounts = false }: ProtocolS
         {t("sections.routing.multiProtocol.editingProtocol")}:
       </span>
       {selectedProtocols.map((protocol) => {
-        const config = getProviderTypeConfig(protocol);
-        const Icon = config.icon;
         const isActive = protocol === activeProtocol;
         const protoState = protocolConfigs[protocol];
         const ruleCount = protoState
@@ -81,12 +87,11 @@ export function ProtocolSubTabs({ className, showRuleCounts = false }: ProtocolS
           >
             <span
               className={cn(
-                "inline-flex h-4 w-4 items-center justify-center rounded",
-                config.bgColor
+                "inline-block h-2 w-2 shrink-0 rounded-full",
+                PROTOCOL_DOT_CLASS[protocol] ?? "bg-muted-foreground"
               )}
-            >
-              <Icon className={cn("h-3 w-3", config.iconColor)} />
-            </span>
+              aria-hidden="true"
+            />
             <span>{renderProtocolLabel(protocol)}</span>
             {showRuleCounts && ruleCount > 0 && (
               <Badge variant="secondary" className="h-4 px-1 text-[10px] font-normal">
