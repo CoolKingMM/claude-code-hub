@@ -207,6 +207,57 @@ describe("ProviderRichListItem Endpoint Display", () => {
     expect(providersActionMocks.editProvider).not.toHaveBeenCalled();
     unmount();
   });
+
+  test("re-enabling a fully disabled multi-key channel only enables the primary key group", async () => {
+    const provider = makeProviderDisplay({
+      id: 201,
+      name: "Agentrouter",
+      providerType: "codex",
+      protocolGroupId: "grp-1",
+      keyGroupId: 201,
+      isEnabled: false,
+    });
+    const keys = [
+      provider,
+      makeProviderDisplay({
+        id: 202,
+        name: "Agentrouter",
+        providerType: "claude",
+        protocolGroupId: "grp-1",
+        keyGroupId: 201,
+        isEnabled: false,
+      }),
+      makeProviderDisplay({
+        id: 203,
+        name: "Agentrouter-2",
+        providerType: "codex",
+        protocolGroupId: "grp-1",
+        keyGroupId: 203,
+        isEnabled: false,
+      }),
+    ];
+    const { unmount } = renderWithProviders(
+      <ProviderRichListItem
+        provider={provider}
+        channelProviders={keys}
+        currentUser={ADMIN_USER}
+        enableMultiProviderTypes
+      />
+    );
+    await flushTicks(5);
+    const row = document.querySelector('[data-testid="provider-list-row-201"]');
+    const toggle = row?.querySelector('[role="switch"]') as HTMLElement;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await act(async () => {
+      toggle.click();
+    });
+    expect(providersActionMocks.batchUpdateProviders).toHaveBeenCalledWith({
+      providerIds: [201, 202],
+      updates: { is_enabled: true },
+    });
+    expect(providersActionMocks.editProvider).not.toHaveBeenCalled();
+    unmount();
+  });
   beforeEach(() => {
     queryClient = new QueryClient({
       defaultOptions: {

@@ -586,13 +586,29 @@ function ProviderRichListItemInner({
     });
   };
 
-  // 处理启用/禁用切换
+  // 处理启用/禁用切换：
+  // - 关闭渠道时统一关闭渠道下全部记录；
+  // - 开启多密钥渠道时仅开启主密钥对应的协议记录，避免意外激活已关闭的备用密钥。
   const handleToggle = () => {
     startToggleTransition(async () => {
       try {
-        const res = channelProviders
+        let targetIds: number[] | null = null;
+        if (channelProviders) {
+          if (isEnabled) {
+            targetIds = channelProviders.map((key) => key.id);
+          } else if (bundleKeyRepresentatives.length > 1) {
+            const primaryKeyGroup =
+              bundleKeyRepresentatives.find((group) =>
+                group.members.some((member) => member.id === provider.id)
+              ) ?? bundleKeyRepresentatives[0];
+            targetIds = primaryKeyGroup.members.map((member) => member.id);
+          } else {
+            targetIds = channelProviders.map((key) => key.id);
+          }
+        }
+        const res = targetIds
           ? await batchUpdateProviders({
-              providerIds: channelProviders.map((key) => key.id),
+              providerIds: targetIds,
               updates: { is_enabled: !isEnabled },
             })
           : await editProvider(provider.id, { is_enabled: !isEnabled });

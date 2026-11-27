@@ -16,7 +16,7 @@ vi.mock("framer-motion", () => ({
 const actions = vi.hoisted(() => ({
   getProviders: vi.fn(),
   editProvider: vi.fn(),
-  getUnmaskedProviderKey: vi.fn(),
+  batchUpdateProviders: vi.fn(),
 }));
 const testForm = vi.hoisted(() => ({
   state: {
@@ -43,12 +43,6 @@ vi.mock("@/app/[locale]/settings/providers/_components/forms/api-test-button", (
     <div data-testid="selected-test-key" data-id={props.providerId} data-proxy={props.proxyUrl} />
   ),
 }));
-const filters = vi.hoisted(() => ({
-  data: { items: [] as Array<Record<string, unknown>> },
-  isError: false,
-  isPending: false,
-}));
-vi.mock("@/lib/api-client/v1/request-filters/hooks", () => ({ useRequestFilters: () => filters }));
 vi.mock("@/lib/api-client/v1/actions/providers", () => actions);
 vi.mock("@/actions/providers", () => actions);
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -90,9 +84,6 @@ const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
   vi.clearAllMocks();
-  filters.data = { items: [] };
-  filters.isError = false;
-  filters.isPending = false;
 });
 function render(provider = keys[0], disabled = false, testing = false) {
   const container = document.createElement("div");
@@ -152,95 +143,17 @@ describe("编辑渠道中的已有密钥开关", () => {
     expect(selected()?.getAttribute("data-id")).toBe("164");
     expect(actions.editProvider).not.toHaveBeenCalled();
   });
-  test("同密钥归为一条，展开后展示通用和 Haiku 用途并单独切换配置", async () => {
-    const general = {
-      ...keys[0],
-      id: 3,
-      name: "Anyrouter-github",
-      providerType: "claude",
-      keyGroupId: 3,
-      groupTag: "claude",
-      maskedKey: "same-mask",
-      priority: 2,
-      allowedModels: null,
-      anthropicThinkingBudgetPreference: "inherit",
-    } as ProviderDisplay;
-    const haiku = {
-      ...general,
-      id: 107,
-      name: "Anyrouter-github-haiku",
-      priority: 0,
-      allowedModels: [{ matchType: "exact", pattern: "claude-haiku-4-5-20251001" }],
-      anthropicThinkingBudgetPreference: "10240",
-    } as ProviderDisplay;
-    const other = { ...general, id: 108, name: "Other key", keyGroupId: 108 };
-    actions.getProviders.mockResolvedValue([
-      general,
-      haiku,
-      other,
-      { ...haiku, id: 109, groupTag: "glm" },
-    ]);
-    actions.editProvider.mockResolvedValue({ ok: true });
-    filters.data = {
-      items: [
-        {
-          id: 6,
-          name: "haiku_1m_thinking",
-          target: "anthropic-beta",
-          isEnabled: true,
-          bindingType: "providers",
-          providerIds: [107],
-          groupTags: null,
-        },
-      ],
-    };
-    render(general);
-    await flush();
-    expect(document.querySelectorAll('[data-testid^="existing-provider-key-"]')).toHaveLength(2);
-    const details = document.querySelector("details") as HTMLDetailsElement;
-    expect(details.querySelector("summary")?.textContent).toContain("Same key · 2 configurations");
-    await click("details > summary");
-    expect(details.open).toBe(true);
-    const haikuConfig = document.querySelector('[data-testid="provider-key-configuration-107"]');
-    expect(haikuConfig?.textContent).toContain("Haiku configuration");
-    expect(haikuConfig?.textContent).toContain("10240 tokens");
-    expect(haikuConfig?.textContent).toContain("haiku_1m_thinking");
-    expect(haikuConfig?.textContent).toContain("anthropic-beta");
-    const generalConfig = document.querySelector('[data-testid="provider-key-configuration-3"]');
-    expect(generalConfig?.textContent).toContain("General configuration");
-    expect(generalConfig?.textContent).toContain("All models");
-    expect(generalConfig?.textContent).not.toContain("haiku_1m_thinking");
-    await click('[aria-label="Enable configuration Anyrouter-github-haiku"]');
-    expect(actions.editProvider).toHaveBeenCalledWith(107, { is_enabled: false });
-    expect(actions.editProvider).toHaveBeenCalledTimes(1);
-  });
 
-  test("用途信息加载失败或加载中仍可独立控制配置", async () => {
-    const provider = {
-      ...keys[0],
-      keyGroupId: 163,
-      allowedModels: [{ matchType: "prefix", pattern: "gpt-" }],
-    } as ProviderDisplay;
-    actions.getProviders.mockResolvedValue([provider, { ...provider, id: 164 }]);
-    filters.isError = true;
-    render(provider);
-    await flush();
-    expect(document.body.textContent).toContain("Configuration details are incomplete");
-    expect(document.body.textContent).toContain("Model configuration");
-    expect((document.querySelector('[role="switch"]') as HTMLButtonElement).disabled).toBe(false);
-    filters.isError = false;
-    filters.isPending = true;
-    actions.getProviders.mockResolvedValue([provider, { ...provider, id: 164 }]);
-    render(provider);
-    await flush();
-    expect(document.body.textContent).toContain("Loading request filters");
-  });
-  test("显示同渠道的全部掩码密钥，独立切换只更新对应 ID 并刷新缓存", async () => {
+  test("显示同渠道的全部掩码密钥，每行右侧仅保留一个开关按钮且无下拉菜单", async () => {
     actions.getProviders.mockResolvedValue(keys);
     actions.editProvider.mockResolvedValue({ ok: true });
     const client = render();
     await flush();
+    expect(document.querySelectorAll("details")).toHaveLength(0);
     expect(document.querySelectorAll('[data-testid^="existing-provider-key-"]')).toHaveLength(3);
+    const secondCard = document.querySelector('[data-testid="existing-provider-key-164"]');
+    expect(secondCard?.querySelectorAll("button")).toHaveLength(1);
+    expect(secondCard?.querySelector('[role="switch"]')).not.toBeNull();
     expect(document.body.textContent).toContain("sk-***2");
     expect(document.body.textContent).not.toContain("Agentrouter-2");
     await click('[aria-label="Enable key 2"]');
@@ -248,6 +161,90 @@ describe("编辑渠道中的已有密钥开关", () => {
     expect(actions.editProvider).toHaveBeenCalledTimes(1);
     expect(client.getQueryData<ProviderDisplay[]>(["providers"])?.[0].isEnabled).toBe(true);
   });
+
+  test("多协议逻辑渠道不渲染下拉菜单，每把密钥右侧仅一个开关并一键同步全部协议", async () => {
+    const grouped = [
+      {
+        id: 201,
+        name: "AnyRouter",
+        maskedKey: "sk-***a",
+        providerVendorId: 50,
+        providerType: "claude",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 201,
+        isEnabled: false,
+      },
+      {
+        id: 202,
+        name: "AnyRouter",
+        maskedKey: "sk-***a",
+        providerVendorId: 50,
+        providerType: "codex",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 201,
+        isEnabled: true,
+      },
+      {
+        id: 203,
+        name: "AnyRouter",
+        maskedKey: "sk-***a",
+        providerVendorId: 50,
+        providerType: "gemini",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 201,
+        isEnabled: false,
+      },
+      {
+        id: 204,
+        name: "AnyRouter-2",
+        maskedKey: "sk-***b",
+        providerVendorId: 50,
+        providerType: "claude",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 204,
+        isEnabled: false,
+      },
+      {
+        id: 205,
+        name: "AnyRouter-2",
+        maskedKey: "sk-***b",
+        providerVendorId: 50,
+        providerType: "codex",
+        protocolGroupId: "grp-multi",
+        keyGroupId: 204,
+        isEnabled: false,
+      },
+    ] as ProviderDisplay[];
+    actions.getProviders.mockResolvedValue(grouped);
+    actions.batchUpdateProviders.mockResolvedValue({ ok: true });
+    const client = render(grouped[0]);
+    await flush();
+
+    // 不再使用 details 下拉菜单，且每把密钥卡片右侧仅有一个开关按钮
+    expect(document.querySelectorAll("details")).toHaveLength(0);
+    const cards = document.querySelectorAll('[data-testid^="existing-provider-key-"]');
+    expect(cards).toHaveLength(2);
+    expect(cards[0].querySelectorAll("button")).toHaveLength(1);
+    expect(cards[1].querySelectorAll("button")).toHaveLength(1);
+    expect(document.body.textContent).toContain("sk-***a");
+    expect(document.body.textContent).toContain("sk-***b");
+
+    // 密钥 1 在 codex 下处于启用状态，总开关应显示为已启用；点击关闭会同步关闭该密钥的全部协议行
+    const firstSwitch = document.querySelector('[aria-label="Enable key 1"]');
+    expect(firstSwitch?.getAttribute("aria-checked")).toBe("true");
+    await click('[aria-label="Enable key 1"]');
+    expect(actions.batchUpdateProviders).toHaveBeenCalledWith({
+      providerIds: [201, 202, 203],
+      updates: { is_enabled: false },
+    });
+    expect(actions.editProvider).not.toHaveBeenCalled();
+
+    const updated = client.getQueryData<ProviderDisplay[]>(["providers"]) ?? [];
+    expect(
+      updated.filter((item) => [201, 202, 203].includes(item.id)).every((item) => !item.isEnabled)
+    ).toBe(true);
+  });
+
   test("切换失败显示错误且不修改其他密钥", async () => {
     actions.getProviders.mockResolvedValue(keys);
     actions.editProvider.mockResolvedValue({ ok: false, error: "save failed" });
@@ -259,6 +256,7 @@ describe("编辑渠道中的已有密钥开关", () => {
       document.querySelector('[aria-label="Enable key 3"]')?.getAttribute("aria-checked")
     ).toBe("false");
   });
+
   test("加载失败不允许使用未确认的密钥状态操作", async () => {
     actions.getProviders.mockRejectedValue(new Error("load failed"));
     render();
@@ -266,6 +264,7 @@ describe("编辑渠道中的已有密钥开关", () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Failed to load");
     expect((document.querySelector('[role="switch"]') as HTMLButtonElement).disabled).toBe(true);
   });
+
   test("未知供应商只显示自己，表单保存中禁用开关", async () => {
     const provider = { ...keys[0], providerVendorId: null };
     actions.getProviders.mockResolvedValue([provider, { ...provider, id: 170 }]);
@@ -274,6 +273,7 @@ describe("编辑渠道中的已有密钥开关", () => {
     expect(document.querySelectorAll('[data-testid^="existing-provider-key-"]')).toHaveLength(1);
     expect((document.querySelector('[role="switch"]') as HTMLButtonElement).disabled).toBe(true);
   });
+
   test("保存开关时阻止其他开关并发，异常显示错误", async () => {
     actions.getProviders.mockResolvedValue(keys);
     let reject: (cause: Error) => void = () => {};
@@ -295,90 +295,5 @@ describe("编辑渠道中的已有密钥开关", () => {
       reject(new Error("network failed"));
     });
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("network failed");
-  });
-  test("点击查看明文与复制按钮可获取并隐藏任意合并密钥的完整明文", async () => {
-    actions.getProviders.mockResolvedValue(keys);
-    actions.getUnmaskedProviderKey.mockResolvedValue({
-      ok: true,
-      data: { key: "sk-plain-secret-2" },
-    });
-    render();
-    await flush();
-    const secondCard = document.querySelector('[data-testid="existing-provider-key-164"]');
-    expect(secondCard?.textContent).toContain("sk-***2");
-
-    const showBtn = secondCard?.querySelector(
-      '[aria-label="Show full API key"]'
-    ) as HTMLButtonElement;
-    expect(showBtn).not.toBeNull();
-    await act(async () => {
-      showBtn.click();
-      await new Promise((resolve) => setTimeout(resolve, 30));
-    });
-    expect(actions.getUnmaskedProviderKey).toHaveBeenCalledWith(164);
-    expect(secondCard?.textContent).toContain("sk-plain-secret-2");
-
-    // 再次点击隐藏恢复脱敏展示
-    const hideBtn = secondCard?.querySelector(
-      '[aria-label="Hide full API key"]'
-    ) as HTMLButtonElement;
-    expect(hideBtn).not.toBeNull();
-    await act(async () => {
-      hideBtn.click();
-      await new Promise((resolve) => setTimeout(resolve, 30));
-    });
-    expect(secondCard?.textContent).toContain("sk-***2");
-    expect(secondCard?.textContent).not.toContain("sk-plain-secret-2");
-
-    // 复制按钮可自动拉取明文
-    const copyBtn = secondCard?.querySelector(
-      '[aria-label="Copy full API key"]'
-    ) as HTMLButtonElement;
-    expect(copyBtn).not.toBeNull();
-    await act(async () => {
-      copyBtn.click();
-      await new Promise((resolve) => setTimeout(resolve, 30));
-    });
-    expect(actions.getUnmaskedProviderKey).toHaveBeenCalledTimes(2);
-  });
-  test("多协议逻辑渠道展示全部独立密钥，共享同一把密钥的跨协议配置归入同一卡片", async () => {
-    const grouped = [
-      {
-        id: 201,
-        name: "AnyRouter",
-        maskedKey: "sk-***a",
-        providerVendorId: 50,
-        providerType: "claude",
-        protocolGroupId: "grp-multi",
-        keyGroupId: 201,
-        isEnabled: true,
-      },
-      {
-        id: 202,
-        name: "AnyRouter-gemini",
-        maskedKey: "sk-***a",
-        providerVendorId: 50,
-        providerType: "gemini",
-        protocolGroupId: "grp-multi",
-        keyGroupId: 201,
-        isEnabled: true,
-      },
-      {
-        id: 203,
-        name: "AnyRouter-adopted",
-        maskedKey: "sk-***b",
-        providerVendorId: 50,
-        providerType: "codex",
-        protocolGroupId: "grp-multi",
-        keyGroupId: 203,
-        isEnabled: true,
-      },
-    ] as ProviderDisplay[];
-    actions.getProviders.mockResolvedValue(grouped);
-    render(grouped[0]);
-    await flush();
-    expect(document.querySelectorAll('[data-testid^="existing-provider-key-"]')).toHaveLength(2);
-    expect(document.body.textContent).toContain("sk-***a");
-    expect(document.body.textContent).toContain("sk-***b");
   });
 });
