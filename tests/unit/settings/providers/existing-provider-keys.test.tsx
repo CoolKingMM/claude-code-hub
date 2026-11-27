@@ -215,7 +215,10 @@ describe("编辑渠道中的已有密钥开关", () => {
         isEnabled: false,
       },
     ] as ProviderDisplay[];
-    actions.getProviders.mockResolvedValue(grouped);
+    const groupedAfterDisable = grouped.map((item) =>
+      [201, 202, 203].includes(item.id) ? { ...item, isEnabled: false } : item
+    );
+    actions.getProviders.mockResolvedValueOnce(grouped).mockResolvedValue(groupedAfterDisable);
     actions.batchUpdateProviders.mockResolvedValue({ ok: true });
     const client = render(grouped[0]);
     await flush();

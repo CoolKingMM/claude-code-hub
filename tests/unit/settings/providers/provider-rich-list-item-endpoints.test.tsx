@@ -209,6 +209,7 @@ describe("ProviderRichListItem Endpoint Display", () => {
   });
 
   test("re-enabling a fully disabled multi-key channel only enables the primary key group", async () => {
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const provider = makeProviderDisplay({
       id: 201,
       name: "Agentrouter",
